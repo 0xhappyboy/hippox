@@ -1,0 +1,33 @@
+[app]
+name = "Hippo Agent"
+running = "Hippo Agent is running!"
+available_skills = "Available skills:"
+try_saying = "Try saying: hello, hi, or nihao"
+type_exit = "Type 'exit' to quit, 'clear' to clear conversation"
+goodbye = "Goodbye!"
+conversation_cleared = "Conversation cleared!"
+
+[skill]
+selected = "Selected skill: {}"
+no_match = "No skill matched for: {}"
+error = "Error: {}"
+executing = "Executing skill: {}"
+description = "Description: {}"
+instructions = "Instructions: {}"
+user_input = "User input: {}"
+
+[error]
+config_not_found = "Skills directory not found: {}"
+invalid_skill_format = "Invalid SKILL.md format: missing frontmatter"
+llm_api_key_missing = "{}_API_KEY not set"
+
+[prompt]
+select_skill = """
+You are a skill router. Based on the user's request, select the most appropriate skill.
+
+Available skills:
+{}
+
+User request: {}
+
+Respond with ONLY the skill name, nothing else. If no skill matches, respond with 'none'."""

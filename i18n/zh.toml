@@ -1,0 +1,33 @@
+[app]
+name = "河马AI代理"
+running = "河马AI代理正在运行！"
+available_skills = "可用技能："
+try_saying = "试试说：你好，嗨，或你好"
+type_exit = "输入 'exit' 退出，'clear' 清除对话"
+goodbye = "再见！"
+conversation_cleared = "对话已清除！"
+
+[skill]
+selected = "已选择技能：{}"
+no_match = "没有找到匹配的技能：{}"
+error = "错误：{}"
+executing = "正在执行技能：{}"
+description = "描述：{}"
+instructions = "指令：{}"
+user_input = "用户输入：{}"
+
+[error]
+config_not_found = "未找到技能目录：{}"
+invalid_skill_format = "无效的 SKILL.md 格式：缺少 frontmatter"
+llm_api_key_missing = "未设置 {}_API_KEY 环境变量"
+
+[prompt]
+select_skill = """
+你是一个技能路由器。根据用户的请求，选择最合适的技能。
+
+可用技能：
+{}
+
+用户请求：{}
+
+只回复技能名称，不要回复其他内容。如果没有匹配的技能，回复 'none'。"""
