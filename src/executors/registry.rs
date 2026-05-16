@@ -46,6 +46,22 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "math-unit-converter".to_string(),
         Arc::new(super::skills::UnitConverterSkill) as Arc<dyn Skill>,
     );
+    registry.insert(
+        "time-datetime".to_string(),
+        Arc::new(super::skills::DateTimeSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "net-httprequest".to_string(),
+        Arc::new(super::skills::HttpRequestSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "net-websearch".to_string(),
+        Arc::new(super::skills::WebSearchSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "system-systeminfo".to_string(),
+        Arc::new(super::skills::SystemInfoSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 
