@@ -10,6 +10,42 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "helloworld".to_string(),
         Arc::new(super::skills::HelloWorldSkill) as Arc<dyn Skill>,
     );
+    registry.insert(
+        "file-read".to_string(),
+        Arc::new(super::skills::file::ReadFileSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "file-write".to_string(),
+        Arc::new(super::skills::file::WriteFileSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "file-delete".to_string(),
+        Arc::new(super::skills::file::DeleteFileSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "file-list".to_string(),
+        Arc::new(super::skills::file::ListDirectorySkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "file-copy".to_string(),
+        Arc::new(super::skills::file::CopyFileSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "math-calculator".to_string(),
+        Arc::new(super::skills::CalculatorSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "math-power".to_string(),
+        Arc::new(super::skills::PowerSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "math-statistics".to_string(),
+        Arc::new(super::skills::StatisticsSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "math-unit-converter".to_string(),
+        Arc::new(super::skills::UnitConverterSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 
