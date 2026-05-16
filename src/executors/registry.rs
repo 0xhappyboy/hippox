@@ -68,6 +68,50 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "read-url".to_string(),
         Arc::new(super::skills::ReadUrlSkill) as Arc<dyn Skill>,
     );
+    registry.insert(
+        "markdown-read".to_string(),
+        Arc::new(super::skills::document::MarkdownReadSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "markdown-write".to_string(),
+        Arc::new(super::skills::document::MarkdownWriteSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "csv-read".to_string(),
+        Arc::new(super::skills::document::CsvReadSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "csv-write".to_string(),
+        Arc::new(super::skills::document::CsvWriteSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "xml-parse".to_string(),
+        Arc::new(super::skills::document::XmlParseSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "xml-to-json".to_string(),
+        Arc::new(super::skills::document::XmlToJsonSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "excel-read".to_string(),
+        Arc::new(super::skills::document::ExcelReadSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "excel-write".to_string(),
+        Arc::new(super::skills::document::ExcelWriteSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "send_email".to_string(),
+        Arc::new(super::skills::message::SendEmailSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "send-telegram".to_string(),
+        Arc::new(super::skills::message::SendTelegramSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "send-dingding".to_string(),
+        Arc::new(super::skills::message::SendDingDingSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 
