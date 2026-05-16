@@ -35,13 +35,13 @@ impl Default for ServiceConfig {
 }
 
 #[derive(Clone)]
-pub struct Core {
+pub struct Hippox {
     scheduler: SkillScheduler,
     executor: Executor,
     conversations: Arc<RwLock<HashMap<String, Vec<String>>>>,
 }
 
-impl Core {
+impl Hippox {
     pub async fn new(
         skills_dir: &str,
         provider: ModelProvider,

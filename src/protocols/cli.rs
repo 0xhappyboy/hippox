@@ -1,10 +1,10 @@
-use crate::core::Core;
+use crate::core::Hippox;
 use std::{io::Write, sync::Arc};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-pub async fn run_cli(core: Arc<Core>) -> anyhow::Result<()> {
+pub async fn run_cli(hippox: Arc<Hippox>) -> anyhow::Result<()> {
     println!("\n🚀 Hippo CLI - Connected to Core");
-    println!("Available skills:\n{}\n", core.list_skills());
+    println!("Available skills:\n{}\n", hippox.list_skills());
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut line = String::new();
@@ -16,7 +16,7 @@ pub async fn run_cli(core: Arc<Core>) -> anyhow::Result<()> {
             Ok(0) => break,
             Ok(_) => {
                 let input = line.trim();
-                let result = core.process(input).await;
+                let result = hippox.process(input).await;
                 if result.response == "goodbye" {
                     println!("Goodbye!");
                     break;

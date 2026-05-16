@@ -1,4 +1,4 @@
-use crate::core::Core;
+use crate::core::Hippox;
 use axum::{
     Json, Router,
     extract::State,
@@ -20,11 +20,11 @@ struct ChatResponse {
     response: String,
 }
 
-pub async fn run_http_server(core: Arc<Core>, addr: &str) -> anyhow::Result<()> {
+pub async fn run_http_server(hippox: Arc<Hippox>, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/chat", post(chat_handler))
         .route("/skills", get(skills_handler))
-        .with_state(core);
+        .with_state(hippox);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("HTTP server listening on http://{}", addr);
     axum::serve(listener, app).await?;
@@ -32,7 +32,7 @@ pub async fn run_http_server(core: Arc<Core>, addr: &str) -> anyhow::Result<()> 
 }
 
 async fn chat_handler(
-    State(core): State<Arc<Core>>,
+    State(core): State<Arc<Hippox>>,
     Json(req): Json<ChatRequest>,
 ) -> Json<ChatResponse> {
     let result = core.process(&req.input).await;
@@ -43,6 +43,6 @@ async fn chat_handler(
     })
 }
 
-async fn skills_handler(State(core): State<Arc<Core>>) -> String {
+async fn skills_handler(State(core): State<Arc<Hippox>>) -> String {
     core.list_skills()
 }

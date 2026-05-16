@@ -1,7 +1,6 @@
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::fs;
 use std::sync::RwLock;
 
 #[derive(Debug, Deserialize)]
@@ -13,7 +12,11 @@ struct Translations {
 }
 
 static CURRENT_LANG: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new("en".to_string()));
-static TRANSLATIONS: Lazy<RwLock<HashMap<String, Translations>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static TRANSLATIONS: Lazy<RwLock<HashMap<String, Translations>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+
+const EN_TOML: &str = include_str!("./i18n/en.toml");
+const ZH_TOML: &str = include_str!("./i18n/zh.toml");
 
 pub fn init() {
     load_translations();
@@ -23,13 +26,11 @@ pub fn init() {
 
 fn load_translations() {
     let mut translations = HashMap::new();
-    for lang in &["en", "zh"] {
-        let path = format!("i18n/{}.toml", lang);
-        if let Ok(content) = fs::read_to_string(&path) {
-            if let Ok(trans) = toml::from_str(&content) {
-                translations.insert(lang.to_string(), trans);
-            }
-        }
+    if let Ok(trans) = toml::from_str(EN_TOML) {
+        translations.insert("en".to_string(), trans);
+    }
+    if let Ok(trans) = toml::from_str(ZH_TOML) {
+        translations.insert("zh".to_string(), trans);
     }
     let mut store = TRANSLATIONS.write().unwrap();
     *store = translations;

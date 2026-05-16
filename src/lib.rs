@@ -7,7 +7,7 @@ mod skill_loader;
 mod skill_scheduler;
 mod types;
 
-pub use core::{Core, ServiceConfig};
+pub use core::{Hippox, ServiceConfig};
 pub use langhub::types::ModelProvider;
 
 #[cfg(test)]
@@ -27,7 +27,7 @@ mod tests {
             Ok("google") => ModelProvider::Google,
             _ => ModelProvider::OpenAI,
         };
-        let core = Core::new("skills", provider, &lang).await?;
+        let hippox = Hippox::new("skills", provider, &lang).await?;
         // Configure which protocols to enable
         let config = ServiceConfig {
             enable_cli: env::var("HIPPO_ENABLE_CLI")
@@ -48,7 +48,7 @@ mod tests {
                 .unwrap_or(false),
             enable_grpc: false,
         };
-        core.start(config).await?;
+        hippox.start(config).await?;
         Ok(())
     }
 }
