@@ -1,5 +1,5 @@
 <h1 align="center">
-    🦛 Hippo
+    🦛 HippoX
 </h1>
 <h4 align="center">
 A reliable AI agent engine. 

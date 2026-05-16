@@ -23,7 +23,6 @@ pub fn init() {
 
 fn load_translations() {
     let mut translations = HashMap::new();
-    
     for lang in &["en", "zh"] {
         let path = format!("i18n/{}.toml", lang);
         if let Ok(content) = fs::read_to_string(&path) {
@@ -32,7 +31,6 @@ fn load_translations() {
             }
         }
     }
-    
     let mut store = TRANSLATIONS.write().unwrap();
     *store = translations;
 }
@@ -45,19 +43,16 @@ pub fn set_language(lang: &str) {
 pub fn t(key: &str) -> String {
     let lang = get_language();
     let translations = TRANSLATIONS.read().unwrap();
-    
     if let Some(trans) = translations.get(&lang) {
         if let Some(value) = get_value(trans, key) {
             return value;
         }
     }
-    
     if let Some(trans) = translations.get("en") {
         if let Some(value) = get_value(trans, key) {
             return value;
         }
     }
-    
     key.to_string()
 }
 
@@ -74,7 +69,6 @@ fn get_value(trans: &Translations, key: &str) -> Option<String> {
     if parts.len() != 2 {
         return None;
     }
-    
     match parts[0] {
         "app" => trans.app.get(parts[1]).cloned(),
         "skill" => trans.skill.get(parts[1]).cloned(),

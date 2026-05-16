@@ -43,7 +43,6 @@ impl Executor {
     pub async fn execute(&self, call: &SkillCall) -> Result<String> {
         let skill = registry::get_skill(&call.action)
             .ok_or_else(|| anyhow::anyhow!("Unknown skill: {}", call.action))?;
-
         skill.execute(&call.parameters).await
     }
 }
