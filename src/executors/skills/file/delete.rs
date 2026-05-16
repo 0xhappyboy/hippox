@@ -1,10 +1,12 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
- 
-use crate::executors::skills::common;
-use crate::executors::types::Skill;
+
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct DeleteFileSkill;
@@ -16,7 +18,51 @@ impl Skill for DeleteFileSkill {
     }
 
     fn description(&self) -> &str {
-        "Delete a file or empty directory. Parameters: path (required) - file/directory path, recursive (optional, default false) - delete directory recursively"
+        "Delete a file or empty directory"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user wants to delete, remove, or delete a file or empty directory"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "path".to_string(),
+                param_type: "string".to_string(),
+                description: "Path to the file or directory to delete".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("/tmp/temp.txt".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "recursive".to_string(),
+                param_type: "boolean".to_string(),
+                description: "Delete directory recursively (including all contents)".to_string(),
+                required: false,
+                default: Some(Value::Bool(false)),
+                example: Some(Value::Bool(true)),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "file_delete",
+            "parameters": {
+                "path": "/tmp/temp.txt"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "File deleted: /tmp/temp.txt".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "file"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

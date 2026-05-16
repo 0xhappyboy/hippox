@@ -1,8 +1,11 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::executors::{skills::common, types::Skill};
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct WriteFileSkill;
@@ -14,7 +17,61 @@ impl Skill for WriteFileSkill {
     }
 
     fn description(&self) -> &str {
-        "Write content to a file. Parameters: path (required) - file path, content (required) - content to write, append (optional, default false) - append to file"
+        "Write content to a file"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user wants to save, write, create, or append content to a file"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "path".to_string(),
+                param_type: "string".to_string(),
+                description: "Path to the file to write".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("/tmp/output.txt".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "content".to_string(),
+                param_type: "string".to_string(),
+                description: "Content to write to the file".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("Hello, World!".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "append".to_string(),
+                param_type: "boolean".to_string(),
+                description: "Append to file instead of overwriting".to_string(),
+                required: false,
+                default: Some(Value::Bool(false)),
+                example: Some(Value::Bool(true)),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "file_write",
+            "parameters": {
+                "path": "/tmp/hello.txt",
+                "content": "Hello, World!"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "Content written to file: /tmp/hello.txt".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "file"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

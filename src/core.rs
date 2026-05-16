@@ -248,17 +248,8 @@ You can respond in one of three ways:
     /// Main process function with multi-step execution support
     pub async fn process(&self, input: &str) -> ProcessResult {
         let session_id = "default".to_string();
-        let registry_json =
-            match SkillLoader::create_skills_registry_table_json_str(&self.skills_dir) {
-                Ok(reg) => reg,
-                Err(e) => {
-                    return ProcessResult {
-                        response: format!("Failed to load skills: {}", e),
-                        matched: false,
-                        skill_name: None,
-                    };
-                }
-            };
+        // skill registry table json
+        let registry_json = crate::executors::registry::generate_skill_registry_table_json_str();
         let input_trimmed = input.trim();
         if input_trimmed == "clear" {
             let mut conversations = self.conversations.write().unwrap();

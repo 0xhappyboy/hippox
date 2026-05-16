@@ -1,8 +1,11 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::executors::{skills::common, types::Skill};
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct StatisticsSkill;
@@ -14,7 +17,70 @@ impl Skill for StatisticsSkill {
     }
 
     fn description(&self) -> &str {
-        "Calculate statistical values. Parameters: numbers (required) - array of numbers, operation (required) - mean/median/mode/sum/min/max"
+        "Calculate statistical values from a set of numbers"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user asks to calculate statistics like sum, mean, median, mode, min, or max from a list of numbers"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "numbers".to_string(),
+                param_type: "array".to_string(),
+                description: "Array of numbers to analyze, e.g., [1, 2, 3, 4, 5]".to_string(),
+                required: true,
+                default: None,
+                example: Some(json!([1, 2, 3, 4, 5])),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "operation".to_string(),
+                param_type: "string".to_string(),
+                description: "Statistical operation: sum, mean, average, min, max, median, mode"
+                    .to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("mean".to_string())),
+                enum_values: Some(vec![
+                    "sum".to_string(),
+                    "mean".to_string(),
+                    "average".to_string(),
+                    "min".to_string(),
+                    "max".to_string(),
+                    "median".to_string(),
+                    "mode".to_string(),
+                ]),
+            },
+            SkillParameter {
+                name: "precision".to_string(),
+                param_type: "integer".to_string(),
+                description: "Number of decimal places in the result".to_string(),
+                required: false,
+                default: Some(Value::Number(2.into())),
+                example: Some(Value::Number(2.into())),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "math_statistics",
+            "parameters": {
+                "numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                "operation": "mean"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "mean = 5.50".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "math"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

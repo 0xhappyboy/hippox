@@ -1,10 +1,12 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 
-use crate::executors::skills::common;
-use crate::executors::types::Skill;
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct ListDirectorySkill;
@@ -16,7 +18,60 @@ impl Skill for ListDirectorySkill {
     }
 
     fn description(&self) -> &str {
-        "List contents of a directory. Parameters: path (required) - directory path, show_hidden (optional, default false) - show hidden files, detail (optional, default false) - show detailed info"
+        "List contents of a directory"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user wants to list, show, or see what's inside a directory"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "path".to_string(),
+                param_type: "string".to_string(),
+                description: "Directory path to list".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("/home/user".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "show_hidden".to_string(),
+                param_type: "boolean".to_string(),
+                description: "Show hidden files (starting with dot)".to_string(),
+                required: false,
+                default: Some(Value::Bool(false)),
+                example: Some(Value::Bool(true)),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "detail".to_string(),
+                param_type: "boolean".to_string(),
+                description: "Show detailed information (type, size)".to_string(),
+                required: false,
+                default: Some(Value::Bool(false)),
+                example: Some(Value::Bool(true)),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "file_list",
+            "parameters": {
+                "path": "/home/user"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "Contents of /home/user:\ndocuments\nDownloads\nPictures".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "file"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

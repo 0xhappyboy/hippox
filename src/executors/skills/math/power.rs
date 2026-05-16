@@ -1,8 +1,11 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::executors::{skills::common, types::Skill};
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct PowerSkill;
@@ -14,7 +17,81 @@ impl Skill for PowerSkill {
     }
 
     fn description(&self) -> &str {
-        "Calculate power or root. Parameters: base (required), exponent (required) for power, or use sqrt for square root"
+        "Calculate power, square root, or cube root operations"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user asks to calculate powers, exponents, square roots, or cube roots"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "base".to_string(),
+                param_type: "string".to_string(),
+                description: "Base number for power operation".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("2".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "exponent".to_string(),
+                param_type: "string".to_string(),
+                description: "Exponent for power operation".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("10".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "sqrt".to_string(),
+                param_type: "string".to_string(),
+                description: "Number to calculate square root (alternative to base+exponent)"
+                    .to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("16".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "cbrt".to_string(),
+                param_type: "string".to_string(),
+                description: "Number to calculate cube root (alternative to base+exponent)"
+                    .to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("27".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "precision".to_string(),
+                param_type: "integer".to_string(),
+                description: "Number of decimal places in the result".to_string(),
+                required: false,
+                default: Some(Value::Number(2.into())),
+                example: Some(Value::Number(2.into())),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "math_power",
+            "parameters": {
+                "base": "2",
+                "exponent": "10"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "2 ^ 10 = 1024.00".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "math"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -55,11 +132,9 @@ impl Skill for PowerSkill {
     }
 
     fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        // Either (base + exponent) OR sqrt OR cbrt
         let has_power = parameters.contains_key("base") && parameters.contains_key("exponent");
         let has_sqrt = parameters.contains_key("sqrt");
         let has_cbrt = parameters.contains_key("cbrt");
-
         if !has_power && !has_sqrt && !has_cbrt {
             anyhow::bail!("Missing parameters: provide (base + exponent) or (sqrt) or (cbrt)");
         }

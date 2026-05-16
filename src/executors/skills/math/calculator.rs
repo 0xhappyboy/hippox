@@ -1,8 +1,11 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::executors::{skills::common, types::Skill};
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct CalculatorSkill;
@@ -14,7 +17,53 @@ impl Skill for CalculatorSkill {
     }
 
     fn description(&self) -> &str {
-        "Evaluate mathematical expressions. Parameters: expression (required) - math expression like '2 + 3 * 4'"
+        "Evaluate mathematical expressions"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user asks to calculate, compute, or solve a math expression"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "expression".to_string(),
+                param_type: "string".to_string(),
+                description: "Math expression to evaluate, e.g., '2 + 3 * 4' or '(10 - 5) / 2'"
+                    .to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("2 + 3 * 4".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "precision".to_string(),
+                param_type: "integer".to_string(),
+                description: "Number of decimal places in the result".to_string(),
+                required: false,
+                default: Some(Value::Number(2.into())),
+                example: Some(Value::Number(2.into())),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "calculator",
+            "parameters": {
+                "expression": "2 + 3 * 4",
+                "precision": 2
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "14.00".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "math"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -39,7 +88,7 @@ impl Skill for CalculatorSkill {
     }
 }
 
-/// Basic expression evaluator (supports +, -, *, /, %)
+// Rest of the expression evaluator functions remain the same...
 fn evaluate_expression(expr: &str) -> Result<f64> {
     let expr: String = expr.chars().filter(|c| !c.is_whitespace()).collect();
     if expr.contains('(') {
@@ -150,7 +199,6 @@ fn evaluate_with_parentheses(expr: &str) -> Result<f64> {
     if let (Some(s), Some(e)) = (start, end) {
         let inner = &expr[s + 1..e];
         let inner_result = evaluate_expression(inner)?;
-
         let new_expr = format!("{}{}{}", &expr[..s], inner_result, &expr[e + 1..]);
         return evaluate_expression(&new_expr);
     }

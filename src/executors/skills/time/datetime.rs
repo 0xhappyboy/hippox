@@ -1,9 +1,9 @@
 use anyhow::Result;
-use chrono::{Local, Utc};
-use serde_json::Value;
+use chrono::{Duration, Local, Utc};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::executors::types::Skill;
+use crate::executors::types::{Skill, SkillParameter};
 
 #[derive(Debug)]
 pub struct DateTimeSkill;
@@ -15,7 +15,65 @@ impl Skill for DateTimeSkill {
     }
 
     fn description(&self) -> &str {
-        "Get current date and time or convert timezones"
+        "Get current date and time, or perform timezone conversions"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user asks for the current time, date, timestamp, or wants to convert between timezones"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "operation".to_string(),
+                param_type: "string".to_string(),
+                description: "Operation type: now, utc, timestamp, or convert".to_string(),
+                required: false,
+                default: Some(Value::String("now".to_string())),
+                example: Some(Value::String("now".to_string())),
+                enum_values: Some(vec![
+                    "now".to_string(),
+                    "utc".to_string(),
+                    "timestamp".to_string(),
+                    "convert".to_string(),
+                ]),
+            },
+            SkillParameter {
+                name: "timezone".to_string(),
+                param_type: "string".to_string(),
+                description: "Timezone like 'Asia/Shanghai', 'America/New_York', 'UTC' (for convert operation)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("Asia/Shanghai".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "format".to_string(),
+                param_type: "string".to_string(),
+                description: "Output format like '%Y-%m-%d %H:%M:%S'".to_string(),
+                required: false,
+                default: Some(Value::String("%Y-%m-%d %H:%M:%S".to_string())),
+                example: Some(Value::String("%Y-%m-%d %H:%M:%S".to_string())),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "datetime",
+            "parameters": {
+                "operation": "now"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "2024-01-15 14:30:25".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "time"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -45,7 +103,6 @@ impl Skill for DateTimeSkill {
                 }
             }
             _ => {
-                // Default: local time
                 let now = Local::now();
                 Ok(now.format(format_str).to_string())
             }
@@ -70,7 +127,6 @@ fn convert_timezone(timezone: &str, format_str: &str) -> Result<String> {
         "asia/singapore" | "sgt" => 8,
         "australia/sydney" | "aest" => 11,
         _ => {
-            // Try to parse as UTC offset like "UTC+8"
             if let Some(offset_val) = parse_offset(timezone) {
                 offset_val
             } else {
@@ -79,7 +135,7 @@ fn convert_timezone(timezone: &str, format_str: &str) -> Result<String> {
         }
     };
     let now = Utc::now();
-    let dt = now + chrono::Duration::hours(offset.into());
+    let dt = now + Duration::hours(offset.into());
     Ok(dt.format(format_str).to_string())
 }
 

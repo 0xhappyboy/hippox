@@ -1,8 +1,11 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::executors::{skills::common, types::Skill};
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct UnitConverterSkill;
@@ -14,7 +17,87 @@ impl Skill for UnitConverterSkill {
     }
 
     fn description(&self) -> &str {
-        "Convert between units. Parameters: value (required), from (required) - source unit, to (required) - target unit"
+        "Convert between different units of measurement"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user asks to convert between units like meters to feet, kilometers to miles, etc."
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "value".to_string(),
+                param_type: "string".to_string(),
+                description: "The numeric value to convert".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("100".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "from".to_string(),
+                param_type: "string".to_string(),
+                description: "Source unit (m, km, cm, mm, mi, ft, in)".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("km".to_string())),
+                enum_values: Some(vec![
+                    "m".to_string(),
+                    "km".to_string(),
+                    "cm".to_string(),
+                    "mm".to_string(),
+                    "mi".to_string(),
+                    "ft".to_string(),
+                    "in".to_string(),
+                ]),
+            },
+            SkillParameter {
+                name: "to".to_string(),
+                param_type: "string".to_string(),
+                description: "Target unit (m, km, cm, mm, mi, ft, in)".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("miles".to_string())),
+                enum_values: Some(vec![
+                    "m".to_string(),
+                    "km".to_string(),
+                    "cm".to_string(),
+                    "mm".to_string(),
+                    "mi".to_string(),
+                    "ft".to_string(),
+                    "in".to_string(),
+                ]),
+            },
+            SkillParameter {
+                name: "precision".to_string(),
+                param_type: "integer".to_string(),
+                description: "Number of decimal places in the result".to_string(),
+                required: false,
+                default: Some(Value::Number(2.into())),
+                example: Some(Value::Number(2.into())),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "unit_converter",
+            "parameters": {
+                "value": "100",
+                "from": "km",
+                "to": "miles"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "100 km = 62.14 miles".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "math"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

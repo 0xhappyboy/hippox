@@ -1,10 +1,12 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 
-use crate::executors::skills::common;
-use crate::executors::types::Skill;
+use crate::executors::{
+    skills::common,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct CopyFileSkill;
@@ -16,7 +18,61 @@ impl Skill for CopyFileSkill {
     }
 
     fn description(&self) -> &str {
-        "Copy or move a file. Parameters: source (required) - source path, destination (required) - destination path, move (optional, default false) - move instead of copy"
+        "Copy or move a file"
+    }
+
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user wants to copy, move, rename, or duplicate a file"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![
+            SkillParameter {
+                name: "source".to_string(),
+                param_type: "string".to_string(),
+                description: "Source file path".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("/tmp/source.txt".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "destination".to_string(),
+                param_type: "string".to_string(),
+                description: "Destination file path".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("/tmp/dest.txt".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "move".to_string(),
+                param_type: "boolean".to_string(),
+                description: "Move instead of copy (rename/move)".to_string(),
+                required: false,
+                default: Some(Value::Bool(false)),
+                example: Some(Value::Bool(true)),
+                enum_values: None,
+            },
+        ]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "file_copy",
+            "parameters": {
+                "source": "/tmp/source.txt",
+                "destination": "/tmp/dest.txt"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "Copied /tmp/source.txt to /tmp/dest.txt".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "file"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -1,4 +1,5 @@
 use crate::executors::Skill;
+use crate::executors::types::SkillMetadata;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -60,6 +61,27 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     );
     RwLock::new(registry)
 });
+
+/// Generate AI registry JSON for LLM
+pub fn generate_ai_registry() -> Vec<SkillMetadata> {
+    let registry = get_registry();
+    registry
+        .values()
+        .map(|skill| skill.get_metadata())
+        .collect()
+}
+
+/// generate skill registry table json string
+pub fn generate_skill_registry_table_json_str() -> String {
+    let metadata = generate_ai_registry();
+    let output = serde_json::json!({
+        "version": "1.0",
+        "total_skills": metadata.len(),
+        "skills": metadata,
+        "instruction": r#"You can call a skill by returning a JSON object with 'action' and 'parameters' fields. Example: {"action": "calculator", "parameters": {"expression": "2+3"}}"#
+    });
+    serde_json::to_string_pretty(&output).unwrap()
+}
 
 pub fn get_registry() -> std::sync::RwLockReadGuard<'static, HashMap<String, Arc<dyn Skill>>> {
     SKILL_REGISTRY.read().unwrap()

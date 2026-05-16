@@ -1,9 +1,9 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use sysinfo::{Disks, System};
 
-use crate::executors::types::Skill;
+use crate::executors::types::{Skill, SkillParameter};
 
 #[derive(Debug)]
 pub struct SystemInfoSkill;
@@ -18,6 +18,46 @@ impl Skill for SystemInfoSkill {
         "Get system information like OS, CPU, memory, and disk usage"
     }
 
+    fn usage_hint(&self) -> &str {
+        "Use this skill when the user asks about system specifications, hardware info, or resource usage"
+    }
+
+    fn parameters(&self) -> Vec<SkillParameter> {
+        vec![SkillParameter {
+            name: "info_type".to_string(),
+            param_type: "string".to_string(),
+            description: "Type of info: all, os, cpu, memory, disk, hostname".to_string(),
+            required: false,
+            default: Some(Value::String("all".to_string())),
+            example: Some(Value::String("cpu".to_string())),
+            enum_values: Some(vec![
+                "all".to_string(),
+                "os".to_string(),
+                "cpu".to_string(),
+                "memory".to_string(),
+                "disk".to_string(),
+                "hostname".to_string(),
+            ]),
+        }]
+    }
+
+    fn example_call(&self) -> Value {
+        json!({
+            "action": "system_info",
+            "parameters": {
+                "info_type": "all"
+            }
+        })
+    }
+
+    fn example_output(&self) -> String {
+        "OS: Linux 5.15.0\nCPU: Intel i7-10750H (12 cores)\nMemory: 8.2 GB / 16.0 GB (51.2%)\nDisk: /: 120.5 GB / 512.0 GB (23.5%)".to_string()
+    }
+
+    fn category(&self) -> &str {
+        "system"
+    }
+
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let info_type = parameters
             .get("info_type")
@@ -29,7 +69,7 @@ impl Skill for SystemInfoSkill {
             "os" => Ok(get_os_info(&sys)),
             "cpu" => Ok(get_cpu_info(&sys)),
             "memory" => Ok(get_memory_info(&sys)),
-            "disk" => Ok(get_disk_info(&sys)),
+            "disk" => Ok(get_disk_info()),
             "hostname" => Ok(get_hostname()),
             _ => Ok(get_all_info(&sys)),
         }
@@ -68,7 +108,6 @@ fn get_cpu_info(sys: &System) -> String {
 fn get_memory_info(sys: &System) -> String {
     let total = sys.total_memory();
     let used = sys.used_memory();
-    let free = total - used;
     let used_percent = (used as f64 / total as f64) * 100.0;
     fn format_bytes(bytes: u64) -> String {
         const GB: u64 = 1024 * 1024 * 1024;
@@ -87,7 +126,7 @@ fn get_memory_info(sys: &System) -> String {
     )
 }
 
-fn get_disk_info(sys: &System) -> String {
+fn get_disk_info() -> String {
     let mut result = String::from("Disk Usage:\n");
     let disks = Disks::new_with_refreshed_list();
     for disk in &disks {
@@ -122,6 +161,6 @@ fn get_all_info(sys: &System) -> String {
         get_os_info(sys),
         get_cpu_info(sys),
         get_memory_info(sys),
-        get_disk_info(sys)
+        get_disk_info()
     )
 }
