@@ -48,6 +48,24 @@ let config = ServiceConfig {
 hippox.start(config).await?;
 ```
 
+## 环境变量
+
+| 环境变量                     | 说明                  | 默认值 | 可选值                              |
+| ---------------------------- | --------------------- | ------ | ----------------------------------- |
+| HIPPOX_LANG                  | 语言设置              | en     | zh, en                              |
+| HIPPOX_PROVIDER              | LLM 提供商            | openai | openai, deepseek, anthropic, google |
+| HIPPOX_ENABLE_CLI            | 启用 CLI 命令行交互   | true   | true, false                         |
+| HIPPOX_ENABLE_TCP            | 启用 TCP 服务器       | false  | true, false                         |
+| HIPPOX_ENABLE_HTTP           | 启用 HTTP 服务器      | false  | true, false                         |
+| HIPPOX_ENABLE_WS             | 启用 WebSocket 服务器 | false  | true, false                         |
+| HIPPOX_SMTP_HOST             | SMTP 服务器地址       | 无     | smtp.gmail.com                      |
+| HIPPOX_SMTP_PORT             | SMTP 服务器端口       | 587    | 465, 587                            |
+| HIPPOX_SMTP_USERNAME         | SMTP 认证用户名       | 无     | your@gmail.com                      |
+| HIPPOX_SMTP_PASSWORD         | SMTP 认证密码         | 无     | 邮箱密码                            |
+| HIPPOX_SMTP_FROM             | 默认发件人地址        | 无     | bot@example.com                     |
+| HIPPOX_TELEGRAM_BOT_TOKEN    | Telegram Bot Token    | 无     | 1234567890:xxxxxxxxxxxxxxxx         |
+| HIPPOX_DINGTALK_ACCESS_TOKEN | 钉钉机器人Token       | 无     | 钉钉 web hook token                 |
+
 ## 支持协议
 
 | 协议      | 地址                  |
