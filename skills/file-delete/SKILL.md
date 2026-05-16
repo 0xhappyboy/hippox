@@ -2,7 +2,7 @@
 name: file-delete
 description: Delete a file or empty directory
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "delete file"

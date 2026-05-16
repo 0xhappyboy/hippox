@@ -2,7 +2,7 @@
 name: system-systeminfo
 description: Get system information like OS, CPU, memory, and disk usage
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "system info"

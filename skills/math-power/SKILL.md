@@ -2,7 +2,7 @@
 name: math-power
 description: Calculate power, square root, or cube root operations
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "power"

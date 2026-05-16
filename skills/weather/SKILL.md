@@ -2,7 +2,7 @@
 name: weather
 description: 查询任意地点的当前天气状况和天气预报
 version: 2.1.0
-author: 天气团队
+author: Hippox
 license: MIT
 compatibility: ">=1.0.0"
 triggers:

@@ -2,7 +2,7 @@
 name: math-unit-converter
 description: Convert between different units of measurement
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "convert"

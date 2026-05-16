@@ -2,7 +2,7 @@
 name: time-datetime
 description: Get current date and time, or perform timezone conversions
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "what time"

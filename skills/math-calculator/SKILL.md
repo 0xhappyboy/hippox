@@ -2,7 +2,7 @@
 name: math-calculator
 description: Evaluate mathematical expressions
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "calculate"

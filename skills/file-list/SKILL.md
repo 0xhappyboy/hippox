@@ -2,7 +2,7 @@
 name: file-list
 description: List contents of a directory
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "list files"

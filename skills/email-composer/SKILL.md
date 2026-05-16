@@ -2,7 +2,7 @@
 name: email-composer
 description: Professional email composition assistant for various scenarios
 version: 1.0.0
-author: Productivity Team
+author: Hippox
 license: MIT
 compatibility: ">=1.0.0"
 triggers:

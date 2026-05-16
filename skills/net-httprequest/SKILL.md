@@ -2,7 +2,7 @@
 name: net-httprequest
 description: Send HTTP requests to web APIs and fetch data
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "http request"

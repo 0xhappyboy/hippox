@@ -2,7 +2,7 @@
 name: file-copy
 description: Copy or move a file
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "copy file"

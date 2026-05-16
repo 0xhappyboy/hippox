@@ -2,7 +2,7 @@
 name: codereview
 description: 审查代码质量、发现潜在问题并提供优化建议
 version: 1.3.0
-author: 开发工具团队
+author: Hippox
 license: Apache-2.0
 compatibility: ">=1.0.0"
 triggers:

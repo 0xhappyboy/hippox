@@ -2,7 +2,7 @@
 name: file-write
 description: Write content to a file
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "write file"

@@ -2,7 +2,7 @@
 name: math-statistics
 description: Calculate statistical values from a set of numbers
 version: 1.0.0
-author: Hippo Team
+author: Hippox
 triggers:
   patterns:
     - "statistics"
