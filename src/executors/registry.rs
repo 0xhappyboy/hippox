@@ -1,6 +1,7 @@
 use crate::executors::Skill;
 use crate::executors::types::SkillMetadata;
 use once_cell::sync::Lazy;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -59,6 +60,14 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "system-systeminfo".to_string(),
         Arc::new(super::skills::SystemInfoSkill) as Arc<dyn Skill>,
     );
+    registry.insert(
+        "exec-command".to_string(),
+        Arc::new(super::skills::ExecCommandSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "read-url".to_string(),
+        Arc::new(super::skills::ReadUrlSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 
@@ -71,16 +80,20 @@ pub fn generate_ai_registry() -> Vec<SkillMetadata> {
         .collect()
 }
 
-/// generate skill registry table json string
-pub fn generate_skill_registry_table_json_str() -> String {
+/// generate skill registry table json
+pub fn generate_skill_registry_table_json() -> Value {
     let metadata = generate_ai_registry();
-    let output = serde_json::json!({
+    serde_json::json!({
         "version": "1.0",
         "total_skills": metadata.len(),
         "skills": metadata,
         "instruction": r#"You can call a skill by returning a JSON object with 'action' and 'parameters' fields. Example: {"action": "calculator", "parameters": {"expression": "2+3"}}"#
-    });
-    serde_json::to_string_pretty(&output).unwrap()
+    })
+}
+
+/// generate skill registry table json string
+pub fn generate_skill_registry_table_json_str() -> String {
+    serde_json::to_string_pretty(&generate_skill_registry_table_json()).unwrap()
 }
 
 pub fn get_registry() -> std::sync::RwLockReadGuard<'static, HashMap<String, Arc<dyn Skill>>> {
@@ -105,4 +118,33 @@ pub fn has_skill(name: &str) -> bool {
 
 pub fn list_skills() -> Vec<String> {
     get_registry().keys().cloned().collect()
+}
+
+#[cfg(test)]
+mod registry_test {
+    use super::*;
+
+    #[test]
+    fn test_generate_ai_registry() {
+        let metadata = generate_ai_registry();
+        println!("Total skills: {}", metadata.len());
+        for skill in &metadata {
+            println!(
+                "  - {} ({}): {}",
+                skill.name, skill.category, skill.description
+            );
+        }
+    }
+
+    #[test]
+    fn test_print_all_skill_json() {
+        let json_str = generate_skill_registry_table_json();
+        println!("{:?}", json_str);
+    }
+
+    #[test]
+    fn test_print_all_skill_json_str() {
+        let json_str = generate_skill_registry_table_json_str();
+        println!("{:?}", json_str);
+    }
 }

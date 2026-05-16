@@ -8,6 +8,6 @@ pub mod time;
 
 pub use helloworld::HelloWorldSkill;
 pub use math::*;
-pub use net::HttpRequestSkill;
-pub use system::SystemInfoSkill;
-pub use time::DateTimeSkill;
+pub use net::*;
+pub use system::*;
+pub use time::*;
