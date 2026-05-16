@@ -327,6 +327,10 @@ impl SkillScheduler {
         }
         Ok(())
     }
+
+    pub fn get_llm(&self) -> &LLMClient {
+        &self.llm
+    }
 }
 
 #[cfg(test)]
