@@ -61,7 +61,7 @@ hippox.start(config).await?;
 | HIPPOX_SMTP_HOST             | SMTP server hostname          | None    | smtp.gmail.com                      |
 | HIPPOX_SMTP_PORT             | SMTP server port              | 587     | 465, 587                            |
 | HIPPOX_SMTP_USERNAME         | SMTP authentication username  | None    | your@gmail.com                      |
-| HIPPOX_SMTP_PASSWORD         | SMTP authentication password  | None    | your_app_password                   |
+| HIPPOX_SMTP_PASSWORD         | SMTP authentication password  | None    | your eamil password                 |
 | HIPPOX_SMTP_FROM             | Default sender email address  | None    | bot@example.com                     |
 | HIPPOX_TELEGRAM_BOT_TOKEN    | Telegram Bot Token            | None    | 1234567890:xxxxxxxxxxxxxxxx         |
 | HIPPOX_DINGTALK_ACCESS_TOKEN | dingding robot web hook token | None    | 钉钉web hook token                  |
