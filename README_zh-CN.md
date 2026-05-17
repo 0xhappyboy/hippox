@@ -1,5 +1,8 @@
+<p align="center">
+    <img src="./resources/logo/logo-1.png" alt="Portal" width="100" height="100">
+</p>
 <h1 align="center">
-   🦛 河马X
+    HippoX
 </h1>
 <h4 align="center">
 一个可靠的AI代理引擎.
@@ -11,42 +14,6 @@
 <p align="center">
 <a href="./README_zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
 </p>
-
-## 基础使用
-
-```rust
-tracing_subscriber::fmt().init();
-i18n::init();
-let lang = env::var("HIPPO_LANG").unwrap_or_else(|_| "en".to_string());
-let provider = match env::var("HIPPO_LLM_PROVIDER_KEY").as_deref() {
-    Ok("deepseek") => ModelProvider::DeepSeek,
-    Ok("anthropic") => ModelProvider::Anthropic,
-    Ok("google") => ModelProvider::Google,
-    _ => ModelProvider::OpenAI,
-};
-let hippox = Hippox::new("skills", provider, &lang).await?;
-// Configure which protocols to enable
-let config = ServiceConfig {
-    enable_cli: env::var("HIPPO_ENABLE_CLI")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse::<bool>()
-                .unwrap_or(true),
-    enable_tcp: env::var("HIPPO_ENABLE_TCP")
-                .unwrap_or_else(|_| "false".to_string())
-                .parse::<bool>()
-                .unwrap_or(false),
-    enable_http: env::var("HIPPO_ENABLE_HTTP")
-                .unwrap_or_else(|_| "false".to_string())
-                .parse::<bool>()
-                .unwrap_or(false),
-    enable_websocket: env::var("HIPPO_ENABLE_WS")
-                .unwrap_or_else(|_| "false".to_string())
-                .parse::<bool>()
-                .unwrap_or(false),
-    enable_grpc: false,
-    };
-hippox.start(config).await?;
-```
 
 ## Skill调度模型
 
