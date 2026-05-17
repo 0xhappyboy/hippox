@@ -1,7 +1,7 @@
-pub(crate) mod executor;
-pub(crate) mod registry;
-pub(crate) mod skills;
-pub(crate) mod types;
+pub mod executor;
+pub mod registry;
+pub mod skills;
+pub mod types;
 
 use crate::executors::types::Skill;
 pub use executor::Executor;

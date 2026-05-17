@@ -1,3 +1,8 @@
+/// SKILL.md file loader module
+///
+/// This module provides functionality to load and parse SKILL.md files
+/// from the skills directory. SKILL.md files define the metadata and
+/// instructions for community-contributed skills.
 use crate::t;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -5,76 +10,144 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+/// Default SKILL.md filename
 const SKILL_FILE_NAME: &str = "SKILL.md";
+
+/// Minimum directory depth for skill scanning
 const SKILL_FILE_SCAN_MIN_DEPTH: usize = 1;
+
+/// Maximum directory depth for skill scanning
 const SKILL_FILE_SCAN_MAX_DEPTH: usize = 1;
 
-/// Frontmatter trigger patterns
+/// Trigger patterns for automatic skill activation
+///
+/// When user input matches any of these patterns, the skill can be
+/// automatically selected without LLM decision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillTrigger {
+    /// List of trigger patterns (keywords or phrases)
     pub patterns: Vec<String>,
+    /// Whether pattern matching is case-sensitive
     #[serde(default)]
     pub case_sensitive: bool,
 }
 
-/// Frontmatter metadata
+/// Metadata extracted from SKILL.md frontmatter
+///
+/// Contains additional information about the skill such as author,
+/// version, emoji, and platform requirements.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillFrontmatterMetadata {
+    /// Skill author name or GitHub username
     pub author: Option<String>,
+    /// Skill version (semantic versioning recommended)
     pub version: Option<String>,
+    /// Emoji icon for visual representation
     pub emoji: Option<String>,
+    /// Supported operating systems (linux, macos, windows)
     pub os: Option<Vec<String>>,
+    /// External dependencies or requirements
     pub requires: Option<HashMap<String, serde_json::Value>>,
+    /// Additional arbitrary metadata fields
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-/// Complete SKILL.md structure
+/// Complete SKILL.md file structure
+///
+/// Represents a parsed SKILL.md file containing skill metadata
+/// and natural language instructions for the AI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillFile {
+    /// Unique skill identifier (used as action in SkillCall)
     pub name: String,
+    /// Brief description of what the skill does
     pub description: String,
+    /// Semantic version of the skill
     pub version: Option<String>,
+    /// License type (MIT, Apache, etc.)
     pub license: Option<String>,
+    /// Original author of the skill
     pub author: Option<String>,
+    /// Compatibility constraints
     pub compatibility: Option<String>,
+    /// Trigger patterns for automatic activation
     pub triggers: Option<SkillTrigger>,
+    /// List of tools this skill is allowed to use
     #[serde(default)]
     pub allowed_tools: Vec<String>,
+    /// Other skills this skill depends on
     #[serde(default)]
     pub dependencies: Vec<String>,
+    /// Frontmatter metadata
     pub metadata: Option<SkillFrontmatterMetadata>,
+    /// Parameter definitions for the skill
     #[serde(default)]
     pub parameters: Vec<crate::executors::types::SkillParameter>,
+    /// Natural language instructions for AI execution
     pub instructions: String,
+    /// Original file path
     pub path: PathBuf,
 }
 
 /// Frontmatter intermediate parsing structure
+///
+/// Used during YAML frontmatter deserialization before converting
+/// to the final SkillFile structure.
 #[derive(Debug, Deserialize)]
 struct SkillFrontmatter {
+    /// Unique skill identifier
     name: String,
+    /// Brief description of what the skill does
     description: String,
+    /// Semantic version of the skill
     version: Option<String>,
+    /// License type
     license: Option<String>,
+    /// Original author
     author: Option<String>,
+    /// Compatibility constraints
     compatibility: Option<String>,
+    /// Trigger patterns for automatic activation
     triggers: Option<SkillTrigger>,
+    /// List of tools this skill is allowed to use
     #[serde(default)]
     allowed_tools: Vec<String>,
+    /// Other skills this skill depends on
     #[serde(default)]
     dependencies: Vec<String>,
+    /// Frontmatter metadata
     metadata: Option<SkillFrontmatterMetadata>,
+    /// Parameter definitions
     #[serde(default)]
     parameters: Vec<crate::executors::types::SkillParameter>,
+    /// Additional arbitrary fields for forward compatibility
     #[serde(flatten)]
     extra: HashMap<String, serde_json::Value>,
 }
 
+/// SKILL.md file loader
+///
+/// Provides static methods to load and parse SKILL.md files
+/// from the filesystem. This is used for community-contributed
+/// skills that are written in Markdown format.
 pub struct SkillLoader;
 
 impl SkillLoader {
-    /// Load all SKILL.md files from directory
+    /// Load all SKILL.md files from a directory
+    ///
+    /// Scans the specified directory for subdirectories containing
+    /// SKILL.md files. Each subdirectory at depth 1 is expected to
+    /// contain a SKILL.md file.
+    ///
+    /// # Arguments
+    /// * `skills_dir` - Path to the skills directory
+    ///
+    /// # Returns
+    /// A vector of parsed SkillFile structures
+    ///
+    /// # Errors
+    /// Returns error if the directory does not exist
     pub fn load_all(skills_dir: &str) -> anyhow::Result<Vec<SkillFile>> {
         let mut skills = Vec::new();
         let skills_path = Path::new(skills_dir);
@@ -100,7 +173,14 @@ impl SkillLoader {
         Ok(skills)
     }
 
-    /// Load a single SKILL.md by name
+    /// Load a single SKILL.md file by skill name
+    ///
+    /// # Arguments
+    /// * `skills_dir` - Path to the skills directory
+    /// * `name` - Name of the skill (also used as subdirectory name)
+    ///
+    /// # Returns
+    /// Some(SkillFile) if found, None otherwise
     pub fn load_by_name(skills_dir: &str, name: &str) -> anyhow::Result<Option<SkillFile>> {
         let skill_path = Path::new(skills_dir).join(name).join(SKILL_FILE_NAME);
         if skill_path.exists() {
@@ -110,6 +190,13 @@ impl SkillLoader {
         }
     }
 
+    /// Parse a SKILL.md file from the given path
+    ///
+    /// # Arguments
+    /// * `path` - Path to the SKILL.md file
+    ///
+    /// # Returns
+    /// A parsed SkillFile structure
     fn parse_skill_file(path: &Path) -> anyhow::Result<SkillFile> {
         let content = fs::read_to_string(path)?;
         let (frontmatter, instructions) = Self::parse_frontmatter(&content)?;
@@ -130,6 +217,19 @@ impl SkillLoader {
         })
     }
 
+    /// Parse frontmatter from markdown content
+    ///
+    /// Extracts YAML frontmatter (between --- markers) and the
+    /// remaining markdown content as instructions.
+    ///
+    /// # Arguments
+    /// * `content` - Raw markdown content
+    ///
+    /// # Returns
+    /// A tuple containing (frontmatter, instructions)
+    ///
+    /// # Errors
+    /// Returns error if frontmatter is malformed or missing
     fn parse_frontmatter(content: &str) -> anyhow::Result<(SkillFrontmatter, String)> {
         let parts: Vec<&str> = content.splitn(3, "---").collect();
         if parts.len() < 3 {

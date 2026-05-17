@@ -252,6 +252,32 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "github_list_prs".to_string(),
         Arc::new(super::skills::github::GithubListPRs) as Arc<dyn Skill>,
     );
+    // ==================== Clipboard Skills ====================
+    registry.insert(
+        "clipboard_get".to_string(),
+        Arc::new(super::skills::system::clipboard::ClipboardGetSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "clipboard_set".to_string(),
+        Arc::new(super::skills::system::clipboard::ClipboardSetSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "clipboard_clear".to_string(),
+        Arc::new(super::skills::system::clipboard::ClipboardClearSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Scheduler Skills ====================
+    registry.insert(
+        "schedule_task".to_string(),
+        Arc::new(super::skills::task::ScheduleTaskSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "unschedule_task".to_string(),
+        Arc::new(super::skills::task::UnscheduleTaskSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "list_scheduled_tasks".to_string(),
+        Arc::new(super::skills::task::ListScheduledTasksSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 

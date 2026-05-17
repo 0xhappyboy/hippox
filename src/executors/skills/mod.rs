@@ -8,6 +8,7 @@ pub mod math;
 pub mod message;
 pub mod net;
 pub mod system;
+pub mod task;
 pub mod time;
 
 pub use db::*;
@@ -18,4 +19,5 @@ pub use math::*;
 pub use message::*;
 pub use net::*;
 pub use system::*;
+pub use task::*;
 pub use time::*;

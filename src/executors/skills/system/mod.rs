@@ -1,5 +1,7 @@
-pub(crate) mod exec_command;
-pub(crate) mod system_info;
+pub mod clipboard;
+pub mod command;
+pub mod info;
 
-pub use exec_command::ExecCommandSkill;
-pub use system_info::SystemInfoSkill;
+pub use clipboard::*;
+pub use command::*;
+pub use info::*;
