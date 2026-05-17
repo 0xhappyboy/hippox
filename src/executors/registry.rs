@@ -13,91 +13,91 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         Arc::new(super::skills::HelloWorldSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "file-read".to_string(),
+        "file_read".to_string(),
         Arc::new(super::skills::file::ReadFileSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "file-write".to_string(),
+        "file_write".to_string(),
         Arc::new(super::skills::file::WriteFileSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "file-delete".to_string(),
+        "file_delete".to_string(),
         Arc::new(super::skills::file::DeleteFileSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "file-list".to_string(),
+        "file_list".to_string(),
         Arc::new(super::skills::file::ListDirectorySkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "file-copy".to_string(),
+        "file_copy".to_string(),
         Arc::new(super::skills::file::CopyFileSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "math-calculator".to_string(),
+        "math_calculator".to_string(),
         Arc::new(super::skills::CalculatorSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "math-power".to_string(),
+        "math_power".to_string(),
         Arc::new(super::skills::PowerSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "math-statistics".to_string(),
+        "math_statistics".to_string(),
         Arc::new(super::skills::StatisticsSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "math-unit-converter".to_string(),
+        "math_unit_converter".to_string(),
         Arc::new(super::skills::UnitConverterSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "time-datetime".to_string(),
+        "time_datetime".to_string(),
         Arc::new(super::skills::DateTimeSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "net-httprequest".to_string(),
+        "net_httprequest".to_string(),
         Arc::new(super::skills::HttpRequestSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "system-systeminfo".to_string(),
+        "system_systeminfo".to_string(),
         Arc::new(super::skills::SystemInfoSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "exec-command".to_string(),
+        "exec_command".to_string(),
         Arc::new(super::skills::ExecCommandSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "read-url".to_string(),
+        "read_url".to_string(),
         Arc::new(super::skills::ReadUrlSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "markdown-read".to_string(),
+        "markdown_read".to_string(),
         Arc::new(super::skills::document::MarkdownReadSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "markdown-write".to_string(),
+        "markdown_write".to_string(),
         Arc::new(super::skills::document::MarkdownWriteSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "csv-read".to_string(),
+        "csv_read".to_string(),
         Arc::new(super::skills::document::CsvReadSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "csv-write".to_string(),
+        "csv_write".to_string(),
         Arc::new(super::skills::document::CsvWriteSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "xml-parse".to_string(),
+        "xml_parse".to_string(),
         Arc::new(super::skills::document::XmlParseSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "xml-to-json".to_string(),
+        "xml_to_json".to_string(),
         Arc::new(super::skills::document::XmlToJsonSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "excel-read".to_string(),
+        "excel_read".to_string(),
         Arc::new(super::skills::document::ExcelReadSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "excel-write".to_string(),
+        "excel_write".to_string(),
         Arc::new(super::skills::document::ExcelWriteSkill) as Arc<dyn Skill>,
     );
     registry.insert(
@@ -105,123 +105,152 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         Arc::new(super::skills::message::SendEmailSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "send-telegram".to_string(),
+        "send_telegram".to_string(),
         Arc::new(super::skills::message::SendTelegramSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "send-dingding".to_string(),
+        "send_dingding".to_string(),
         Arc::new(super::skills::message::SendDingDingSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "send-feishu".to_string(),
+        "send_feishu".to_string(),
         Arc::new(super::skills::message::SendFeishuSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "send-wecom".to_string(),
+        "send_wecom".to_string(),
         Arc::new(super::skills::message::SendWecomSkill) as Arc<dyn Skill>,
     );
     // ==================== FTP Skills ====================
     registry.insert(
-        "ftp-upload".to_string(),
+        "ftp_upload".to_string(),
         Arc::new(super::skills::ftp::FtpUploadSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "ftp-download".to_string(),
+        "ftp_download".to_string(),
         Arc::new(super::skills::ftp::FtpDownloadSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "ftp-list".to_string(),
+        "ftp_list".to_string(),
         Arc::new(super::skills::ftp::FtpListSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "ftp-delete".to_string(),
+        "ftp_delete".to_string(),
         Arc::new(super::skills::ftp::FtpDeleteSkill) as Arc<dyn Skill>,
     );
     // ==================== TCP Skills ====================
     registry.insert(
-        "tcp-send".to_string(),
+        "tcp_send".to_string(),
         Arc::new(super::skills::tcp::TcpSendSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "tcp-receive".to_string(),
+        "tcp_receive".to_string(),
         Arc::new(super::skills::tcp::TcpReceiveSkill) as Arc<dyn Skill>,
     );
     // ==================== UDP Skills ====================
     registry.insert(
-        "udp-send".to_string(),
+        "udp_send".to_string(),
         Arc::new(super::skills::udp::UdpSendSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "udp-receive".to_string(),
+        "udp_receive".to_string(),
         Arc::new(super::skills::udp::UdpReceiveSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "udp-broadcast".to_string(),
+        "udp_broadcast".to_string(),
         Arc::new(super::skills::udp::UdpBroadcastSkill) as Arc<dyn Skill>,
     );
     // ==================== PostgreSQL Skills ====================
     registry.insert(
-        "postgres-query".to_string(),
+        "postgres_query".to_string(),
         Arc::new(super::skills::postgresql::PostgresQuerySkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "postgres-execute".to_string(),
+        "postgres_execute".to_string(),
         Arc::new(super::skills::postgresql::PostgresExecuteSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "postgres-list-tables".to_string(),
+        "postgres_list_tables".to_string(),
         Arc::new(super::skills::postgresql::PostgresListTablesSkill) as Arc<dyn Skill>,
     );
     // ==================== MySQL Skills ====================
     registry.insert(
-        "mysql-query".to_string(),
+        "mysql_query".to_string(),
         Arc::new(super::skills::mysql::MysqlQuerySkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "mysql-execute".to_string(),
+        "mysql_execute".to_string(),
         Arc::new(super::skills::mysql::MysqlExecuteSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "mysql-list-tables".to_string(),
+        "mysql_list_tables".to_string(),
         Arc::new(super::skills::mysql::MysqlListTablesSkill) as Arc<dyn Skill>,
     );
     // ==================== Redis Skills ====================
     registry.insert(
-        "redis-set".to_string(),
+        "redis_set".to_string(),
         Arc::new(super::skills::redis::RedisSetSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "redis-get".to_string(),
+        "redis_get".to_string(),
         Arc::new(super::skills::redis::RedisGetSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "redis-del".to_string(),
+        "redis_del".to_string(),
         Arc::new(super::skills::redis::RedisDelSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "redis-keys".to_string(),
+        "redis_keys".to_string(),
         Arc::new(super::skills::redis::RedisKeysSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "redis-hset".to_string(),
+        "redis_hset".to_string(),
         Arc::new(super::skills::redis::RedisHSetSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "redis-hget".to_string(),
+        "redis_hget".to_string(),
         Arc::new(super::skills::redis::RedisHGetSkill) as Arc<dyn Skill>,
     );
     // ==================== SQLite Skills ====================
     registry.insert(
-        "sqlite-query".to_string(),
+        "sqlite_query".to_string(),
         Arc::new(super::skills::sqlite::SqliteQuerySkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "sqlite-execute".to_string(),
+        "sqlite_execute".to_string(),
         Arc::new(super::skills::sqlite::SqliteExecuteSkill) as Arc<dyn Skill>,
     );
     registry.insert(
-        "sqlite-list-tables".to_string(),
+        "sqlite_list_tables".to_string(),
         Arc::new(super::skills::sqlite::SqliteListTablesSkill) as Arc<dyn Skill>,
+    );
+    // ==================== GitHub Skills ====================
+    registry.insert(
+        "github_get_repo".to_string(),
+        Arc::new(super::skills::github::GithubGetRepo) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "github_create_issue".to_string(),
+        Arc::new(super::skills::github::GithubCreateIssue) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "github_list_issues".to_string(),
+        Arc::new(super::skills::github::GithubListIssues) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "github_star_repo".to_string(),
+        Arc::new(super::skills::github::GithubStarRepo) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "github_search_repos".to_string(),
+        Arc::new(super::skills::github::GithubSearchRepos) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "github_get_user".to_string(),
+        Arc::new(super::skills::github::GithubGetUser) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "github_list_prs".to_string(),
+        Arc::new(super::skills::github::GithubListPRs) as Arc<dyn Skill>,
     );
     RwLock::new(registry)
 });
