@@ -179,23 +179,3 @@ port = 587
 | HIPPOX_SMTP_FROM             | 默认发件人地址        | 无     | bot@example.com                     |
 | HIPPOX_TELEGRAM_BOT_TOKEN    | Telegram Bot Token    | 无     | 1234567890:xxxxxxxxxxxxxxxx         |
 | HIPPOX_DINGDING_ACCESS_TOKEN | 钉钉机器人Token       | 无     | 钉钉 web hook token                 |
-
-## 支持协议
-
-| 协议      | 地址                  |
-| --------- | --------------------- |
-| CLI       | 终端直接交互          |
-| TCP       | 127.0.0.1:8080        |
-| HTTP      | http://127.0.0.1:8081 |
-| WebSocket | ws://127.0.0.1:8082   |
-
-## 环境变量
-
-| 变量                   | 默认值 | 说明                                            |
-| ---------------------- | ------ | ----------------------------------------------- |
-| HIPPO_LANG             | en     | 语言设置 (en/zh)                                |
-| HIPPO_LLM_PROVIDER_KEY | 无     | LLM 提供商 (openai/deepseek/anthropic/google)   |
-| HIPPO_ENABLE_CLI       | true   | 启用 CLI 命令行交互                             |
-| HIPPO_ENABLE_TCP       | false  | 启用 TCP 服务器，地址 127.0.0.1:8080            |
-| HIPPO_ENABLE_HTTP      | false  | 启用 HTTP 服务器，地址 http://127.0.0.1:8081    |
-| HIPPO_ENABLE_WS        | false  | 启用 WebSocket 服务器，地址 ws://127.0.0.1:8082 |
