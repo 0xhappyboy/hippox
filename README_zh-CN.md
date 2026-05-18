@@ -5,7 +5,7 @@
     HippoX
 </h1>
 <h4 align="center">
-一个可靠的AI代理引擎.
+一个可靠的AI代理与Skills编排运行时引擎. <br>
 一个Skill驱动的AI代理引擎, 你只需要编写 `SKILL.md` 文件来描述技能就能自动加载并执行.
 </h4>
 <p align="center">

@@ -5,7 +5,7 @@
     HippoX
 </h1>
 <h4 align="center">
-A reliable AI agent engine. 
+A reliable AI agent and skills orchestration runtime engine. <br>
 A skill-driven AI agent engine that automatically loads and executes skills simply by writing a `SKILL.md` file to describe them. 
 </h4>
 <p align="center">
