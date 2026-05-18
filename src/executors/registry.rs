@@ -296,6 +296,61 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "list_scheduled_tasks".to_string(),
         Arc::new(super::skills::task::ListScheduledTasksSkill) as Arc<dyn Skill>,
     );
+    // ==================== PDF Skills ====================
+    registry.insert(
+        "pdf_read".to_string(),
+        Arc::new(super::skills::document::PdfReadSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "pdf_merge".to_string(),
+        Arc::new(super::skills::document::PdfMergeSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "pdf_info".to_string(),
+        Arc::new(super::skills::document::PdfInfoSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Crypto Skills ====================
+    registry.insert(
+        "hash_md5".to_string(),
+        Arc::new(super::skills::math::HashMd5Skill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "hash_sha256".to_string(),
+        Arc::new(super::skills::math::HashSha256Skill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "hash_sha512".to_string(),
+        Arc::new(super::skills::math::HashSha512Skill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "hash_file".to_string(),
+        Arc::new(super::skills::math::HashFileSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "base64_encode".to_string(),
+        Arc::new(super::skills::math::Base64EncodeSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "base64_decode".to_string(),
+        Arc::new(super::skills::math::Base64DecodeSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Random Skills ====================
+    registry.insert(
+        "random_number".to_string(),
+        Arc::new(super::skills::math::RandomNumberSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "random_string".to_string(),
+        Arc::new(super::skills::math::RandomStringSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "random_uuid".to_string(),
+        Arc::new(super::skills::math::RandomUuidSkill) as Arc<dyn Skill>,
+    );
+    registry.insert(
+        "random_password".to_string(),
+        Arc::new(super::skills::math::RandomPasswordSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 
