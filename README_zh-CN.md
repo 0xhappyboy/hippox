@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="./resources/logo/logo-1.png" alt="Portal" width="100" height="100">
+    <img src="./assets/logo/logo-1.png" alt="Portal" width="100" height="100">
 </p>
 <h1 align="center">
     HippoX
@@ -97,7 +97,7 @@ port = 587
 
 ## Skill调度模型
 
-<img src="./resources/scheduler_cn.png" width="100%">
+<img src="./assets/scheduler_cn.png" width="100%">
 
 ## 原子Skill清单
 
