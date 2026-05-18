@@ -12,13 +12,6 @@ pub static GLOBAL_CONFIG: Lazy<RwLock<HippoxConfig>> =
 pub struct HippoxConfig {
     // Application settings
     pub lang: String,
-    pub provider: String,
-    // Service settings
-    pub enable_cli: bool,
-    pub enable_tcp: bool,
-    pub enable_http: bool,
-    pub enable_websocket: bool,
-    pub enable_grpc: bool,
     // SMTP settings
     pub smtp_host: String,
     pub smtp_port: u16,
@@ -89,12 +82,6 @@ impl Default for HippoxConfig {
     fn default() -> Self {
         Self {
             lang: "en".to_string(),
-            provider: "openai".to_string(),
-            enable_cli: true,
-            enable_tcp: false,
-            enable_http: false,
-            enable_websocket: false,
-            enable_grpc: false,
             smtp_host: String::new(),
             smtp_port: 587,
             smtp_username: String::new(),
@@ -163,12 +150,6 @@ impl HippoxConfig {
     pub fn load_from_env() -> Self {
         Self {
             lang: envs::get_env_or(envs::HIPPOX_LANG, "en"),
-            provider: envs::get_env_or(envs::HIPPOX_PROVIDER, "openai"),
-            enable_cli: envs::is_env_true(envs::HIPPOX_ENABLE_CLI),
-            enable_tcp: envs::is_env_true(envs::HIPPOX_ENABLE_TCP),
-            enable_http: envs::is_env_true(envs::HIPPOX_ENABLE_HTTP),
-            enable_websocket: envs::is_env_true(envs::HIPPOX_ENABLE_WS),
-            enable_grpc: false,
             smtp_host: envs::get_env_or(envs::HIPPOX_SMTP_HOST, ""),
             smtp_port: envs::get_env_or(envs::HIPPOX_SMTP_PORT, "587")
                 .parse::<u16>()
@@ -359,24 +340,6 @@ impl HippoxConfig {
         if let Some(v) = lang {
             config.lang = v;
         }
-        if let Some(v) = provider {
-            config.provider = v;
-        }
-        if let Some(v) = enable_cli {
-            config.enable_cli = v;
-        }
-        if let Some(v) = enable_tcp {
-            config.enable_tcp = v;
-        }
-        if let Some(v) = enable_http {
-            config.enable_http = v;
-        }
-        if let Some(v) = enable_websocket {
-            config.enable_websocket = v;
-        }
-        if let Some(v) = enable_grpc {
-            config.enable_grpc = v;
-        }
         if let Some(v) = smtp_host {
             config.smtp_host = v;
         }
@@ -545,27 +508,8 @@ impl HippoxConfig {
     pub fn load_from_params_json_str(json_str: &str) -> anyhow::Result<Self> {
         let overrides: serde_json::Value = serde_json::from_str(json_str)?;
         let mut config = Self::load_from_env();
-
         if let Some(v) = overrides.get("lang").and_then(|x| x.as_str()) {
             config.lang = v.to_string();
-        }
-        if let Some(v) = overrides.get("provider").and_then(|x| x.as_str()) {
-            config.provider = v.to_string();
-        }
-        if let Some(v) = overrides.get("enable_cli").and_then(|x| x.as_bool()) {
-            config.enable_cli = v;
-        }
-        if let Some(v) = overrides.get("enable_tcp").and_then(|x| x.as_bool()) {
-            config.enable_tcp = v;
-        }
-        if let Some(v) = overrides.get("enable_http").and_then(|x| x.as_bool()) {
-            config.enable_http = v;
-        }
-        if let Some(v) = overrides.get("enable_websocket").and_then(|x| x.as_bool()) {
-            config.enable_websocket = v;
-        }
-        if let Some(v) = overrides.get("enable_grpc").and_then(|x| x.as_bool()) {
-            config.enable_grpc = v;
         }
         if let Some(v) = overrides.get("smtp_host").and_then(|x| x.as_str()) {
             config.smtp_host = v.to_string();

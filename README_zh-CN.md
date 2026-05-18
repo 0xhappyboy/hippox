@@ -70,8 +70,6 @@ async fn main() -> anyhow::Result<()> {
 
 ```bash
 export HIPPOX_LANG=zh
-export HIPPOX_PROVIDER=openai
-export HIPPOX_ENABLE_CLI=true
 export HIPPOX_SMTP_HOST=smtp.gmail.com
 export HIPPOX_SMTP_PORT=587
 ```
@@ -80,7 +78,6 @@ export HIPPOX_SMTP_PORT=587
 
 ```toml
 lang = "zh"
-provider = "openai"
 enable_cli = true
 
 [smtp]
@@ -93,8 +90,6 @@ port = 587
 ```json
 {
   "lang": "zh",
-  "provider": "openai",
-  "enable_cli": true,
   "smtp_host": "smtp.gmail.com",
   "smtp_port": 587
 }

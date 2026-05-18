@@ -726,7 +726,6 @@ Process the request and return a result.
         let hippox = hippox.unwrap();
         let config = hippox.get_config();
         assert_eq!(config.lang, "zh");
-        assert_eq!(config.provider, "openai");
     }
 
     #[tokio::test]
@@ -793,12 +792,10 @@ Process the request and return a result.
         hippox
             .update_config(|config| {
                 config.lang = "zh".to_string();
-                config.provider = "anthropic".to_string();
             })
             .unwrap();
         let config = hippox.get_config();
         assert_eq!(config.lang, "zh");
-        assert_eq!(config.provider, "anthropic");
     }
 
     #[test]

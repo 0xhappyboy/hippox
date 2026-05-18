@@ -1,21 +1,6 @@
 /// Language setting (en/zh)
 pub const HIPPOX_LANG: &str = "HIPPOX_LANG";
 
-/// LLM provider (openai, deepseek, anthropic, google)
-pub const HIPPOX_PROVIDER: &str = "HIPPOX_PROVIDER";
-
-/// Enable CLI interface (true/false)
-pub const HIPPOX_ENABLE_CLI: &str = "HIPPOX_ENABLE_CLI";
-
-/// Enable TCP server (true/false)
-pub const HIPPOX_ENABLE_TCP: &str = "HIPPOX_ENABLE_TCP";
-
-/// Enable HTTP server (true/false)
-pub const HIPPOX_ENABLE_HTTP: &str = "HIPPOX_ENABLE_HTTP";
-
-/// Enable WebSocket server (true/false)
-pub const HIPPOX_ENABLE_WS: &str = "HIPPOX_ENABLE_WS";
-
 /// SMTP server hostname (e.g., smtp.gmail.com)
 pub const HIPPOX_SMTP_HOST: &str = "HIPPOX_SMTP_HOST";
 
