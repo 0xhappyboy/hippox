@@ -18,6 +18,39 @@ A skill-driven AI agent engine that automatically loads and executes skills simp
 <a href="./README_zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
 </p>
 
+## Basic Usage
+
+```rust
+use hippox_core::{Hippox, ModelProvider};
+use serde_json::json;
+use std::collections::HashMap;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::new("./skills", ModelProvider::OpenAI, "en").await?;
+    // Natural language - single processing
+    let response = hippox.handle_natural_language("Calculate 2+3", None).await;
+    println!("Result: {}", response);
+    // Natural language - batch parallel processing
+    let inputs = vec![
+        ("What is 10/2?".to_string(), None),
+        ("Tell me a joke".to_string(), Some("session1".to_string())),
+    ];
+    let results = hippox.handle_natural_language_batch(inputs).await;
+    // SKILL.md - single execution
+    let mut params = HashMap::new();
+    params.insert("input".to_string(), json!("Hello World"));
+    let result = hippox.handle_skill_md("my_workflow", Some(params)).await;
+    // SKILL.md - batch parallel execution
+    let tasks = vec![
+        ("daily_report".to_string(), None),
+        ("send_email".to_string(), Some(params)),
+    ];
+    let batch_results = hippox.handle_skill_md_batch(tasks).await;
+    Ok(())
+}
+```
+
 ## SKill Scheduling Model
 
 <img src="./resources/scheduler_en.png" width="100%">

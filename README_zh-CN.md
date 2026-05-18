@@ -18,6 +18,39 @@
 <a href="./README_zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
 </p>
 
+## 基础使用
+
+```rust
+use hippox_core::{Hippox, ModelProvider};
+use serde_json::json;
+use std::collections::HashMap;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::new("./skills", ModelProvider::OpenAI, "en").await?;
+    // 自然语言 - 单次处理
+    let response = hippox.handle_natural_language("Calculate 2+3", None).await;
+    println!("Result: {}", response);
+    // 自然语言 - 批量并行处理
+    let inputs = vec![
+        ("What is 10/2?".to_string(), None),
+        ("Tell me a joke".to_string(), Some("session1".to_string())),
+    ];
+    let results = hippox.handle_natural_language_batch(inputs).await;
+    // SKILL.md - 单次执行
+    let mut params = HashMap::new();
+    params.insert("input".to_string(), json!("Hello World"));
+    let result = hippox.handle_skill_md("my_workflow", Some(params)).await;
+    // SKILL.md - 批量并行执行
+    let tasks = vec![
+        ("daily_report".to_string(), None),
+        ("send_email".to_string(), Some(params)),
+    ];
+    let batch_results = hippox.handle_skill_md_batch(tasks).await;
+    Ok(())
+}
+```
+
 ## Skill调度模型
 
 <img src="./resources/scheduler_cn.png" width="100%">
