@@ -8,6 +8,7 @@ license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/0xhappyboy/hippox"
 keywords = ["ai", "agent", "llm", "skills", "skills-orchestration"]
+exclude = ["assets/", "examples/"]
 
 [dependencies]
 langhub = "0.2.5"
