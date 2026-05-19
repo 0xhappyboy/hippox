@@ -1,6 +1,6 @@
 [package]
 name = "hippox"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛A reliable AI agent and skills orchestration runtime engine."
@@ -8,7 +8,7 @@ license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/0xhappyboy/hippox"
 keywords = ["ai", "agent", "llm", "skills", "skills-orchestration"]
-exclude = ["assets/", "examples/"]
+exclude = ["assets/", "examples/", "templates/"]
 
 [dependencies]
 langhub = "0.2.5"
@@ -69,3 +69,4 @@ image = "0.25.10"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+dotenvy = "0.15"

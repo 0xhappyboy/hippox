@@ -783,7 +783,7 @@ Respond with ONLY the JSON.
     }
 
     /// Helper functions for building prompts
-    fn get_atomic_skills_registry() -> String {
+    pub fn get_atomic_skills_registry() -> String {
         let skills = crate::executors::registry::list_skills();
         let registry: Vec<serde_json::Value> = skills
             .iter()
@@ -801,7 +801,7 @@ Respond with ONLY the JSON.
         serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
     }
 
-    fn build_react_prompt(scheduler: &SkillScheduler) -> String {
+    pub fn build_react_prompt(scheduler: &SkillScheduler) -> String {
         let registry_json = Self::get_atomic_skills_registry();
         format!(
             r#"You are an AI assistant that can execute atomic skills/tools.
@@ -841,7 +841,7 @@ You can respond in one of three ways:
         )
     }
 
-    fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
+    pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
         let json_str = Self::extract_json(response);
         let value: Value = serde_json::from_str(&json_str)?;
         if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
@@ -867,7 +867,7 @@ You can respond in one of three ways:
         anyhow::bail!("Unable to parse LLM response: {}", response)
     }
 
-    fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
+    pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
         let json_str = Self::extract_json(response);
         let value: Value = serde_json::from_str(&json_str)?;
         #[derive(serde::Deserialize)]
@@ -897,7 +897,7 @@ You can respond in one of three ways:
         Ok(ChainPlan { steps })
     }
 
-    fn parse_plan_response(response: &str) -> anyhow::Result<PlanInstruction> {
+    pub fn parse_plan_response(response: &str) -> anyhow::Result<PlanInstruction> {
         let json_str = Self::extract_json(response);
         let instruction: PlanInstruction = serde_json::from_str(&json_str)?;
         Ok(instruction)
