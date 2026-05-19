@@ -1,3 +1,4 @@
+#![allow(warnings)]
 mod config;
 mod core;
 mod envs;
