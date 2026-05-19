@@ -10,7 +10,7 @@ use crate::executors::{Executor, SkillCall};
 use crate::memory::ConversationMemory;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::info;
@@ -190,18 +190,16 @@ pub struct ErrorHandler {
 /// Complete workflow plan
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct WorkflowPlan {
-    /// Name of the workflow
     pub name: Option<String>,
-    /// Steps to execute in order
     pub steps: Vec<WorkflowStep>,
-    /// Initial parameters
+    #[serde(default)]
     pub parameters: HashMap<String, Value>,
 }
 
 /// Response from LLM for Plan-and-Execute mode
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct PlanInstruction {
-    pub mode: String, // "plan" or "done"
+    pub mode: String,
     pub plan: Option<WorkflowPlan>,
     pub message: Option<String>,
 }
@@ -423,22 +421,20 @@ Respond with ONLY the JSON.
         let chain_prompt = format!(
             r#"You are an AI assistant that can chain atomic skills together.
 
-## Available Atomic Skills (JSON Registry)
+## CRITICAL: Variable Reference Format
+When referencing a previous output, use this EXACT format:
+{{{{variable_name}}}}
+
+Example: if output_as is "step1", reference as {{{{step1}}}}
+
+## Available Atomic Skills
 {}
 
-## Task
-Create a chain of skills where each skill's output is passed to the next.
-
 ## Response Format
-{{
-  "mode": "chain",
-  "steps": [
-    {{"action": "skill1", "parameters": {{"input": "user_input"}}, "output_as": "result1"}},
-    {{"action": "skill2", "parameters": {{"input": "{{{{result1}}}}"}}, "output_as": "result2"}}
-  ]
-}}
-
-Use {{{{variable_name}}}} to reference previous outputs.
+{{"mode": "chain", "steps": [
+  {{"action": "calculator", "parameters": {{"expression": "5 * 3"}}, "output_as": "result1"}},
+  {{"action": "calculator", "parameters": {{"expression": "{{{{result1}}}} + 10"}}, "output_as": "result2"}}
+]}}
 
 ## User Input
 {}
@@ -461,7 +457,7 @@ Respond with ONLY the JSON.
         for step in chain.steps {
             let mut resolved_params = HashMap::new();
             for (key, value) in step.parameters {
-                let resolved = Self::resolve_variables(&value, &context);
+                let resolved = Self::resolve_variables_deep(&value, &context);
                 resolved_params.insert(key, resolved);
             }
             let call = SkillCall {
@@ -471,7 +467,11 @@ Respond with ONLY the JSON.
             match self.executor.execute(&call).await {
                 Ok(output) => {
                     if let Some(output_as) = step.output_as {
-                        context.insert(output_as, Value::String(output.clone()));
+                        if let Ok(num) = output.parse::<f64>() {
+                            context.insert(output_as, json!(num));
+                        } else {
+                            context.insert(output_as, Value::String(output.clone()));
+                        }
                     }
                     results.push(StepResult {
                         skill: step.action,
@@ -485,6 +485,57 @@ Respond with ONLY the JSON.
             }
         }
         self.format_step_results(&results)
+    }
+
+    /// Deep recursive resolution of variable references
+    fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
+        if let Some(s) = value.as_str() {
+            if s.contains("{{") && s.contains("}}") {
+                let mut result = s.to_string();
+                let re = regex::Regex::new(r"\{\{([^}]+)\}\}").unwrap();
+                for cap in re.captures_iter(s) {
+                    let var_name = &cap[1];
+                    if let Some(val) = context.get(var_name) {
+                        let replacement = if let Some(num) = val.as_f64() {
+                            num.to_string()
+                        } else if let Some(s) = val.as_str() {
+                            s.to_string()
+                        } else {
+                            val.to_string()
+                        };
+                        result = result.replace(&format!("{{{{{}}}}}", var_name), &replacement);
+                    }
+                }
+                return Value::String(result);
+            }
+            return Value::String(s.to_string());
+        }
+        if let Some(s) = value.as_str() {
+            // Processing the {{variable}} format
+            if s.starts_with("{{") && s.ends_with("}}") {
+                let var_name = &s[2..s.len() - 2];
+                if let Some(val) = context.get(var_name) {
+                    return val.clone();
+                }
+                return Value::String(s.to_string());
+            }
+            return Value::String(s.to_string());
+        }
+        if let Some(obj) = value.as_object() {
+            let mut new_obj = serde_json::Map::new();
+            for (k, v) in obj {
+                new_obj.insert(k.clone(), Self::resolve_variables_deep(v, context));
+            }
+            return Value::Object(new_obj);
+        }
+        if let Some(arr) = value.as_array() {
+            let new_arr: Vec<Value> = arr
+                .iter()
+                .map(|v| Self::resolve_variables_deep(v, context))
+                .collect();
+            return Value::Array(new_arr);
+        }
+        value.clone()
     }
 
     /// Plan-and-Execute mode implementation
@@ -504,28 +555,17 @@ Respond with ONLY the JSON.
 ## Task
 Create a complete execution plan that handles dependencies and conditions.
 
-## Plan Format
-{{
-  "mode": "plan",
-  "plan": {{
-    "name": "plan_name",
-    "steps": [
-      {{
-        "id": "step1",
-        "action": "skill_name",
-        "parameters": {{"param": "value"}},
-        "output_as": "result1"
-      }},
-      {{
-        "id": "step2",
-        "action": "skill_name",
-        "parameters": {{"input": {{"$ref": "result1"}}}},
-        "condition": {{"op": "eq", "left": {{"$ref": "result1.value"}}, "right": 1}},
-        "output_as": "result2"
-      }}
-    ]
-  }}
-}}
+## IMPORTANT: Response Format
+You MUST return a JSON object with exactly this structure:
+
+{{"mode": "plan", "plan": {{"steps": [
+  {{"id": "step1", "action": "skill_name", "parameters": {{"param": "value"}}, "output_as": "result1"}},
+  {{"id": "step2", "action": "skill_name", "parameters": {{"input": "{{{{result1}}}}"}}, "condition": {{"op": "contains", "left": "{{{{result1}}}}", "right": "error"}}}}
+]}}}}
+
+## Parameters Field
+The "plan" object MUST contain a "steps" array. The "parameters" field is OPTIONAL.
+DO NOT include "parameters" unless you need to pass initial values.
 
 ## Condition Operators
 - eq: equal
@@ -534,13 +574,24 @@ Create a complete execution plan that handles dependencies and conditions.
 - lt: less than
 - contains: string contains
 
+## Example 1 (simple plan without parameters)
+{{"mode": "plan", "plan": {{"steps": [
+  {{"id": "step1", "action": "file_read", "parameters": {{"path": "data.txt"}}, "output_as": "content"}}
+]}}}}
+
+## Example 2 (conditional plan)
+{{"mode": "plan", "plan": {{"steps": [
+  {{"id": "step1", "action": "weather", "parameters": {{"city": "Beijing"}}, "output_as": "weather_data"}},
+  {{"id": "step2", "action": "send_email", "parameters": {{"to": "admin@example.com", "subject": "Weather Alert", "body": "{{{{weather_data}}}}"}}, "condition": {{"op": "contains", "left": "{{{{weather_data}}}}", "right": "rain"}}}}
+]}}}}
+
 ## User Input
 {}
 
 If no skills are needed:
 {{"mode": "done", "message": "Your answer"}}
 
-Respond with ONLY the JSON.
+Respond with ONLY the JSON. No markdown, no extra text.
 "#,
             registry_json, input
         );
@@ -580,6 +631,7 @@ Respond with ONLY the JSON.
         for (key, value) in &plan.parameters {
             context.set_variable(key, value.clone());
         }
+        let mut string_context = HashMap::new();
         for step in &plan.steps {
             // Check condition
             if let Some(condition) = &step.condition {
@@ -591,7 +643,8 @@ Respond with ONLY the JSON.
             let mut resolved_params = HashMap::new();
             for (key, value_ref) in &step.parameters {
                 let resolved = self.resolve_value_ref(value_ref, &context);
-                resolved_params.insert(key.clone(), resolved);
+                let final_resolved = Self::resolve_variables_deep(&resolved, &string_context);
+                resolved_params.insert(key.clone(), final_resolved);
             }
             let result = self
                 .execute_step_with_retry(&step.action, resolved_params, step)
@@ -600,6 +653,7 @@ Respond with ONLY the JSON.
                 Ok(output) => {
                     if let Some(output_as) = &step.output_as {
                         context.set_variable(output_as, Value::String(output.clone()));
+                        string_context.insert(output_as.clone(), Value::String(output.clone()));
                     }
                     context.add_step_result(WorkflowStepResult {
                         step_id: step.id.clone(),
@@ -745,6 +799,15 @@ Respond with ONLY the JSON.
                     return val.clone();
                 }
             }
+            if let Ok(json_val) = serde_json::from_str::<Value>(s) {
+                if let Some(ref_obj) = json_val.as_object() {
+                    if let Some(var_name) = ref_obj.get("$ref").and_then(|v| v.as_str()) {
+                        if let Some(val) = context.get(var_name) {
+                            return val.clone();
+                        }
+                    }
+                }
+            }
         }
         value.clone()
     }
@@ -870,6 +933,7 @@ You can respond in one of three ways:
     pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
         let json_str = Self::extract_json(response);
         let value: Value = serde_json::from_str(&json_str)?;
+
         #[derive(serde::Deserialize)]
         struct ChainStep {
             action: String,
@@ -881,10 +945,12 @@ You can respond in one of three ways:
             mode: String,
             steps: Vec<ChainStep>,
         }
+
         let chain: ChainResponse = serde_json::from_value(value)?;
         if chain.mode != "chain" {
-            anyhow::bail!("Invalid chain mode");
+            anyhow::bail!("Invalid chain mode: expected 'chain', got '{}'", chain.mode);
         }
+
         let steps = chain
             .steps
             .into_iter()
@@ -894,6 +960,7 @@ You can respond in one of three ways:
                 output_as: s.output_as,
             })
             .collect();
+
         Ok(ChainPlan { steps })
     }
 

@@ -88,7 +88,7 @@ impl Skill for PowerSkill {
     }
 
     fn example_output(&self) -> String {
-        "2 ^ 10 = 1024.00".to_string()
+        "1024.00".to_string()
     }
 
     fn category(&self) -> &str {
@@ -102,12 +102,20 @@ impl Skill for PowerSkill {
                 anyhow::bail!("Cannot calculate square root of negative number: {}", num);
             }
             let result = num.sqrt();
-            return Ok(format!("√{} = {}", num, result));
+            let precision = parameters
+                .get("precision")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(2);
+            return Ok(format_number(result, precision as usize));
         }
         if let Some(value) = parameters.get("cbrt").and_then(|v| v.as_str()) {
             let num = validate_number(value)?;
             let result = num.cbrt();
-            return Ok(format!("∛{} = {}", num, result));
+            let precision = parameters
+                .get("precision")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(2);
+            return Ok(format_number(result, precision as usize));
         }
         let base = parameters
             .get("base")
@@ -124,12 +132,7 @@ impl Skill for PowerSkill {
             .get("precision")
             .and_then(|v| v.as_u64())
             .unwrap_or(2);
-        Ok(format!(
-            "{} ^ {} = {}",
-            base_num,
-            exp_num,
-            format_number(result, precision as usize)
-        ))
+        Ok(format_number(result, precision as usize))
     }
 
     fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
