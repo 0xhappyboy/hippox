@@ -95,6 +95,14 @@ port = 587
 }
 ```
 
+## Hippox核心工作原理
+
+<img src="./assets/architecture/hippox_core_process_cn.png" width="100%">
+
+## Skill加载器与调度器的工作原理
+
+<img src="./assets/architecture/skill_load_and_schedul_cn.png" width="100%">
+
 ## 工作流模式
 
 | 模式           | 枚举值                       | 核心特点                                                                                   | LLM调用次数            | 适用场景                         |

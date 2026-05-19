@@ -95,6 +95,14 @@ port = 587
 }
 ```
 
+## Hippox Core Working Principle
+
+<img src="./assets/architecture/hippox_core_process_en.png" width="100%">
+
+## How skill loaders and schedulers work
+
+<img src="./assets/architecture/skill_load_and_schedul_en.png" width="100%">
+
 ## Workflow Model
 
 | Mode           | Enum Value                   | Core Features                                                                                                        | LLM Calls                           | Use Cases                                                 |
