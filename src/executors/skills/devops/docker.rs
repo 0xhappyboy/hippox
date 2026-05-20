@@ -1,18 +1,11 @@
 //! Docker container management utilities.
-//!
-//! This module provides skills for Docker operations:
-//! - `DockerPsSkill`: List Docker containers
-//! - `DockerStartStopSkill`: Start or stop containers
-//! - `DockerLogsSkill`: View container logs
-//! - `DockerInspectSkill`: Get container details
-//! - `DockerExecSkill`: Execute commands in containers
 
 use crate::config::get_config;
 use crate::executors::types::{Skill, SkillParameter};
+use crate::executors::{ExecOptions, exec_async};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::process::Command;
 
 /// A skill for listing Docker containers.
 #[derive(Debug)]
@@ -96,40 +89,41 @@ impl Skill for DockerPsSkill {
             .get("format")
             .and_then(|v| v.as_str())
             .unwrap_or("table");
-        let mut cmd = Command::new("docker");
-        if config.is_docker_configured() {
-            cmd.env("DOCKER_HOST", config.get_docker_host());
-        }
-        cmd.arg("ps");
+        let mut args = vec!["ps"];
         if all {
-            cmd.arg("-a");
+            args.push("-a");
         }
         if let Some(f) = filter {
-            cmd.arg("--filter").arg(f);
+            args.push("--filter");
+            args.push(f);
         }
         match format {
             "json" => {
-                cmd.arg("--format").arg("json");
+                args.push("--format");
+                args.push("json");
             }
             "quiet" => {
-                cmd.arg("-q");
+                args.push("-q");
             }
             _ => {}
         }
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Docker ps failed: {}", stderr));
+        let mut opts = ExecOptions::new().with_timeout(config.docker_timeout);
+        if config.is_docker_configured() {
+            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
         }
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let result = exec_async("docker", &args, Some(opts)).await?;
+        if !result.success {
+            return Err(anyhow::anyhow!("Docker ps failed: {}", result.stderr));
+        }
         if format == "json" {
-            let containers: Vec<serde_json::Value> = stdout
+            let containers: Vec<serde_json::Value> = result
+                .stdout
                 .lines()
                 .filter_map(|line| serde_json::from_str(line).ok())
                 .collect();
             Ok(serde_json::to_string_pretty(&containers)?)
         } else {
-            Ok(stdout.to_string())
+            Ok(result.stdout)
         }
     }
 }
@@ -218,7 +212,7 @@ impl Skill for DockerStartStopSkill {
             .get("action")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: action"))?;
-        let timeout = parameters
+        let timeout_secs = parameters
             .get("timeout")
             .and_then(|v| v.as_u64())
             .unwrap_or(config.docker_timeout);
@@ -230,22 +224,23 @@ impl Skill for DockerStartStopSkill {
             "unpause" => "unpause",
             _ => return Err(anyhow::anyhow!("Unknown action: {}", action)),
         };
-        let mut cmd = Command::new("docker");
-        if config.is_docker_configured() {
-            cmd.env("DOCKER_HOST", config.get_docker_host());
-        }
-        cmd.arg(docker_cmd);
+        let mut args: Vec<String> = vec![docker_cmd.to_string()];
         if action == "stop" {
-            cmd.arg("-t").arg(timeout.to_string());
+            args.push("-t".to_string());
+            args.push(timeout_secs.to_string());
         }
-        cmd.arg(container);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        args.push(container.to_string());
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let mut opts = ExecOptions::new();
+        if config.is_docker_configured() {
+            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
+        }
+        let result = exec_async("docker", &args_ref, Some(opts)).await?;
+        if !result.success {
             return Err(anyhow::anyhow!(
                 "Failed to {} container: {}",
                 action,
-                stderr
+                result.stderr
             ));
         }
         Ok(format!(
@@ -361,32 +356,31 @@ impl Skill for DockerLogsSkill {
             .get("timestamps")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let mut cmd = Command::new("docker");
-        if config.is_docker_configured() {
-            cmd.env("DOCKER_HOST", config.get_docker_host());
-        }
-        cmd.arg("logs");
-        cmd.arg("--tail").arg(tail.to_string());
+        let tail_str = tail.to_string();
+        let mut args = vec!["logs", "--tail", &tail_str];
         if let Some(s) = since {
-            cmd.arg("--since").arg(s);
+            args.push("--since");
+            args.push(s);
         }
         if follow {
-            cmd.arg("--follow");
+            args.push("--follow");
         }
         if timestamps {
-            cmd.arg("--timestamps");
+            args.push("--timestamps");
         }
-        cmd.arg(container);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to get logs: {}", stderr));
+        args.push(container);
+        let mut opts = ExecOptions::new();
+        if config.is_docker_configured() {
+            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
         }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.is_empty() {
+        let result = exec_async("docker", &args, Some(opts)).await?;
+        if !result.success {
+            return Err(anyhow::anyhow!("Failed to get logs: {}", result.stderr));
+        }
+        if result.stdout.is_empty() {
             Ok("No logs available".to_string())
         } else {
-            Ok(stdout.to_string())
+            Ok(result.stdout)
         }
     }
 }
@@ -456,21 +450,24 @@ impl Skill for DockerInspectSkill {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: container"))?;
         let format = parameters.get("format").and_then(|v| v.as_str());
-        let mut cmd = Command::new("docker");
-        if config.is_docker_configured() {
-            cmd.env("DOCKER_HOST", config.get_docker_host());
-        }
-        cmd.arg("inspect");
+        let mut args = vec!["inspect"];
         if let Some(f) = format {
-            cmd.arg("--format").arg(f);
+            args.push("--format");
+            args.push(f);
         }
-        cmd.arg(container);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to inspect container: {}", stderr));
+        args.push(container);
+        let mut opts = ExecOptions::new();
+        if config.is_docker_configured() {
+            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
         }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let result = exec_async("docker", &args, Some(opts)).await?;
+        if !result.success {
+            return Err(anyhow::anyhow!(
+                "Failed to inspect container: {}",
+                result.stderr
+            ));
+        }
+        Ok(result.stdout)
     }
 }
 
@@ -579,34 +576,33 @@ impl Skill for DockerExecSkill {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let workdir = parameters.get("workdir").and_then(|v| v.as_str());
-        let mut cmd = Command::new("docker");
-        if config.is_docker_configured() {
-            cmd.env("DOCKER_HOST", config.get_docker_host());
-        }
-        cmd.arg("exec");
+        let mut args = vec!["exec"];
         if interactive {
-            cmd.arg("-i");
+            args.push("-i");
         }
         if tty {
-            cmd.arg("-t");
+            args.push("-t");
         }
         if let Some(wd) = workdir {
-            cmd.arg("-w").arg(wd);
+            args.push("-w");
+            args.push(wd);
         }
-        cmd.arg(container);
-        cmd.arg("sh");
-        cmd.arg("-c");
-        cmd.arg(command);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Command failed: {}", stderr));
+        args.push(container);
+        args.push("sh");
+        args.push("-c");
+        args.push(command);
+        let mut opts = ExecOptions::new();
+        if config.is_docker_configured() {
+            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
         }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.is_empty() {
+        let result = exec_async("docker", &args, Some(opts)).await?;
+        if !result.success {
+            return Err(anyhow::anyhow!("Command failed: {}", result.stderr));
+        }
+        if result.stdout.is_empty() {
             Ok("Command executed successfully (no output)".to_string())
         } else {
-            Ok(stdout.to_string())
+            Ok(result.stdout)
         }
     }
 }

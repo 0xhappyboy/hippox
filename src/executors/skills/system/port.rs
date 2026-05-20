@@ -9,9 +9,10 @@ use crate::executors::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::net::TcpStream;
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
@@ -273,7 +274,7 @@ fn get_service_name(port: u16) -> &'static str {
 /// `true` if the connection was successful, `false` otherwise
 async fn scan_port(ip: IpAddr, port: u16, timeout_dur: Duration) -> bool {
     let addr = SocketAddr::new(ip, port);
-    match timeout(timeout_dur, TcpStream::connect_addr(&addr)).await {
+    match timeout(timeout_dur, TcpStream::connect(&addr)).await {
         Ok(Ok(_)) => true,
         _ => false,
     }
@@ -538,7 +539,12 @@ impl Skill for PortTestSkill {
                 Err(e) => return Err(anyhow::anyhow!("Failed to resolve host: {}", e)),
             };
             for addr in addrs {
-                if let Ok(_) = TcpStream::connect_timeout(&addr, Duration::from_secs(timeout_secs))
+                if tokio::time::timeout(
+                    Duration::from_secs(timeout_secs),
+                    tokio::net::TcpStream::connect(&addr),
+                )
+                .await
+                .is_ok()
                 {
                     return Ok(addr);
                 }

@@ -20,6 +20,8 @@ pub mod net;
 pub mod system;
 #[cfg(feature = "task")]
 pub mod task;
+#[cfg(feature = "task")]
+pub mod text;
 #[cfg(feature = "time")]
 pub mod time;
 
@@ -46,5 +48,7 @@ pub use net::*;
 pub use system::*;
 #[cfg(feature = "task")]
 pub use task::*;
+#[cfg(feature = "task")]
+pub use text::*;
 #[cfg(feature = "time")]
 pub use time::*;

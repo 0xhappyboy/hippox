@@ -6,7 +6,6 @@ pub mod ping;
 pub mod tcp;
 pub mod udp;
 pub mod url;
-pub mod whois;
 
 pub use dns::*;
 pub use ftp::*;
@@ -15,4 +14,3 @@ pub use ip::*;
 pub use ping::*;
 pub use tcp::*;
 pub use url::*;
-pub use whois::*;

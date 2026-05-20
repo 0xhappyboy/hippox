@@ -220,21 +220,6 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "local_ip".to_string(),
         Arc::new(super::skills::net::ip::LocalIpSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "net", feature = "all"))]
-    registry.insert(
-        "whois".to_string(),
-        Arc::new(super::skills::net::whois::WhoisSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "net", feature = "all"))]
-    registry.insert(
-        "whois_batch".to_string(),
-        Arc::new(super::skills::net::whois::WhoisBatchSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "net", feature = "all"))]
-    registry.insert(
-        "whois_available".to_string(),
-        Arc::new(super::skills::net::whois::WhoisAvailableSkill) as Arc<dyn Skill>,
-    );
     // ==================== TCP/UDP/FTP Skills ====================
     #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
@@ -280,6 +265,128 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     registry.insert(
         "ftp_delete".to_string(),
         Arc::new(super::skills::ftp::FtpDeleteSkill) as Arc<dyn Skill>,
+    );
+    // ==================== OS Management Skills ====================
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_reboot".to_string(),
+        Arc::new(super::skills::os::OsRebootSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_shutdown".to_string(),
+        Arc::new(super::skills::os::OsShutdownSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_sleep".to_string(),
+        Arc::new(super::skills::os::OsSleepSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_lock".to_string(),
+        Arc::new(super::skills::os::OsLockSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_logout".to_string(),
+        Arc::new(super::skills::os::OsLogoutSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_hibernate".to_string(),
+        Arc::new(super::skills::os::OsHibernateSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_get_uptime".to_string(),
+        Arc::new(super::skills::os::OsGetUptimeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_get_load_average".to_string(),
+        Arc::new(super::skills::os::OsGetLoadAverageSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_get_hostname".to_string(),
+        Arc::new(super::skills::os::OsGetHostnameSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_get_time".to_string(),
+        Arc::new(super::skills::os::OsGetTimeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_set_time".to_string(),
+        Arc::new(super::skills::os::OsSetTimeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_get_user".to_string(),
+        Arc::new(super::skills::os::OsGetUserSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_disk_usage".to_string(),
+        Arc::new(super::skills::os::OsDiskUsageSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_memory_info".to_string(),
+        Arc::new(super::skills::os::OsMemoryInfoSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_cpu_info".to_string(),
+        Arc::new(super::skills::os::OsCpuInfoSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_network_info".to_string(),
+        Arc::new(super::skills::os::OsNetworkInfoSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_battery_info".to_string(),
+        Arc::new(super::skills::os::OsBatteryInfoSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "os_notification".to_string(),
+        Arc::new(super::skills::os::OsNotificationSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Process Skills ====================
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "process_list".to_string(),
+        Arc::new(super::skills::process::ProcessListSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "process_kill".to_string(),
+        Arc::new(super::skills::process::ProcessKillSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "process_kill_by_name".to_string(),
+        Arc::new(super::skills::process::ProcessKillByNameSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "process_is_running".to_string(),
+        Arc::new(super::skills::process::ProcessIsRunningSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "process_get_pid".to_string(),
+        Arc::new(super::skills::process::ProcessGetPidSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "process_info".to_string(),
+        Arc::new(super::skills::process::ProcessInfoSkill) as Arc<dyn Skill>,
     );
     // ==================== System Skills ====================
     #[cfg(any(feature = "system", feature = "all"))]
@@ -484,6 +591,166 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     registry.insert(
         "sqlite_list_tables".to_string(),
         Arc::new(super::skills::sqlite::SqliteListTablesSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Text Processing Skills ====================
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "text_diff".to_string(),
+        Arc::new(super::skills::text::TextDiffSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "text_sort".to_string(),
+        Arc::new(super::skills::text::TextSortSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "text_deduplicate".to_string(),
+        Arc::new(super::skills::text::TextDeduplicateSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "text_filter".to_string(),
+        Arc::new(super::skills::text::TextFilterSkill) as Arc<dyn Skill>,
+    );
+
+    // ==================== Regex Skills ====================
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "regex_match".to_string(),
+        Arc::new(super::skills::regex::RegexMatchSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "regex_find".to_string(),
+        Arc::new(super::skills::regex::RegexFindSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "regex_replace".to_string(),
+        Arc::new(super::skills::regex::RegexReplaceSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "text", feature = "all"))]
+    registry.insert(
+        "regex_extract".to_string(),
+        Arc::new(super::skills::regex::RegexExtractSkill) as Arc<dyn Skill>,
+    );
+    // ==================== k8s Skills ====================
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_pods".to_string(),
+        Arc::new(super::skills::k8s::K8sGetPodsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_describe_pod".to_string(),
+        Arc::new(super::skills::k8s::K8sDescribePodSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_logs".to_string(),
+        Arc::new(super::skills::k8s::K8sGetLogsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_exec".to_string(),
+        Arc::new(super::skills::k8s::K8sExecSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_deployments".to_string(),
+        Arc::new(super::skills::k8s::K8sGetDeploymentsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_services".to_string(),
+        Arc::new(super::skills::k8s::K8sGetServicesSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_scale_deployment".to_string(),
+        Arc::new(super::skills::k8s::K8sScaleDeploymentSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_restart_deployment".to_string(),
+        Arc::new(super::skills::k8s::K8sRestartDeploymentSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_port_forward".to_string(),
+        Arc::new(super::skills::k8s::K8sPortForwardSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_nodes".to_string(),
+        Arc::new(super::skills::k8s::K8sGetNodesSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_namespaces".to_string(),
+        Arc::new(super::skills::k8s::K8sGetNamespacesSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_apply_yaml".to_string(),
+        Arc::new(super::skills::k8s::K8sApplyYamlSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_delete_resource".to_string(),
+        Arc::new(super::skills::k8s::K8sDeleteResourceSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_events".to_string(),
+        Arc::new(super::skills::k8s::K8sGetEventsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_configmaps".to_string(),
+        Arc::new(super::skills::k8s::K8sGetConfigMapsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_secrets".to_string(),
+        Arc::new(super::skills::k8s::K8sGetSecretsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_ingresses".to_string(),
+        Arc::new(super::skills::k8s::K8sGetIngressesSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "k8s_get_statefulsets".to_string(),
+        Arc::new(super::skills::k8s::K8sGetStatefulSetsSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Docker Skills ====================
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "docker_ps".to_string(),
+        Arc::new(super::skills::docker::DockerPsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "docker_start_stop".to_string(),
+        Arc::new(super::skills::docker::DockerStartStopSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "docker_logs".to_string(),
+        Arc::new(super::skills::docker::DockerLogsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "docker_inspect".to_string(),
+        Arc::new(super::skills::docker::DockerInspectSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "devops", feature = "all"))]
+    registry.insert(
+        "docker_exec".to_string(),
+        Arc::new(super::skills::docker::DockerExecSkill) as Arc<dyn Skill>,
     );
     // ==================== GitHub Skills ====================
     #[cfg(any(feature = "devops", feature = "all"))]

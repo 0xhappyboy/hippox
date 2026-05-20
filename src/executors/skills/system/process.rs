@@ -481,7 +481,6 @@ impl Skill for ProcessIsRunningSkill {
                 proc_name.contains(&name_lower)
             }
         });
-
         if is_running {
             Ok(format!("Process '{}' is running", name))
         } else {

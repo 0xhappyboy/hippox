@@ -7,16 +7,12 @@
 //! - `OsLockSkill`: Lock the system screen
 //! - `OsLogoutSkill`: Log out current user
 //! - `OsHibernateSkill`: Hibernate the system
-//! - `OsSuspendSkill`: Suspend the system
 //! - `OsGetUptimeSkill`: Get system uptime
 //! - `OsGetLoadAverageSkill`: Get system load average
 //! - `OsGetHostnameSkill`: Get/set system hostname
 //! - `OsGetTimeSkill`: Get system time and timezone
 //! - `OsSetTimeSkill`: Set system time
 //! - `OsGetUserSkill`: Get current user info
-//! - `OsListUsersSkill`: List system users
-//! - `OsGetEnvSkill`: Get environment variables
-//! - `OsSetEnvSkill`: Set environment variables
 //! - `OsDiskUsageSkill`: Get disk usage information
 //! - `OsMemoryInfoSkill`: Get memory information
 //! - `OsCpuInfoSkill`: Get CPU information
@@ -27,9 +23,7 @@
 use crate::executors::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
-use std::borrow::Cow;
 use std::collections::HashMap;
-use std::process::Command;
 use sysinfo::{Disks, Networks, System, Users};
 
 /// A skill for rebooting the system.
@@ -101,29 +95,32 @@ impl Skill for OsRebootSkill {
             .unwrap_or(false);
         #[cfg(target_os = "windows")]
         {
-            let mut cmd = Command::new("shutdown");
-            cmd.arg("/r");
+            use crate::executors::exec_async;
+            let mut args: Vec<String> = vec!["/r".to_string()];
             if delay > 0 {
-                cmd.arg("/t").arg(delay.to_string());
+                args.push("/t".to_string());
+                args.push(delay.to_string());
             }
             if force {
-                cmd.arg("/f");
+                args.push("/f".to_string());
             }
-            cmd.output()?;
+            let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            exec_async("shutdown", &args_ref, None).await?;
         }
         #[cfg(not(target_os = "windows"))]
         {
-            let mut cmd = Command::new("sudo");
-            cmd.arg("shutdown");
+            let mut args = vec!["shutdown"];
             if delay > 0 {
-                cmd.arg("-h").arg(format!("+{}", delay / 60));
+                args.push("-h");
+                args.push(&format!("+{}", delay / 60));
             } else {
-                cmd.arg("-r").arg("now");
+                args.push("-r");
+                args.push("now");
             }
             if force {
-                cmd.arg("-f");
+                args.push("-f");
             }
-            let _ = cmd.output();
+            let _ = exec_async("sudo", &args, None).await;
         }
         Ok(format!("System will reboot in {} seconds", delay))
     }
@@ -198,29 +195,32 @@ impl Skill for OsShutdownSkill {
             .unwrap_or(false);
         #[cfg(target_os = "windows")]
         {
-            let mut cmd = Command::new("shutdown");
-            cmd.arg("/s");
+            use crate::executors::exec_async;
+            let mut args: Vec<String> = vec!["/r".to_string()];
             if delay > 0 {
-                cmd.arg("/t").arg(delay.to_string());
+                args.push("/t".to_string());
+                args.push(delay.to_string());
             }
             if force {
-                cmd.arg("/f");
+                args.push("/f".to_string());
             }
-            cmd.output()?;
+            let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            exec_async("shutdown", &args_ref, None).await?;
         }
         #[cfg(not(target_os = "windows"))]
         {
-            let mut cmd = Command::new("sudo");
-            cmd.arg("shutdown");
+            let mut args = vec!["shutdown"];
             if delay > 0 {
-                cmd.arg("-h").arg(format!("+{}", delay / 60));
+                args.push("-h");
+                args.push(&format!("+{}", delay / 60));
             } else {
-                cmd.arg("-h").arg("now");
+                args.push("-h");
+                args.push("now");
             }
             if force {
-                cmd.arg("-f");
+                args.push("-f");
             }
-            let _ = cmd.output();
+            let _ = exec_async("sudo", &args, None).await;
         }
         Ok(format!("System will shutdown in {} seconds", delay))
     }
@@ -265,17 +265,21 @@ impl Skill for OsSleepSkill {
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         #[cfg(target_os = "windows")]
         {
-            Command::new("rundll32.exe")
-                .args(["powrprof.dll,SetSuspendState", "0", "1", "0"])
-                .output()?;
+            use crate::executors::exec_async;
+            exec_async(
+                "rundll32.exe",
+                &["powrprof.dll,SetSuspendState", "0", "1", "0"],
+                None,
+            )
+            .await?;
         }
         #[cfg(target_os = "macos")]
         {
-            Command::new("pmset").arg("sleepnow").output()?;
+            exec_async("pmset", &["sleepnow"], None).await?;
         }
         #[cfg(target_os = "linux")]
         {
-            Command::new("systemctl").arg("suspend").output()?;
+            exec_async("systemctl", &["suspend"], None).await?;
         }
         Ok("System is going to sleep".to_string())
     }
@@ -320,20 +324,17 @@ impl Skill for OsLockSkill {
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         #[cfg(target_os = "windows")]
         {
-            Command::new("rundll32.exe")
-                .args(["user32.dll,LockWorkStation"])
-                .output()?;
+            use crate::executors::exec_async;
+            exec_async("rundll32.exe", &["user32.dll,LockWorkStation"], None).await?;
         }
         #[cfg(target_os = "macos")]
         {
-            Command::new("osascript")
-                .args(["-e", "tell application \"System Events\" to keystroke \"q\" using {command down, control down}"])
-                .output()?;
+            let _ = exec_async("osascript", &["-e", "tell application \"System Events\" to keystroke \"q\" using {command down, control down}"], None).await;
         }
         #[cfg(target_os = "linux")]
         {
-            let _ = Command::new("gnome-screensaver-command").arg("-l").output();
-            let _ = Command::new("xdg-screensaver").arg("lock").output();
+            let _ = exec_async("gnome-screensaver-command", &["-l"], None).await;
+            let _ = exec_async("xdg-screensaver", &["lock"], None).await;
         }
         Ok("Screen locked".to_string())
     }
@@ -390,24 +391,22 @@ impl Skill for OsLogoutSkill {
             .unwrap_or(false);
         #[cfg(target_os = "windows")]
         {
-            Command::new("shutdown").arg("/l").output()?;
+            use crate::executors::exec_async;
+            exec_async("shutdown", &["/l"], None).await?;
         }
         #[cfg(target_os = "macos")]
         {
-            Command::new("osascript")
-                .args(["-e", "tell application \"System Events\" to log out"])
-                .output()?;
+            let _ = exec_async(
+                "osascript",
+                &["-e", "tell application \"System Events\" to log out"],
+                None,
+            )
+            .await;
         }
         #[cfg(target_os = "linux")]
         {
-            let _ = Command::new("gnome-session-quit")
-                .arg("--no-prompt")
-                .output();
-            let _ = Command::new("pkill")
-                .arg("-KILL")
-                .arg("-u")
-                .arg("$USER")
-                .output();
+            let _ = exec_async("gnome-session-quit", &["--no-prompt"], None).await;
+            let _ = exec_async("pkill", &["-KILL", "-u", "$USER"], None).await;
         }
         Ok("Logging out current user".to_string())
     }
@@ -452,15 +451,16 @@ impl Skill for OsHibernateSkill {
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         #[cfg(target_os = "windows")]
         {
-            Command::new("shutdown").arg("/h").output()?;
+            use crate::executors::exec_async;
+            exec_async("shutdown", &["/h"], None).await?;
         }
         #[cfg(target_os = "linux")]
         {
-            Command::new("systemctl").arg("hibernate").output()?;
+            exec_async("systemctl", &["hibernate"], None).await?;
         }
         #[cfg(target_os = "macos")]
         {
-            Command::new("pmset").args(["sleepnow"]).output()?;
+            exec_async("pmset", &["sleepnow"], None).await?;
         }
         Ok("System is hibernating".to_string())
     }
@@ -637,13 +637,17 @@ impl Skill for OsGetHostnameSkill {
         if let Some(name) = new_hostname {
             #[cfg(not(target_os = "windows"))]
             {
-                Command::new("sudo").arg("hostname").arg(name).output()?;
+                let _ = exec_async("sudo", &["hostname", name], None).await;
             }
             #[cfg(target_os = "windows")]
             {
-                Command::new("powershell")
-                    .args(["-Command", &format!("Rename-Computer -NewName '{}'", name)])
-                    .output()?;
+                use crate::executors::exec_async;
+                let _ = exec_async(
+                    "powershell",
+                    &["-Command", &format!("Rename-Computer -NewName '{}'", name)],
+                    None,
+                )
+                .await;
             }
             Ok(format!("Hostname changed to: {}", name))
         } else {
@@ -779,17 +783,17 @@ impl Skill for OsSetTimeSkill {
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: datetime"))?;
         #[cfg(target_os = "windows")]
         {
-            Command::new("powershell")
-                .args(["-Command", &format!("Set-Date -Date '{}'", datetime)])
-                .output()?;
+            use crate::executors::exec_async;
+            exec_async(
+                "powershell",
+                &["-Command", &format!("Set-Date -Date '{}'", datetime)],
+                None,
+            )
+            .await?;
         }
         #[cfg(not(target_os = "windows"))]
         {
-            Command::new("sudo")
-                .arg("date")
-                .arg("-s")
-                .arg(datetime)
-                .output()?;
+            exec_async("sudo", &["date", "-s", datetime], None).await?;
         }
         Ok("System time updated successfully".to_string())
     }
@@ -824,7 +828,7 @@ impl Skill for OsGetUserSkill {
     }
 
     fn example_output(&self) -> String {
-        "Username: john\nHome: /home/john\nUID: 1000\nGroups: sudo, docker".to_string()
+        "Username: john\nUID: 1000\nGroups: sudo, docker".to_string()
     }
 
     fn category(&self) -> &str {
@@ -1026,7 +1030,6 @@ impl Skill for OsCpuInfoSkill {
         let physical_cores = System::physical_core_count().unwrap_or(0);
         let total_cores = system.cpus().len();
         let cpu_usage = system.global_cpu_usage();
-        // Get CPU frequency (platform-dependent)
         let frequency_info = if let Some(freq_mhz) = system.cpus().first().map(|c| c.frequency()) {
             format!("Frequency: {:.1} GHz", freq_mhz as f64 / 1000.0)
         } else {
@@ -1171,13 +1174,16 @@ impl Skill for OsBatteryInfoSkill {
             .unwrap_or(false);
         #[cfg(target_os = "linux")]
         {
-            let output = Command::new("upower")
-                .args(["-i", "/org/freedesktop/UPower/devices/battery_BAT0"])
-                .output();
-            if let Ok(out) = output {
-                let info = String::from_utf8_lossy(&out.stdout);
+            let result = exec_async(
+                "upower",
+                &["-i", "/org/freedesktop/UPower/devices/battery_BAT0"],
+                None,
+            )
+            .await;
+            if let Ok(out) = result {
+                let info = out.stdout;
                 if detailed {
-                    return Ok(info.to_string());
+                    return Ok(info);
                 }
                 let percentage = info
                     .lines()
@@ -1199,10 +1205,10 @@ impl Skill for OsBatteryInfoSkill {
         }
         #[cfg(target_os = "macos")]
         {
-            let output = Command::new("pmset").arg("-g").arg("batt").output()?;
-            let info = String::from_utf8_lossy(&output.stdout);
+            let result = exec_async("pmset", &["-g", "batt"], None).await?;
+            let info = result.stdout;
             if detailed {
-                return Ok(info.to_string());
+                return Ok(info);
             }
             if let Some(line) = info.lines().find(|l| l.contains('%')) {
                 return Ok(format!("Battery: {}", line.trim()));
@@ -1210,11 +1216,10 @@ impl Skill for OsBatteryInfoSkill {
         }
         #[cfg(target_os = "windows")]
         {
-            let output = Command::new("powercfg")
-                .args(["/getbatteryreport"])
-                .output()?;
+            use crate::executors::exec_async;
+            let result = exec_async("powercfg", &["/getbatteryreport"], None).await?;
             if detailed {
-                return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+                return Ok(result.stdout);
             }
         }
         Ok("Battery information not available or system is not a laptop".to_string())
@@ -1313,35 +1318,38 @@ impl Skill for OsNotificationSkill {
                 "low" => "--urgency=low",
                 _ => "--urgency=normal",
             };
-            let _ = Command::new("notify-send")
-                .arg(urgency_flag)
-                .arg(title)
-                .arg(message)
-                .output();
+            let _ = exec_async("notify-send", &[urgency_flag, title, message], None).await;
         }
         #[cfg(target_os = "macos")]
         {
-            let _ = Command::new("osascript")
-                .args([
+            let _ = exec_async(
+                "osascript",
+                &[
                     "-e",
                     &format!(
                         "display notification \"{}\" with title \"{}\"",
                         message, title
                     ),
-                ])
-                .output();
+                ],
+                None,
+            )
+            .await;
         }
         #[cfg(target_os = "windows")]
         {
-            let _ = Command::new("powershell")
-                .args([
+            use crate::executors::exec_async;
+            let _ = exec_async(
+                "powershell",
+                &[
                     "-Command",
                     &format!(
-                        r#"New-BurntToastNotification -Text "{}", "{}""#,
+                        "New-BurntToastNotification -Text \"{}\", \"{}\"",
                         title, message
                     ),
-                ])
-                .output();
+                ],
+                None,
+            )
+            .await;
         }
         Ok("Notification sent".to_string())
     }

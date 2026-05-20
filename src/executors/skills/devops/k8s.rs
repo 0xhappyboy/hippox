@@ -22,10 +22,64 @@
 
 use crate::config::get_config;
 use crate::executors::types::{Skill, SkillParameter};
+use crate::executors::{ExecOptions, exec_async, exec_with_stdin_async};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::process::Command;
+
+/// Helper to build kubectl command args with config
+fn build_kubectl_args(
+    base_args: &[&str],
+    namespace: Option<&str>,
+    all_namespaces: bool,
+) -> Vec<String> {
+    let config = get_config();
+    let mut args = Vec::new();
+    if let Some(kubeconfig) = config.get_kubeconfig() {
+        args.push("--kubeconfig".to_string());
+        args.push(kubeconfig);
+    }
+    if !config.k8s_context.is_empty() {
+        args.push("--context".to_string());
+        args.push(config.k8s_context.clone());
+    }
+    if all_namespaces {
+        args.push("--all-namespaces".to_string());
+    } else if let Some(ns) = namespace {
+        args.push("-n".to_string());
+        args.push(ns.to_string());
+    } else {
+        args.push("-n".to_string());
+        args.push(config.k8s_namespace.clone());
+    }
+
+    for arg in base_args {
+        args.push(arg.to_string());
+    }
+    args
+}
+
+/// Helper to build kubectl command with timeout
+async fn exec_kubectl(args: &[&str]) -> Result<String> {
+    let config = get_config();
+    let opts = ExecOptions::new().with_timeout(config.k8s_timeout);
+    let result = exec_async("kubectl", args, Some(opts)).await?;
+    if result.success {
+        Ok(result.stdout)
+    } else {
+        Err(anyhow::anyhow!("kubectl failed: {}", result.stderr))
+    }
+}
+
+/// Helper to build kubectl command with custom options
+async fn exec_kubectl_with_opts(args: &[&str], opts: ExecOptions) -> Result<String> {
+    let result = exec_async("kubectl", args, Some(opts)).await?;
+    if result.success {
+        Ok(result.stdout)
+    } else {
+        Err(anyhow::anyhow!("kubectl failed: {}", result.stderr))
+    }
+}
 
 /// A skill for listing k8s pods.
 #[derive(Debug)]
@@ -109,11 +163,7 @@ impl Skill for K8sGetPodsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let all_namespaces = parameters
             .get("all_namespaces")
             .and_then(|v| v.as_bool())
@@ -123,39 +173,40 @@ impl Skill for K8sGetPodsSkill {
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("wide");
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("pods");
-        if all_namespaces {
-            cmd.arg("--all-namespaces");
-        } else {
-            cmd.arg("-n").arg(namespace);
-        }
-        if let Some(sel) = selector {
-            cmd.arg("-l").arg(sel);
-        }
+        let mut base_args = vec!["get", "pods"];
         match output {
             "json" => {
-                cmd.arg("-o").arg("json");
+                base_args.push("-o");
+                base_args.push("json");
             }
             "yaml" => {
-                cmd.arg("-o").arg("yaml");
+                base_args.push("-o");
+                base_args.push("yaml");
             }
             _ => {
-                cmd.arg("-o").arg("wide");
+                base_args.push("-o");
+                base_args.push("wide");
             }
         }
-        let output_result = cmd.output()?;
-        if !output_result.status.success() {
-            let stderr = String::from_utf8_lossy(&output_result.stderr);
-            return Err(anyhow::anyhow!("kubectl get pods failed: {}", stderr));
+        if let Some(sel) = selector {
+            base_args.push("-l");
+            base_args.push(sel);
         }
-        let stdout = String::from_utf8_lossy(&output_result.stdout);
+        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let result = exec_async("kubectl", &args_ref, None).await?;
+        if !result.success {
+            return Err(anyhow::anyhow!(
+                "kubectl get pods failed: {}",
+                result.stderr
+            ));
+        }
         if output == "json" {
-            if let Ok(json_value) = serde_json::from_str(&stdout).map(|v: serde_json::Value| v) {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result.stdout) {
                 return Ok(serde_json::to_string_pretty(&json_value)?);
             }
         }
-        Ok(stdout.to_string())
+        Ok(result.stdout)
     }
 }
 
@@ -219,27 +270,15 @@ impl Skill for K8sDescribePodSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let pod = parameters
             .get("pod")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pod"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("describe")
-            .arg("pod")
-            .arg(pod)
-            .arg("-n")
-            .arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("kubectl describe failed: {}", stderr));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let base_args = vec!["describe", "pod", pod];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await
     }
 }
 
@@ -348,15 +387,11 @@ impl Skill for K8sGetLogsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let pod = parameters
             .get("pod")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pod"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let container = parameters.get("container").and_then(|v| v.as_str());
         let tail = parameters
             .get("tail")
@@ -371,31 +406,29 @@ impl Skill for K8sGetLogsSkill {
             .get("follow")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("logs").arg(pod).arg("-n").arg(namespace);
-        cmd.arg("--tail").arg(tail.to_string());
+        let tail_str = tail.to_string();
+        let mut base_args = vec!["logs", pod, "--tail", &tail_str];
         if let Some(c) = container {
-            cmd.arg("-c").arg(c);
+            base_args.push("-c");
+            base_args.push(c);
         }
         if let Some(s) = since {
-            cmd.arg("--since").arg(s);
+            base_args.push("--since");
+            base_args.push(s);
         }
         if previous {
-            cmd.arg("--previous");
+            base_args.push("--previous");
         }
         if follow {
-            cmd.arg("--follow");
+            base_args.push("--follow");
         }
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("kubectl logs failed: {}", stderr));
-        }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.is_empty() {
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let result = exec_kubectl(&args_ref).await?;
+        if result.is_empty() {
             Ok("No logs available".to_string())
         } else {
-            Ok(stdout.to_string())
+            Ok(result)
         }
     }
 }
@@ -505,10 +538,7 @@ impl Skill for K8sExecSkill {
             .get("command")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: command"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let container = parameters.get("container").and_then(|v| v.as_str());
         let interactive = parameters
             .get("interactive")
@@ -518,28 +548,32 @@ impl Skill for K8sExecSkill {
             .get("tty")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("exec").arg(pod).arg("-n").arg(namespace);
+        let mut base_args = vec!["exec", pod];
         if interactive {
-            cmd.arg("-i");
+            base_args.push("-i");
         }
         if tty {
-            cmd.arg("-t");
+            base_args.push("-t");
         }
         if let Some(c) = container {
-            cmd.arg("-c").arg(c);
+            base_args.push("-c");
+            base_args.push(c);
         }
-        cmd.arg("--").arg("sh").arg("-c").arg(command);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Command failed: {}", stderr));
+        base_args.push("--");
+        base_args.push("sh");
+        base_args.push("-c");
+        base_args.push(command);
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let opts = ExecOptions::new().with_timeout(config.k8s_timeout);
+        let result = exec_async("kubectl", &args_ref, Some(opts)).await?;
+        if !result.success {
+            return Err(anyhow::anyhow!("Command failed: {}", result.stderr));
         }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.is_empty() {
+        if result.stdout.is_empty() {
             Ok("Command executed successfully (no output)".to_string())
         } else {
-            Ok(stdout.to_string())
+            Ok(result.stdout)
         }
     }
 }
@@ -617,11 +651,7 @@ impl Skill for K8sGetDeploymentsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let all_namespaces = parameters
             .get("all_namespaces")
             .and_then(|v| v.as_bool())
@@ -630,34 +660,30 @@ impl Skill for K8sGetDeploymentsSkill {
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("wide");
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("deployments");
-
-        if all_namespaces {
-            cmd.arg("--all-namespaces");
-        } else {
-            cmd.arg("-n").arg(namespace);
-        }
+        let mut base_args = vec!["get", "deployments"];
         match output {
-            "json" => cmd.arg("-o").arg("json"),
-            "yaml" => cmd.arg("-o").arg("yaml"),
-            _ => cmd.arg("-o").arg("wide"),
-        };
-        let output_result = cmd.output()?;
-        if !output_result.status.success() {
-            let stderr = String::from_utf8_lossy(&output_result.stderr);
-            return Err(anyhow::anyhow!(
-                "kubectl get deployments failed: {}",
-                stderr
-            ));
+            "json" => {
+                base_args.push("-o");
+                base_args.push("json");
+            }
+            "yaml" => {
+                base_args.push("-o");
+                base_args.push("yaml");
+            }
+            _ => {
+                base_args.push("-o");
+                base_args.push("wide");
+            }
         }
-        let stdout = String::from_utf8_lossy(&output_result.stdout);
+        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let result = exec_kubectl(&args_ref).await?;
         if output == "json" {
-            if let Ok(json_value) = serde_json::from_str(&stdout).map(|v: serde_json::Value| v) {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
                 return Ok(serde_json::to_string_pretty(&json_value)?);
             }
         }
-        Ok(stdout.to_string())
+        Ok(result)
     }
 }
 
@@ -733,11 +759,7 @@ impl Skill for K8sGetServicesSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let all_namespaces = parameters
             .get("all_namespaces")
             .and_then(|v| v.as_bool())
@@ -746,30 +768,30 @@ impl Skill for K8sGetServicesSkill {
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("wide");
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("services");
-        if all_namespaces {
-            cmd.arg("--all-namespaces");
-        } else {
-            cmd.arg("-n").arg(namespace);
-        }
+        let mut base_args = vec!["get", "services"];
         match output {
-            "json" => cmd.arg("-o").arg("json"),
-            "yaml" => cmd.arg("-o").arg("yaml"),
-            _ => cmd.arg("-o").arg("wide"),
-        };
-        let output_result = cmd.output()?;
-        if !output_result.status.success() {
-            let stderr = String::from_utf8_lossy(&output_result.stderr);
-            return Err(anyhow::anyhow!("kubectl get services failed: {}", stderr));
+            "json" => {
+                base_args.push("-o");
+                base_args.push("json");
+            }
+            "yaml" => {
+                base_args.push("-o");
+                base_args.push("yaml");
+            }
+            _ => {
+                base_args.push("-o");
+                base_args.push("wide");
+            }
         }
-        let stdout = String::from_utf8_lossy(&output_result.stdout);
+        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let result = exec_kubectl(&args_ref).await?;
         if output == "json" {
-            if let Ok(json_value) = serde_json::from_str(&stdout).map(|v: serde_json::Value| v) {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
                 return Ok(serde_json::to_string_pretty(&json_value)?);
             }
         }
-        Ok(stdout.to_string())
+        Ok(result)
     }
 }
 
@@ -842,7 +864,6 @@ impl Skill for K8sScaleDeploymentSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let deployment = parameters
             .get("deployment")
             .and_then(|v| v.as_str())
@@ -851,23 +872,18 @@ impl Skill for K8sScaleDeploymentSkill {
             .get("replicas")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: replicas"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("scale")
-            .arg("deployment")
-            .arg(deployment)
-            .arg("--replicas")
-            .arg(replicas.to_string())
-            .arg("-n")
-            .arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Scale failed: {}", stderr));
-        }
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let replicas_str = replicas.to_string();
+        let base_args = vec![
+            "scale",
+            "deployment",
+            deployment,
+            "--replicas",
+            &replicas_str,
+        ];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await?;
         Ok(format!(
             "Deployment '{}' scaled to {} replicas",
             deployment, replicas
@@ -934,27 +950,15 @@ impl Skill for K8sRestartDeploymentSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let deployment = parameters
             .get("deployment")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: deployment"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("rollout")
-            .arg("restart")
-            .arg("deployment")
-            .arg(deployment)
-            .arg("-n")
-            .arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Restart failed: {}", stderr));
-        }
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let base_args = vec!["rollout", "restart", "deployment", deployment];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await?;
         Ok(format!(
             "Deployment '{}' restarted successfully",
             deployment
@@ -1041,7 +1045,6 @@ impl Skill for K8sPortForwardSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let pod = parameters
             .get("pod")
             .and_then(|v| v.as_str())
@@ -1054,21 +1057,12 @@ impl Skill for K8sPortForwardSkill {
             .get("remote_port")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: remote_port"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("port-forward")
-            .arg(pod)
-            .arg(format!("{}:{}", local_port, remote_port))
-            .arg("-n")
-            .arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Port forward failed: {}", stderr));
-        }
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let port_str = format!("{}:{}", local_port, remote_port);
+        let base_args = vec!["port-forward", pod, &port_str];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await?;
         Ok(format!(
             "Port forwarding established: localhost:{} -> pod:{}",
             local_port, remote_port
@@ -1125,30 +1119,33 @@ impl Skill for K8sGetNodesSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let output = parameters
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("wide");
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("nodes");
+        let mut args = vec!["get", "nodes"];
         match output {
-            "json" => cmd.arg("-o").arg("json"),
-            "yaml" => cmd.arg("-o").arg("yaml"),
-            _ => cmd.arg("-o").arg("wide"),
-        };
-        let output_result = cmd.output()?;
-        if !output_result.status.success() {
-            let stderr = String::from_utf8_lossy(&output_result.stderr);
-            return Err(anyhow::anyhow!("kubectl get nodes failed: {}", stderr));
+            "json" => {
+                args.push("-o");
+                args.push("json");
+            }
+            "yaml" => {
+                args.push("-o");
+                args.push("yaml");
+            }
+            _ => {
+                args.push("-o");
+                args.push("wide");
+            }
         }
-        let stdout = String::from_utf8_lossy(&output_result.stdout);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
+        let result = exec_kubectl(&args_ref).await?;
         if output == "json" {
-            if let Ok(json_value) = serde_json::from_str(&stdout).map(|v: serde_json::Value| v) {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
                 return Ok(serde_json::to_string_pretty(&json_value)?);
             }
         }
-        Ok(stdout.to_string())
+        Ok(result)
     }
 }
 
@@ -1201,34 +1198,30 @@ impl Skill for K8sGetNamespacesSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let output = parameters
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("table");
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("namespaces");
+        let mut args = vec!["get", "namespaces"];
         match output {
             "json" => {
-                cmd.arg("-o").arg("json");
+                args.push("-o");
+                args.push("json");
             }
             "yaml" => {
-                cmd.arg("-o").arg("yaml");
+                args.push("-o");
+                args.push("yaml");
             }
             _ => {}
         }
-        let output_result = cmd.output()?;
-        if !output_result.status.success() {
-            let stderr = String::from_utf8_lossy(&output_result.stderr);
-            return Err(anyhow::anyhow!("kubectl get namespaces failed: {}", stderr));
-        }
-        let stdout = String::from_utf8_lossy(&output_result.stdout);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
+        let result = exec_kubectl(&args_ref).await?;
         if output == "json" {
-            if let Ok(json_value) = serde_json::from_str(&stdout).map(|v: serde_json::Value| v) {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
                 return Ok(serde_json::to_string_pretty(&json_value)?);
             }
         }
-        Ok(stdout.to_string())
+        Ok(result)
     }
 }
 
@@ -1298,27 +1291,16 @@ impl Skill for K8sApplyYamlSkill {
             .get("manifest")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: manifest"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("apply").arg("-f").arg("-").arg("-n").arg(namespace);
-        let mut child = cmd
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
-        if let Some(mut stdin) = child.stdin.take() {
-            use std::io::Write;
-            stdin.write_all(manifest.as_bytes())?;
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let base_args = vec!["apply", "-f", "-"];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let opts = ExecOptions::new().with_timeout(config.k8s_timeout);
+        let result = exec_with_stdin_async("kubectl", &args_ref, manifest, Some(opts)).await?;
+        if !result.success {
+            return Err(anyhow::anyhow!("Apply failed: {}", result.stderr));
         }
-        let output = child.wait_with_output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Apply failed: {}", stderr));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        Ok(result.stdout)
     }
 }
 
@@ -1410,7 +1392,6 @@ impl Skill for K8sDeleteResourceSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
         let resource_type = parameters
             .get("resource_type")
             .and_then(|v| v.as_str())
@@ -1419,29 +1400,19 @@ impl Skill for K8sDeleteResourceSkill {
             .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: name"))?;
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let force = parameters
             .get("force")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("delete")
-            .arg(resource_type)
-            .arg(name)
-            .arg("-n")
-            .arg(namespace);
+        let mut base_args = vec!["delete", resource_type, name];
         if force && resource_type == "pod" {
-            cmd.arg("--force").arg("--grace-period=0");
+            base_args.push("--force");
+            base_args.push("--grace-period=0");
         }
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Delete failed: {}", stderr));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await
     }
 }
 
@@ -1513,11 +1484,7 @@ impl Skill for K8sGetEventsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let all_namespaces = parameters
             .get("all_namespaces")
             .and_then(|v| v.as_bool())
@@ -1526,22 +1493,13 @@ impl Skill for K8sGetEventsSkill {
             .get("watch")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("events");
-        if all_namespaces {
-            cmd.arg("--all-namespaces");
-        } else {
-            cmd.arg("-n").arg(namespace);
-        }
+        let mut base_args = vec!["get", "events"];
         if watch {
-            cmd.arg("--watch");
+            base_args.push("--watch");
         }
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("kubectl get events failed: {}", stderr));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await
     }
 }
 
@@ -1594,19 +1552,11 @@ impl Skill for K8sGetConfigMapsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("configmaps").arg("-n").arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("kubectl get configmaps failed: {}", stderr));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let base_args = vec!["get", "configmaps"];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await
     }
 }
 
@@ -1658,19 +1608,11 @@ impl Skill for K8sGetSecretsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("secrets").arg("-n").arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("kubectl get secrets failed: {}", stderr));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let base_args = vec!["get", "secrets"];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await
     }
 }
 
@@ -1722,19 +1664,11 @@ impl Skill for K8sGetIngressesSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("ingresses").arg("-n").arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("kubectl get ingresses failed: {}", stderr));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let base_args = vec!["get", "ingresses"];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await
     }
 }
 
@@ -1786,22 +1720,11 @@ impl Skill for K8sGetStatefulSetsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
-        let namespace = parameters
-            .get("namespace")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&config.k8s_namespace);
-        let mut cmd = config.build_kubectl_command();
-        cmd.arg("get").arg("statefulsets").arg("-n").arg(namespace);
-        let output = cmd.output()?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!(
-                "kubectl get statefulsets failed: {}",
-                stderr
-            ));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+        let base_args = vec!["get", "statefulsets"];
+        let args = build_kubectl_args(&base_args, namespace, false);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        exec_kubectl(&args_ref).await
     }
 }
 
