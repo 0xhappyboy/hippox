@@ -710,6 +710,11 @@ pub fn list_skills() -> Vec<String> {
 mod registry_test {
     use super::*;
 
+    #[test]
+    fn print_registry() {
+        println!("{:?}", generate_skill_registry_table_json_str());
+    }
+
     /// Test that the AI registry generation returns metadata for all skills
     #[test]
     fn test_generate_ai_registry() {

@@ -1,10 +1,18 @@
-pub(crate) mod ftp;
-pub(crate) mod http;
-pub(crate) mod tcp;
-pub(crate) mod udp;
-pub(crate) mod url;
+pub mod dns;
+pub mod ftp;
+pub mod http;
+pub mod ip;
+pub mod ping;
+pub mod tcp;
+pub mod udp;
+pub mod url;
+pub mod whois;
 
+pub use dns::*;
 pub use ftp::*;
 pub use http::*;
+pub use ip::*;
+pub use ping::*;
 pub use tcp::*;
 pub use url::*;
+pub use whois::*;
