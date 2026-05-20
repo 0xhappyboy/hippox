@@ -19,380 +19,551 @@ use std::sync::RwLock;
 static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new(|| {
     let mut registry: HashMap<String, Arc<dyn Skill>> = HashMap::new();
     // ==================== Basic Skills ====================
+    #[cfg(any(feature = "helloworld", feature = "all"))]
     registry.insert(
         "helloworld".to_string(),
         Arc::new(super::skills::HelloWorldSkill) as Arc<dyn Skill>,
     );
     // ==================== File System Skills ====================
+    #[cfg(any(feature = "file", feature = "all"))]
     registry.insert(
         "file_read".to_string(),
         Arc::new(super::skills::file::ReadFileSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "file", feature = "all"))]
     registry.insert(
         "file_write".to_string(),
         Arc::new(super::skills::file::WriteFileSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "file", feature = "all"))]
     registry.insert(
         "file_delete".to_string(),
         Arc::new(super::skills::file::DeleteFileSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "file", feature = "all"))]
     registry.insert(
         "file_list".to_string(),
         Arc::new(super::skills::file::ListDirectorySkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "file", feature = "all"))]
     registry.insert(
         "file_copy".to_string(),
         Arc::new(super::skills::file::CopyFileSkill) as Arc<dyn Skill>,
     );
+    // ==================== Archive Skills ====================
+    #[cfg(any(feature = "file", feature = "all"))]
+    registry.insert(
+        "archive_zip_create".to_string(),
+        Arc::new(super::skills::file::ArchiveZipCreateSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "file", feature = "all"))]
+    registry.insert(
+        "archive_zip_extract".to_string(),
+        Arc::new(super::skills::file::ArchiveZipExtractSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "file", feature = "all"))]
+    registry.insert(
+        "archive_tar_create".to_string(),
+        Arc::new(super::skills::file::ArchiveTarCreateSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "file", feature = "all"))]
+    registry.insert(
+        "archive_tar_extract".to_string(),
+        Arc::new(super::skills::file::ArchiveTarExtractSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "file", feature = "all"))]
+    registry.insert(
+        "archive_compress".to_string(),
+        Arc::new(super::skills::file::ArchiveCompressSkill) as Arc<dyn Skill>,
+    );
     // ==================== Mathematics Skills ====================
+    #[cfg(any(feature = "math", feature = "all"))]
     registry.insert(
         "math_calculator".to_string(),
         Arc::new(super::skills::CalculatorSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "math", feature = "all"))]
     registry.insert(
         "math_power".to_string(),
         Arc::new(super::skills::PowerSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "math", feature = "all"))]
     registry.insert(
         "math_statistics".to_string(),
         Arc::new(super::skills::StatisticsSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "math", feature = "all"))]
     registry.insert(
         "math_unit_converter".to_string(),
         Arc::new(super::skills::UnitConverterSkill) as Arc<dyn Skill>,
     );
+    // ==================== Crypto & Random Skills ====================
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "hash_md5".to_string(),
+        Arc::new(super::skills::math::HashMd5Skill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "hash_sha256".to_string(),
+        Arc::new(super::skills::math::HashSha256Skill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "hash_sha512".to_string(),
+        Arc::new(super::skills::math::HashSha512Skill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "hash_file".to_string(),
+        Arc::new(super::skills::math::HashFileSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "base64_encode".to_string(),
+        Arc::new(super::skills::math::Base64EncodeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "base64_decode".to_string(),
+        Arc::new(super::skills::math::Base64DecodeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "random_number".to_string(),
+        Arc::new(super::skills::math::RandomNumberSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "random_string".to_string(),
+        Arc::new(super::skills::math::RandomStringSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "random_uuid".to_string(),
+        Arc::new(super::skills::math::RandomUuidSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "math", feature = "all"))]
+    registry.insert(
+        "random_password".to_string(),
+        Arc::new(super::skills::math::RandomPasswordSkill) as Arc<dyn Skill>,
+    );
     // ==================== Time Skills ====================
+    #[cfg(any(feature = "time", feature = "all"))]
     registry.insert(
         "time_datetime".to_string(),
         Arc::new(super::skills::DateTimeSkill) as Arc<dyn Skill>,
     );
     // ==================== Network Skills ====================
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
         "net_httprequest".to_string(),
         Arc::new(super::skills::HttpRequestSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
         "read_url".to_string(),
         Arc::new(super::skills::ReadUrlSkill) as Arc<dyn Skill>,
     );
-    // ==================== System Skills ====================
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "system_systeminfo".to_string(),
-        Arc::new(super::skills::SystemInfoSkill) as Arc<dyn Skill>,
+        "ping".to_string(),
+        Arc::new(super::skills::net::ping::PingSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "exec_command".to_string(),
-        Arc::new(super::skills::ExecCommandSkill) as Arc<dyn Skill>,
+        "tcp_ping".to_string(),
+        Arc::new(super::skills::net::ping::TcpPingSkill) as Arc<dyn Skill>,
     );
-    // ==================== Document Skills ====================
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "markdown_read".to_string(),
-        Arc::new(super::skills::document::MarkdownReadSkill) as Arc<dyn Skill>,
+        "batch_ping".to_string(),
+        Arc::new(super::skills::net::ping::BatchPingSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "markdown_write".to_string(),
-        Arc::new(super::skills::document::MarkdownWriteSkill) as Arc<dyn Skill>,
+        "dns_lookup".to_string(),
+        Arc::new(super::skills::net::dns::DnsLookupSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "csv_read".to_string(),
-        Arc::new(super::skills::document::CsvReadSkill) as Arc<dyn Skill>,
+        "reverse_dns".to_string(),
+        Arc::new(super::skills::net::dns::ReverseDnsSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "csv_write".to_string(),
-        Arc::new(super::skills::document::CsvWriteSkill) as Arc<dyn Skill>,
+        "dns_batch_lookup".to_string(),
+        Arc::new(super::skills::net::dns::DnsBatchLookupSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "xml_parse".to_string(),
-        Arc::new(super::skills::document::XmlParseSkill) as Arc<dyn Skill>,
+        "dns_test".to_string(),
+        Arc::new(super::skills::net::dns::DnsTestSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "xml_to_json".to_string(),
-        Arc::new(super::skills::document::XmlToJsonSkill) as Arc<dyn Skill>,
+        "ip_info".to_string(),
+        Arc::new(super::skills::net::ip::IpInfoSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "excel_read".to_string(),
-        Arc::new(super::skills::document::ExcelReadSkill) as Arc<dyn Skill>,
+        "ip_validate".to_string(),
+        Arc::new(super::skills::net::ip::IpValidateSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "excel_write".to_string(),
-        Arc::new(super::skills::document::ExcelWriteSkill) as Arc<dyn Skill>,
+        "ip_range".to_string(),
+        Arc::new(super::skills::net::ip::IpRangeSkill) as Arc<dyn Skill>,
     );
-    // ==================== Messaging Skills ====================
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "send_email".to_string(),
-        Arc::new(super::skills::message::SendEmailSkill) as Arc<dyn Skill>,
+        "local_ip".to_string(),
+        Arc::new(super::skills::net::ip::LocalIpSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "send_telegram".to_string(),
-        Arc::new(super::skills::message::SendTelegramSkill) as Arc<dyn Skill>,
+        "whois".to_string(),
+        Arc::new(super::skills::net::whois::WhoisSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "send_dingding".to_string(),
-        Arc::new(super::skills::message::SendDingDingSkill) as Arc<dyn Skill>,
+        "whois_batch".to_string(),
+        Arc::new(super::skills::net::whois::WhoisBatchSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
-        "send_feishu".to_string(),
-        Arc::new(super::skills::message::SendFeishuSkill) as Arc<dyn Skill>,
+        "whois_available".to_string(),
+        Arc::new(super::skills::net::whois::WhoisAvailableSkill) as Arc<dyn Skill>,
     );
-    registry.insert(
-        "send_wecom".to_string(),
-        Arc::new(super::skills::message::SendWecomSkill) as Arc<dyn Skill>,
-    );
-    // ==================== FTP Skills ====================
-    registry.insert(
-        "ftp_upload".to_string(),
-        Arc::new(super::skills::ftp::FtpUploadSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "ftp_download".to_string(),
-        Arc::new(super::skills::ftp::FtpDownloadSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "ftp_list".to_string(),
-        Arc::new(super::skills::ftp::FtpListSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "ftp_delete".to_string(),
-        Arc::new(super::skills::ftp::FtpDeleteSkill) as Arc<dyn Skill>,
-    );
-    // ==================== TCP Skills ====================
+    // ==================== TCP/UDP/FTP Skills ====================
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
         "tcp_send".to_string(),
         Arc::new(super::skills::tcp::TcpSendSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
         "tcp_receive".to_string(),
         Arc::new(super::skills::tcp::TcpReceiveSkill) as Arc<dyn Skill>,
     );
-    // ==================== UDP Skills ====================
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
         "udp_send".to_string(),
         Arc::new(super::skills::udp::UdpSendSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
         "udp_receive".to_string(),
         Arc::new(super::skills::udp::UdpReceiveSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "net", feature = "all"))]
     registry.insert(
         "udp_broadcast".to_string(),
         Arc::new(super::skills::udp::UdpBroadcastSkill) as Arc<dyn Skill>,
     );
-    // ==================== PostgreSQL Skills ====================
+    #[cfg(any(feature = "net", feature = "all"))]
+    registry.insert(
+        "ftp_upload".to_string(),
+        Arc::new(super::skills::ftp::FtpUploadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "net", feature = "all"))]
+    registry.insert(
+        "ftp_download".to_string(),
+        Arc::new(super::skills::ftp::FtpDownloadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "net", feature = "all"))]
+    registry.insert(
+        "ftp_list".to_string(),
+        Arc::new(super::skills::ftp::FtpListSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "net", feature = "all"))]
+    registry.insert(
+        "ftp_delete".to_string(),
+        Arc::new(super::skills::ftp::FtpDeleteSkill) as Arc<dyn Skill>,
+    );
+    // ==================== System Skills ====================
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "system_systeminfo".to_string(),
+        Arc::new(super::skills::SystemInfoSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "exec_command".to_string(),
+        Arc::new(super::skills::ExecCommandSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "port_scan".to_string(),
+        Arc::new(super::skills::PortScanSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "port_lookup".to_string(),
+        Arc::new(super::skills::PortLookupSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "port_test".to_string(),
+        Arc::new(super::skills::PortTestSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Clipboard Skills ====================
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "clipboard_get".to_string(),
+        Arc::new(super::skills::system::clipboard::ClipboardGetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "clipboard_set".to_string(),
+        Arc::new(super::skills::system::clipboard::ClipboardSetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "system", feature = "all"))]
+    registry.insert(
+        "clipboard_clear".to_string(),
+        Arc::new(super::skills::system::clipboard::ClipboardClearSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Document Skills ====================
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "markdown_read".to_string(),
+        Arc::new(super::skills::document::MarkdownReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "markdown_write".to_string(),
+        Arc::new(super::skills::document::MarkdownWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "csv_read".to_string(),
+        Arc::new(super::skills::document::CsvReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "csv_write".to_string(),
+        Arc::new(super::skills::document::CsvWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "xml_parse".to_string(),
+        Arc::new(super::skills::document::XmlParseSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "xml_to_json".to_string(),
+        Arc::new(super::skills::document::XmlToJsonSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "excel_read".to_string(),
+        Arc::new(super::skills::document::ExcelReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "excel_write".to_string(),
+        Arc::new(super::skills::document::ExcelWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "pdf_read".to_string(),
+        Arc::new(super::skills::document::PdfReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "pdf_merge".to_string(),
+        Arc::new(super::skills::document::PdfMergeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "pdf_info".to_string(),
+        Arc::new(super::skills::document::PdfInfoSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Messaging Skills ====================
+    #[cfg(any(feature = "message", feature = "all"))]
+    registry.insert(
+        "send_email".to_string(),
+        Arc::new(super::skills::message::SendEmailSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "message", feature = "all"))]
+    registry.insert(
+        "send_telegram".to_string(),
+        Arc::new(super::skills::message::SendTelegramSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "message", feature = "all"))]
+    registry.insert(
+        "send_dingding".to_string(),
+        Arc::new(super::skills::message::SendDingDingSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "message", feature = "all"))]
+    registry.insert(
+        "send_feishu".to_string(),
+        Arc::new(super::skills::message::SendFeishuSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "message", feature = "all"))]
+    registry.insert(
+        "send_wecom".to_string(),
+        Arc::new(super::skills::message::SendWecomSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Database Skills ====================
+    // PostgreSQL
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "postgres_query".to_string(),
         Arc::new(super::skills::postgresql::PostgresQuerySkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "postgres_execute".to_string(),
         Arc::new(super::skills::postgresql::PostgresExecuteSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "postgres_list_tables".to_string(),
         Arc::new(super::skills::postgresql::PostgresListTablesSkill) as Arc<dyn Skill>,
     );
-    // ==================== MySQL Skills ====================
+    // MySQL
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "mysql_query".to_string(),
         Arc::new(super::skills::mysql::MysqlQuerySkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "mysql_execute".to_string(),
         Arc::new(super::skills::mysql::MysqlExecuteSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "mysql_list_tables".to_string(),
         Arc::new(super::skills::mysql::MysqlListTablesSkill) as Arc<dyn Skill>,
     );
-    // ==================== Redis Skills ====================
+    // Redis
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "redis_set".to_string(),
         Arc::new(super::skills::redis::RedisSetSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "redis_get".to_string(),
         Arc::new(super::skills::redis::RedisGetSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "redis_del".to_string(),
         Arc::new(super::skills::redis::RedisDelSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "redis_keys".to_string(),
         Arc::new(super::skills::redis::RedisKeysSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "redis_hset".to_string(),
         Arc::new(super::skills::redis::RedisHSetSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "redis_hget".to_string(),
         Arc::new(super::skills::redis::RedisHGetSkill) as Arc<dyn Skill>,
     );
-    // ==================== SQLite Skills ====================
+    // SQLite
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "sqlite_query".to_string(),
         Arc::new(super::skills::sqlite::SqliteQuerySkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "sqlite_execute".to_string(),
         Arc::new(super::skills::sqlite::SqliteExecuteSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "db", feature = "all"))]
     registry.insert(
         "sqlite_list_tables".to_string(),
         Arc::new(super::skills::sqlite::SqliteListTablesSkill) as Arc<dyn Skill>,
     );
     // ==================== GitHub Skills ====================
+    #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
         "github_get_repo".to_string(),
         Arc::new(super::skills::github::GithubGetRepo) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
         "github_create_issue".to_string(),
         Arc::new(super::skills::github::GithubCreateIssue) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
         "github_list_issues".to_string(),
         Arc::new(super::skills::github::GithubListIssues) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
         "github_star_repo".to_string(),
         Arc::new(super::skills::github::GithubStarRepo) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
         "github_search_repos".to_string(),
         Arc::new(super::skills::github::GithubSearchRepos) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
         "github_get_user".to_string(),
         Arc::new(super::skills::github::GithubGetUser) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
         "github_list_prs".to_string(),
         Arc::new(super::skills::github::GithubListPRs) as Arc<dyn Skill>,
     );
-    // ==================== Clipboard Skills ====================
-    registry.insert(
-        "clipboard_get".to_string(),
-        Arc::new(super::skills::system::clipboard::ClipboardGetSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "clipboard_set".to_string(),
-        Arc::new(super::skills::system::clipboard::ClipboardSetSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "clipboard_clear".to_string(),
-        Arc::new(super::skills::system::clipboard::ClipboardClearSkill) as Arc<dyn Skill>,
-    );
     // ==================== Scheduler Skills ====================
+    #[cfg(any(feature = "task", feature = "all"))]
     registry.insert(
         "schedule_task".to_string(),
         Arc::new(super::skills::task::ScheduleTaskSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "task", feature = "all"))]
     registry.insert(
         "unschedule_task".to_string(),
         Arc::new(super::skills::task::UnscheduleTaskSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "task", feature = "all"))]
     registry.insert(
         "list_scheduled_tasks".to_string(),
         Arc::new(super::skills::task::ListScheduledTasksSkill) as Arc<dyn Skill>,
     );
-    // ==================== PDF Skills ====================
-    registry.insert(
-        "pdf_read".to_string(),
-        Arc::new(super::skills::document::PdfReadSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "pdf_merge".to_string(),
-        Arc::new(super::skills::document::PdfMergeSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "pdf_info".to_string(),
-        Arc::new(super::skills::document::PdfInfoSkill) as Arc<dyn Skill>,
-    );
-    // ==================== Crypto Skills ====================
-    registry.insert(
-        "hash_md5".to_string(),
-        Arc::new(super::skills::math::HashMd5Skill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "hash_sha256".to_string(),
-        Arc::new(super::skills::math::HashSha256Skill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "hash_sha512".to_string(),
-        Arc::new(super::skills::math::HashSha512Skill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "hash_file".to_string(),
-        Arc::new(super::skills::math::HashFileSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "base64_encode".to_string(),
-        Arc::new(super::skills::math::Base64EncodeSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "base64_decode".to_string(),
-        Arc::new(super::skills::math::Base64DecodeSkill) as Arc<dyn Skill>,
-    );
-    // ==================== Random Skills ====================
-    registry.insert(
-        "random_number".to_string(),
-        Arc::new(super::skills::math::RandomNumberSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "random_string".to_string(),
-        Arc::new(super::skills::math::RandomStringSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "random_uuid".to_string(),
-        Arc::new(super::skills::math::RandomUuidSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "random_password".to_string(),
-        Arc::new(super::skills::math::RandomPasswordSkill) as Arc<dyn Skill>,
-    );
-    // ==================== Archive Skills ====================
-    registry.insert(
-        "archive_zip_create".to_string(),
-        Arc::new(super::skills::file::ArchiveZipCreateSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "archive_zip_extract".to_string(),
-        Arc::new(super::skills::file::ArchiveZipExtractSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "archive_tar_create".to_string(),
-        Arc::new(super::skills::file::ArchiveTarCreateSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "archive_tar_extract".to_string(),
-        Arc::new(super::skills::file::ArchiveTarExtractSkill) as Arc<dyn Skill>,
-    );
-    registry.insert(
-        "archive_compress".to_string(),
-        Arc::new(super::skills::file::ArchiveCompressSkill) as Arc<dyn Skill>,
-    );
     // ==================== Image Processing Skills ====================
+    #[cfg(any(feature = "media", feature = "all"))]
     registry.insert(
         "image_resize".to_string(),
         Arc::new(super::skills::image::ImageResizeSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "media", feature = "all"))]
     registry.insert(
         "image_convert".to_string(),
         Arc::new(super::skills::image::ImageConvertSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "media", feature = "all"))]
     registry.insert(
         "image_info".to_string(),
         Arc::new(super::skills::image::ImageInfoSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "media", feature = "all"))]
     registry.insert(
         "image_rotate".to_string(),
         Arc::new(super::skills::image::ImageRotateSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "media", feature = "all"))]
     registry.insert(
         "image_crop".to_string(),
         Arc::new(super::skills::image::ImageCropSkill) as Arc<dyn Skill>,
     );
+    #[cfg(any(feature = "media", feature = "all"))]
     registry.insert(
         "image_compress".to_string(),
         Arc::new(super::skills::image::ImageCompressSkill) as Arc<dyn Skill>,

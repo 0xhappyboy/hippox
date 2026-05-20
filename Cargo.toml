@@ -10,6 +10,35 @@ repository = "https://github.com/0xhappyboy/hippox"
 keywords = ["ai", "agent", "llm", "skills", "skills-orchestration"]
 exclude = ["assets/", "examples/", "templates/"]
 
+[features]
+default = ["db", "math"]
+all = [
+    "db",
+    "devops",
+    "document",
+    "file",
+    "helloworld",
+    "math",
+    "media",
+    "message",
+    "net",
+    "system",
+    "task",
+    "time",
+]
+db = []
+devops = []
+document = []
+file = []
+helloworld = []
+math = []
+media = []
+message = []
+net = []
+system = []
+task = []
+time = []
+
 [dependencies]
 langhub = "0.2.5"
 axum = { version = "0.7", features = ["ws"] }
@@ -67,6 +96,10 @@ flate2 = "1.1.9"
 tar = "0.4.45"
 image = "0.25.10"
 regex = "1.12.3"
+trust-dns-resolver = "0.23.2"
+trust-dns-proto = "0.23.2"
+whois-rust = "1.6.0"
+local-ip-address = "0.6.13"
 
 [dev-dependencies]
 tempfile = "3.27.0"
