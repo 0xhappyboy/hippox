@@ -119,6 +119,16 @@ local-ip-address = "0.6.13"
 similar = "3.1.0"
 futures = "0.3.32"
 windows-sys = "0.61.2"
+winapi = { version = "0.3.9", features = [
+    "tlhelp32",
+    "psapi",
+    "memoryapi",
+    "processthreadsapi",
+    "handleapi",
+    "winnt",
+    "errhandlingapi",
+    "synchapi",
+] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
