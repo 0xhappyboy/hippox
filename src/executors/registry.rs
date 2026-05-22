@@ -5,6 +5,12 @@
 /// Skills can be registered, retrieved, and listed, and the registry can generate
 /// AI-friendly metadata for LLM integration.
 use crate::executors::Skill;
+#[cfg(any(feature = "blockchain", feature = "all"))]
+use crate::executors::skills::BitcoinWalletSkill;
+#[cfg(any(feature = "blockchain", feature = "all"))]
+use crate::executors::skills::EvmWalletSkill;
+#[cfg(any(feature = "blockchain", feature = "all"))]
+use crate::executors::skills::SolanaWalletSkill;
 use crate::executors::types::SkillMetadata;
 use once_cell::sync::Lazy;
 use serde_json::Value;
@@ -834,6 +840,22 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     registry.insert(
         "image_compress".to_string(),
         Arc::new(super::skills::image::ImageCompressSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Blockchain Skills ====================
+    #[cfg(any(feature = "blockchain", feature = "all"))]
+    registry.insert(
+        "blockchain_bitcoin_wallet".to_string(),
+        Arc::new(BitcoinWalletSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "blockchain", feature = "all"))]
+    registry.insert(
+        "blockchain_evm_wallet".to_string(),
+        Arc::new(EvmWalletSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "blockchain", feature = "all"))]
+    registry.insert(
+        "blockchain_solana_wallet".to_string(),
+        Arc::new(SolanaWalletSkill) as Arc<dyn Skill>,
     );
     RwLock::new(registry)
 });

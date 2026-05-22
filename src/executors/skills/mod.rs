@@ -24,6 +24,8 @@ pub mod task;
 pub mod text;
 #[cfg(feature = "time")]
 pub mod time;
+#[cfg(feature = "blockchain")]
+pub mod blockchain;
 
 // Re-exports
 #[cfg(feature = "db")]
@@ -52,3 +54,5 @@ pub use task::*;
 pub use text::*;
 #[cfg(feature = "time")]
 pub use time::*;
+#[cfg(feature = "blockchain")]
+pub use blockchain::*;

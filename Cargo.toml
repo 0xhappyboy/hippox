@@ -12,6 +12,7 @@ exclude = ["assets/", "examples/", "templates/"]
 
 [features]
 default = [
+    "blockchain",
     "db",
     "devops",
     "document",
@@ -27,6 +28,7 @@ default = [
     "text",
 ]
 all = [
+    "blockchain",
     "db",
     "devops",
     "document",
@@ -41,6 +43,7 @@ all = [
     "time",
     "text",
 ]
+blockchain = []
 text = []
 db = []
 devops = []
@@ -71,7 +74,7 @@ toml = "1.1.2"
 walkdir = "2.5.0"
 serde_json = "1.0.149"
 async-trait = "0.1.89"
-reqwest = "0.13.3"
+reqwest = { version = "0.13.3", features = ["json"] }
 sysinfo = "0.38.4"
 chrono = "0.4.44"
 csv = "1.4.0"
@@ -129,6 +132,8 @@ winapi = { version = "0.3.9", features = [
     "errhandlingapi",
     "synchapi",
 ] }
+evm-client = "0.1.7"
+ethers = "2.0.14"
 
 [dev-dependencies]
 tempfile = "3.27.0"
