@@ -10,10 +10,13 @@ use crate::executors::{Executor, SkillCall};
 use crate::memory::ConversationMemory;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
+use async_trait::async_trait;
 use futures::future::join_all;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::info;
 
 /// Workflow execution mode enumeration
@@ -65,6 +68,24 @@ impl std::fmt::Display for WorkflowMode {
             WorkflowMode::PlanAndExecute => write!(f, "PlanAndExecute"),
         }
     }
+}
+
+/// Workflow execution callback trait
+///
+/// Implement this trait to receive real-time updates about workflow execution.
+/// This is useful for UI updates, logging, or progress reporting.
+#[async_trait]
+pub trait WorkflowCallback: Send + Sync + Debug {
+    /// Called when a step (skill execution) starts
+    async fn on_step_start(&self, step_name: &str, step_index: usize);
+    /// Called when a step completes successfully
+    async fn on_step_success(&self, step_name: &str, step_index: usize, output: &str);
+    /// Called when a step fails
+    async fn on_step_failure(&self, step_name: &str, step_index: usize, error: &str);
+    /// Called when the entire workflow completes successfully
+    async fn on_workflow_complete(&self, final_output: &str);
+    /// Called when the workflow fails
+    async fn on_workflow_failed(&self, error: &str);
 }
 
 /// Context variable for workflow execution
@@ -211,6 +232,7 @@ pub struct WorkflowExecutor {
     mode: WorkflowMode,
     executor: Executor,
     max_iterations: usize,
+    callback: Option<Arc<dyn WorkflowCallback>>,
 }
 
 impl WorkflowExecutor {
@@ -219,6 +241,7 @@ impl WorkflowExecutor {
             mode,
             executor: Executor::new(),
             max_iterations: 10,
+            callback: None,
         }
     }
 
@@ -308,31 +331,45 @@ impl WorkflowExecutor {
                     final_response = Some(message);
                     break;
                 }
-                ReactInstruction::Single(call) => match self.executor.execute(&call).await {
-                    Ok(output) => {
-                        step_results.push(StepResult {
-                            skill: call.action.clone(),
-                            parameters: call.parameters.clone(),
-                            output: output.clone(),
-                            status: ExecutionStatus::Success,
-                        });
+                ReactInstruction::Single(call) => {
+                    let step_index = step_results.len();
+                    let step_name = call.action.clone();
+                    if let Some(cb) = &self.callback {
+                        cb.on_step_start(&step_name, step_index).await;
                     }
-                    Err(e) => {
-                        step_results.push(StepResult {
-                            skill: call.action.clone(),
-                            parameters: call.parameters.clone(),
-                            output: e.to_string(),
-                            status: ExecutionStatus::Failure,
-                        });
-                        final_response = Some(format!(
-                            "{} '{}': {}",
-                            t!("error.skill_failed"),
-                            call.action,
-                            e
-                        ));
-                        break;
+                    match self.executor.execute(&call).await {
+                        Ok(output) => {
+                            if let Some(cb) = &self.callback {
+                                cb.on_step_success(&step_name, step_index, &output).await;
+                            }
+                            step_results.push(StepResult {
+                                skill: call.action.clone(),
+                                parameters: call.parameters.clone(),
+                                output: output.clone(),
+                                status: ExecutionStatus::Success,
+                            });
+                        }
+                        Err(e) => {
+                            let error_msg = e.to_string();
+                            if let Some(cb) = &self.callback {
+                                cb.on_step_failure(&step_name, step_index, &error_msg).await;
+                            }
+                            step_results.push(StepResult {
+                                skill: call.action.clone(),
+                                parameters: call.parameters.clone(),
+                                output: error_msg.clone(),
+                                status: ExecutionStatus::Failure,
+                            });
+                            final_response = Some(format!(
+                                "{} '{}': {}",
+                                t!("error.skill_failed"),
+                                call.action,
+                                error_msg
+                            ));
+                            break;
+                        }
                     }
-                },
+                }
                 ReactInstruction::Batch(steps) => {
                     let results = self.execute_batch_plan(&steps).await;
                     for result in results {
@@ -354,6 +391,19 @@ impl WorkflowExecutor {
                 self.format_step_results(&step_results)
             }
         });
+        if let Some(cb) = &self.callback {
+            let has_failure = step_results
+                .iter()
+                .any(|r| r.status == ExecutionStatus::Failure)
+                || final_response.starts_with("Error:")
+                || final_response.contains("failed");
+
+            if has_failure {
+                cb.on_workflow_failed(&final_response).await;
+            } else {
+                cb.on_workflow_complete(&final_response).await;
+            }
+        }
         memory.add_exchange(session_id, input, &final_response);
         final_response
     }
@@ -457,11 +507,15 @@ Respond with ONLY the JSON.
         let mut context = HashMap::new();
         context.insert("user_input".to_string(), Value::String(input.to_string()));
         let mut results = Vec::new();
-        for step in chain.steps {
+        for (idx, step) in chain.steps.iter().enumerate() {
+            let step_name = step.action.clone();
+            if let Some(cb) = &self.callback {
+                cb.on_step_start(&step_name, idx).await;
+            }
             let mut resolved_params = HashMap::new();
-            for (key, value) in step.parameters {
-                let resolved = Self::resolve_variables_deep(&value, &context);
-                resolved_params.insert(key, resolved);
+            for (key, value) in &step.parameters {
+                let resolved = Self::resolve_variables_deep(value, &context);
+                resolved_params.insert(key.clone(), resolved);
             }
             let call = SkillCall {
                 action: step.action.clone(),
@@ -469,32 +523,51 @@ Respond with ONLY the JSON.
             };
             match self.executor.execute(&call).await {
                 Ok(output) => {
-                    if let Some(output_as) = step.output_as {
+                    if let Some(cb) = &self.callback {
+                        cb.on_step_success(&step_name, idx, &output).await;
+                    }
+                    if let Some(output_as) = &step.output_as {
                         if let Ok(num) = output.parse::<f64>() {
-                            context.insert(output_as, json!(num));
+                            context.insert(output_as.clone(), json!(num));
                         } else {
-                            context.insert(output_as, Value::String(output.clone()));
+                            context.insert(output_as.clone(), Value::String(output.clone()));
                         }
                     }
                     results.push(StepResult {
-                        skill: step.action,
+                        skill: step.action.clone(),
                         parameters: call.parameters,
                         output: output.clone(),
                         status: ExecutionStatus::Success,
                     });
                 }
                 Err(e) => {
+                    let error_msg = e.to_string();
+                    if let Some(cb) = &self.callback {
+                        cb.on_step_failure(&step_name, idx, &error_msg).await;
+                    }
                     results.push(StepResult {
                         skill: step.action.clone(),
                         parameters: call.parameters,
-                        output: e.to_string(),
+                        output: error_msg.clone(),
                         status: ExecutionStatus::Failure,
                     });
-                    return format!("Skill '{}' failed: {}", step.action, e);
+                    if let Some(cb) = &self.callback {
+                        cb.on_workflow_failed(&error_msg).await;
+                    }
+                    return format!("Skill '{}' failed: {}", step.action, error_msg);
                 }
             }
         }
-        self.format_step_results(&results)
+        let final_output = self.format_step_results(&results);
+        if let Some(cb) = &self.callback {
+            let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
+            if has_failure {
+                cb.on_workflow_failed(&final_output).await;
+            } else {
+                cb.on_workflow_complete(&final_output).await;
+            }
+        }
+        final_output
     }
 
     /// Deep recursive resolution of variable references
@@ -826,23 +899,37 @@ Respond with ONLY the JSON. No markdown, no extra text.
         if steps.is_empty() {
             return Vec::new();
         }
-        let futures = steps.iter().map(|step| {
+        let callback = self.callback.clone();
+        let futures = steps.iter().enumerate().map(|(idx, step)| {
             let step = step.clone();
             let executor = self.executor.clone();
+            let callback = callback.clone();
             tokio::spawn(async move {
+                let step_name = step.action.clone();
+                if let Some(cb) = &callback {
+                    cb.on_step_start(&step_name, idx).await;
+                }
                 match executor.execute(&step).await {
-                    Ok(output) => Some(StepResult {
-                        skill: step.action.clone(),
-                        parameters: step.parameters.clone(),
-                        output,
-                        status: ExecutionStatus::Success,
-                    }),
-                    Err(e) => {
-                        tracing::warn!("Batch skill '{}' failed: {}", step.action, e);
+                    Ok(output) => {
+                        if let Some(cb) = &callback {
+                            cb.on_step_success(&step_name, idx, &output).await;
+                        }
                         Some(StepResult {
                             skill: step.action.clone(),
                             parameters: step.parameters.clone(),
-                            output: format!("Failed: {}", e),
+                            output,
+                            status: ExecutionStatus::Success,
+                        })
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Failed: {}", e);
+                        if let Some(cb) = &callback {
+                            cb.on_step_failure(&step_name, idx, &error_msg).await;
+                        }
+                        Some(StepResult {
+                            skill: step.action.clone(),
+                            parameters: step.parameters.clone(),
+                            output: error_msg,
                             status: ExecutionStatus::Failure,
                         })
                     }
