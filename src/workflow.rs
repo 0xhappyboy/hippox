@@ -869,15 +869,15 @@ Respond with ONLY the JSON. No markdown, no extra text.
             .count();
         let failure_count = results.len() - success_count;
         let mut output = format!(
-            "{} (✓{} / ✗{}):\n\n",
+            "{} (SUCCESS {} / FAILURE {}):\n\n",
             t!("skill.executed_steps", results.len()),
             success_count,
             failure_count
         );
         for (i, result) in results.iter().enumerate() {
             let marker = match result.status {
-                ExecutionStatus::Success => "✓",
-                ExecutionStatus::Failure => "✗",
+                ExecutionStatus::Success => "SUCCESS",
+                ExecutionStatus::Failure => "FAILURE",
             };
             output.push_str(&format!("{} {}: {}\n", marker, i + 1, result.output));
         }
@@ -1064,8 +1064,8 @@ pub struct StepResult {
 impl StepResult {
     pub fn to_string(&self) -> String {
         let status_str = match self.status {
-            ExecutionStatus::Success => "✓",
-            ExecutionStatus::Failure => "✗",
+            ExecutionStatus::Success => "SUCCESS",
+            ExecutionStatus::Failure => "FAILURE",
         };
         format!(
             "{} Executed skill '{}' with parameters {:?}\nResult: {}",
