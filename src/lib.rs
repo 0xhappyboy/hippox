@@ -15,5 +15,5 @@ pub use crate::core::Hippox;
 pub use crate::executors::registry;
 pub use crate::skill_loader::*;
 pub use crate::skill_scheduler::*;
-pub use crate::workflow::WorkflowMode;
+pub use crate::workflow::*;
 pub use langhub::types::ModelProvider;
