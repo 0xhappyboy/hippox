@@ -10,6 +10,7 @@ use crate::executors::{Executor, SkillCall};
 use crate::memory::ConversationMemory;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
+use futures::future::join_all;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -313,9 +314,16 @@ impl WorkflowExecutor {
                             skill: call.action.clone(),
                             parameters: call.parameters.clone(),
                             output: output.clone(),
+                            status: ExecutionStatus::Success,
                         });
                     }
                     Err(e) => {
+                        step_results.push(StepResult {
+                            skill: call.action.clone(),
+                            parameters: call.parameters.clone(),
+                            output: e.to_string(),
+                            status: ExecutionStatus::Failure,
+                        });
                         final_response = Some(format!(
                             "{} '{}': {}",
                             t!("error.skill_failed"),
@@ -325,20 +333,15 @@ impl WorkflowExecutor {
                         break;
                     }
                 },
-                ReactInstruction::Batch(steps) => match self.execute_batch_plan(&steps).await {
-                    Ok(results) => {
-                        for result in results {
-                            step_results.push(result);
-                        }
-                        let summary = self.format_step_results(&step_results);
-                        final_response = Some(summary);
-                        break;
+                ReactInstruction::Batch(steps) => {
+                    let results = self.execute_batch_plan(&steps).await;
+                    for result in results {
+                        step_results.push(result);
                     }
-                    Err(e) => {
-                        final_response = Some(e);
-                        break;
-                    }
-                },
+                    let summary = self.format_step_results(&step_results);
+                    final_response = Some(summary);
+                    break;
+                }
             }
         }
         if iteration >= self.max_iterations {
@@ -402,10 +405,10 @@ Respond with ONLY the JSON.
         };
         match instruction {
             ReactInstruction::Done(message) => message,
-            ReactInstruction::Batch(steps) => match self.execute_batch_plan(&steps).await {
-                Ok(results) => self.format_step_results(&results),
-                Err(e) => e,
-            },
+            ReactInstruction::Batch(steps) => {
+                let results = self.execute_batch_plan(&steps).await;
+                self.format_step_results(&results)
+            }
             ReactInstruction::Single(_) => t!("error.batch_mode_invalid").to_string(),
         }
     }
@@ -477,9 +480,16 @@ Respond with ONLY the JSON.
                         skill: step.action,
                         parameters: call.parameters,
                         output: output.clone(),
+                        status: ExecutionStatus::Success,
                     });
                 }
                 Err(e) => {
+                    results.push(StepResult {
+                        skill: step.action.clone(),
+                        parameters: call.parameters,
+                        output: e.to_string(),
+                        status: ExecutionStatus::Failure,
+                    });
                     return format!("Skill '{}' failed: {}", step.action, e);
                 }
             }
@@ -812,23 +822,38 @@ Respond with ONLY the JSON. No markdown, no extra text.
         value.clone()
     }
 
-    async fn execute_batch_plan(&self, steps: &[SkillCall]) -> Result<Vec<StepResult>, String> {
-        let mut results = Vec::new();
-        for step in steps {
-            match self.executor.execute(step).await {
-                Ok(output) => {
-                    results.push(StepResult {
+    async fn execute_batch_plan(&self, steps: &[SkillCall]) -> Vec<StepResult> {
+        if steps.is_empty() {
+            return Vec::new();
+        }
+        let futures = steps.iter().map(|step| {
+            let step = step.clone();
+            let executor = self.executor.clone();
+            tokio::spawn(async move {
+                match executor.execute(&step).await {
+                    Ok(output) => Some(StepResult {
                         skill: step.action.clone(),
                         parameters: step.parameters.clone(),
-                        output: output.clone(),
-                    });
+                        output,
+                        status: ExecutionStatus::Success,
+                    }),
+                    Err(e) => {
+                        tracing::warn!("Batch skill '{}' failed: {}", step.action, e);
+                        Some(StepResult {
+                            skill: step.action.clone(),
+                            parameters: step.parameters.clone(),
+                            output: format!("Failed: {}", e),
+                            status: ExecutionStatus::Failure,
+                        })
+                    }
                 }
-                Err(e) => {
-                    return Err(format!("Skill '{}' failed: {}", step.action, e));
-                }
-            }
-        }
-        Ok(results)
+            })
+        });
+        let results = join_all(futures).await;
+        results
+            .into_iter()
+            .filter_map(|r| r.ok().flatten())
+            .collect()
     }
 
     fn format_step_results(&self, results: &[StepResult]) -> String {
@@ -838,9 +863,23 @@ Respond with ONLY the JSON. No markdown, no extra text.
         if results.len() == 1 {
             return results[0].output.clone();
         }
-        let mut output = format!("{}:\n\n", t!("skill.executed_steps", results.len()));
+        let success_count = results
+            .iter()
+            .filter(|r| r.status == ExecutionStatus::Success)
+            .count();
+        let failure_count = results.len() - success_count;
+        let mut output = format!(
+            "{} (✓{} / ✗{}):\n\n",
+            t!("skill.executed_steps", results.len()),
+            success_count,
+            failure_count
+        );
         for (i, result) in results.iter().enumerate() {
-            output.push_str(&format!("{}: {}\n", i + 1, result.output));
+            let marker = match result.status {
+                ExecutionStatus::Success => "✓",
+                ExecutionStatus::Failure => "✗",
+            };
+            output.push_str(&format!("{} {}: {}\n", marker, i + 1, result.output));
         }
         output
     }
@@ -1006,19 +1045,31 @@ You can respond in one of three ways:
     }
 }
 
+/// Execution status for a workflow step
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutionStatus {
+    Success,
+    Failure,
+}
+
 /// Step result for multi-step execution
 #[derive(Debug, Clone)]
 pub struct StepResult {
     pub skill: String,
     pub parameters: HashMap<String, Value>,
     pub output: String,
+    pub status: ExecutionStatus,
 }
 
 impl StepResult {
     pub fn to_string(&self) -> String {
+        let status_str = match self.status {
+            ExecutionStatus::Success => "✓",
+            ExecutionStatus::Failure => "✗",
+        };
         format!(
-            "Executed skill '{}' with parameters {:?}\nResult: {}",
-            self.skill, self.parameters, self.output
+            "{} Executed skill '{}' with parameters {:?}\nResult: {}",
+            status_str, self.skill, self.parameters, self.output
         )
     }
 }
