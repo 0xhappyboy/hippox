@@ -245,6 +245,11 @@ impl WorkflowExecutor {
         }
     }
 
+    pub fn with_callback(mut self, callback: Arc<dyn WorkflowCallback>) -> Self {
+        self.callback = Some(callback);
+        self
+    }
+
     pub fn with_max_iterations(mut self, max: usize) -> Self {
         self.max_iterations = max;
         self

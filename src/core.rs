@@ -6,7 +6,7 @@ use crate::executors::Executor;
 use crate::memory::ConversationMemory;
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
-use crate::workflow::{WorkflowExecutor, WorkflowMode};
+use crate::workflow::{WorkflowCallback, WorkflowExecutor, WorkflowMode};
 use crate::{HippoxConfig, i18n};
 use crate::{get_config, t};
 use langhub::LLMClient;
@@ -14,6 +14,7 @@ use langhub::types::ModelProvider;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::info;
 
 const STARTUP_BANNER: &str = r#"
@@ -120,9 +121,18 @@ impl Hippox {
     ///
     /// # Returns
     /// The response string after processing
-    pub async fn handle_natural_language(&self, input: &str, session_id: Option<&str>) -> String {
+    pub async fn handle_natural_language(
+        &self,
+        input: &str,
+        session_id: Option<&str>,
+        callback: Option<Arc<dyn WorkflowCallback>>,
+    ) -> String {
         let session_id = session_id.unwrap_or("default");
-        self.workflow_executor
+        let mut executor = self.workflow_executor.clone();
+        if let Some(cb) = callback {
+            executor = executor.with_callback(cb);
+        }
+        executor
             .execute(
                 &self.scheduler,
                 &self.memory,
@@ -148,7 +158,7 @@ impl Hippox {
     /// A vector of response strings in the **same order** as the input tasks.
     pub async fn handle_natural_language_batch(
         &self,
-        inputs: Vec<(String, Option<String>)>,
+        inputs: Vec<(String, Option<String>, Option<Arc<dyn WorkflowCallback>>)>,
     ) -> Vec<String> {
         if inputs.is_empty() {
             return Vec::new();
@@ -159,11 +169,11 @@ impl Hippox {
             self.workflow_mode
         );
         let mut handles = Vec::new();
-        for (input, session_id) in inputs {
-            let self_clone = self.clone();
+        for (input, session_id, callback) in inputs {
+            let mut self_clone = self.clone();
             let handle = tokio::spawn(async move {
                 self_clone
-                    .handle_natural_language(&input, session_id.as_deref())
+                    .handle_natural_language(&input, session_id.as_deref(), callback)
                     .await
             });
             handles.push(handle);
@@ -194,6 +204,7 @@ impl Hippox {
         &self,
         skill_name: &str,
         params: Option<HashMap<String, Value>>,
+        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
         let skill_file =
             match SkillLoader::load_by_name(self.skills_dir.to_str().unwrap_or("."), skill_name) {
@@ -228,7 +239,11 @@ impl Hippox {
             instructions, registry_json
         );
         let session_id = format!("skill_md_{}", skill_name);
-        self.workflow_executor
+        let mut executor = self.workflow_executor.clone();
+        if let Some(cb) = callback {
+            executor = executor.with_callback(cb);
+        }
+        executor
             .execute(
                 &self.scheduler,
                 &self.memory,
@@ -253,7 +268,11 @@ impl Hippox {
     /// A vector of execution results in the same order as the input tasks
     pub async fn handle_skill_md_batch(
         &self,
-        tasks: Vec<(String, Option<HashMap<String, Value>>)>,
+        tasks: Vec<(
+            String,
+            Option<HashMap<String, Value>>,
+            Option<Arc<dyn WorkflowCallback>>,
+        )>,
     ) -> Vec<String> {
         if tasks.is_empty() {
             return Vec::new();
@@ -264,10 +283,13 @@ impl Hippox {
             self.workflow_mode
         );
         let mut handles = Vec::new();
-        for (skill_name, params) in tasks {
-            let self_clone = self.clone();
-            let handle =
-                tokio::spawn(async move { self_clone.handle_skill_md(&skill_name, params).await });
+        for (skill_name, params, callback) in tasks {
+            let mut self_clone = self.clone();
+            let handle = tokio::spawn(async move {
+                self_clone
+                    .handle_skill_md(&skill_name, params, callback)
+                    .await
+            });
             handles.push(handle);
         }
         let mut results = Vec::with_capacity(handles.len());
