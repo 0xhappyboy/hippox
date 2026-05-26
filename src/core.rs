@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::info;
 
 const STARTUP_BANNER: &str = r#"
@@ -59,7 +60,7 @@ pub struct Hippox {
     cached_skills_registry: String,
     cached_instances_registry: String,
     cached_welcome_message: String,
-    is_first_message: bool,
+    is_first_message: Arc<AtomicBool>,
 }
 
 impl Hippox {
@@ -95,31 +96,25 @@ impl Hippox {
             "Initializing Hippox core with skills directory: {}, workflow mode: {}",
             skills_dir, workflow_mode
         );
-
         // init config
         match config_method {
             ConfigInitMethod::TomlFile(path) => init_config_from_toml_file(&path)?,
             ConfigInitMethod::JsonFile(path) => init_config_from_json_file(&path)?,
             ConfigInitMethod::ParamsJsonStr(json) => init_config_from_params_json_str(&json)?,
         }
-
         // set i18n
         let config = get_config();
         i18n::set_language(&config.lang);
-
         // init llm
         let llm = LLMClient::new_with_key(provider, api_key, extra_keys)?;
-
         // Generate cached registries (once at startup)
         let skills_registry = Self::generate_skills_registry();
         let instances_registry = Self::generate_instances_registry();
         let welcome_message = Self::generate_welcome_message(&skills_registry, &instances_registry);
-
         // init llm scheduler
         let scheduler = SkillScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
-
         Ok(Self {
             scheduler,
             executor,
@@ -130,7 +125,7 @@ impl Hippox {
             cached_skills_registry: skills_registry,
             cached_instances_registry: instances_registry,
             cached_welcome_message: welcome_message,
-            is_first_message: true,
+            is_first_message: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -312,7 +307,7 @@ impl Hippox {
     /// # Returns
     /// The response string after processing
     pub async fn handle_natural_language(
-        &mut self,
+        &self,
         input: &str,
         session_id: Option<&str>,
         callback: Option<Arc<dyn WorkflowCallback>>,
@@ -323,8 +318,9 @@ impl Hippox {
             executor = executor.with_callback(cb);
         }
         // is first message
-        if (self.is_first_message) {
-            self.is_first_message = false;
+        let is_first = !self.is_first_message.load(Ordering::SeqCst);
+        if is_first {
+            self.is_first_message.store(true, Ordering::SeqCst);
         }
         // Pass cached registries to executor
         executor
@@ -336,11 +332,10 @@ impl Hippox {
                 session_id,
                 &self.cached_skills_registry,
                 &self.cached_instances_registry,
-                self.is_first_message,
+                is_first,
             )
             .await
     }
-
     /// Handle multiple natural language inputs in parallel
     pub async fn handle_natural_language_batch(
         &mut self,
@@ -376,7 +371,7 @@ impl Hippox {
 
     /// Handle SKILL.md file execution
     pub async fn handle_skill_md(
-        &mut self,
+        &self,
         skill_name: &str,
         params: Option<HashMap<String, Value>>,
         callback: Option<Arc<dyn WorkflowCallback>>,
@@ -419,8 +414,9 @@ impl Hippox {
             executor = executor.with_callback(cb);
         }
         // is first message
-        if (self.is_first_message) {
-            self.is_first_message = false;
+        let is_first = !self.is_first_message.load(Ordering::SeqCst);
+        if is_first {
+            self.is_first_message.store(true, Ordering::SeqCst);
         }
         executor
             .execute(
@@ -431,7 +427,7 @@ impl Hippox {
                 &session_id,
                 &self.cached_skills_registry,
                 &self.cached_instances_registry,
-                self.is_first_message,
+                is_first,
             )
             .await
     }

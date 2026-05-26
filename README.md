@@ -37,6 +37,59 @@ A skill-driven AI runtime with autonomous decision-making that automatically loa
 
 <img src="./assets/architecture/skill_load_and_schedul_en.png" width="100%">
 
+## Architectural Layering
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        User Layer                           │
+│              handle_natural_language()                      │
+│                 handle_skill_md()                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Workflow Layer                          │
+│   WorkflowExecutor (ReAct / Batch / Chain / PlanAndExecute) │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    Scheduling Layer                          │
+│   SkillScheduler (LLM Interaction, Skill Selection, Fallback)│
+└──────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Execution Layer                         │
+│   Executor (Parse LLM Response, Route to Skills)            │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Registry Layer                          │
+│   Registry (Skill Registration, Instance Configs)           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Data Stream
+
+```
+1. Initialize Hippox
+   ├── Load configuration (instance configs)
+   ├── Generate skills_registry (cached)
+   ├── Generate instances_registry (cached)
+   └── Generate welcome_message (cached)
+
+2. First Conversation
+   ├── is_first_message = false → true
+   ├── Send welcome_message (includes both registries)
+   └── LLM knows all skills and instances
+
+3. Subsequent Conversations
+   ├── is_first_message = true → no longer sent
+   └── Reuse cached registries
+```
+
 ## Workflow Model
 
 | Mode           | Enum Value                   | Core Features                                                                                                        | LLM Calls                           | Use Cases                                                 |
