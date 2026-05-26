@@ -255,326 +255,6 @@ impl WorkflowExecutor {
         self
     }
 
-    /// Execute a workflow based on the configured mode
-    pub async fn execute(
-        &self,
-        scheduler: &SkillScheduler,
-        memory: &ConversationMemory,
-        skills_dir: &PathBuf,
-        input: &str,
-        session_id: &str,
-    ) -> String {
-        match self.mode {
-            WorkflowMode::ReAct => {
-                self.execute_react(scheduler, memory, input, session_id)
-                    .await
-            }
-            WorkflowMode::Batch => self.execute_batch(scheduler, input, session_id).await,
-            WorkflowMode::Chain => self.execute_chain(scheduler, input, session_id).await,
-            WorkflowMode::PlanAndExecute => {
-                self.execute_plan_and_execute(scheduler, input, session_id)
-                    .await
-            }
-        }
-    }
-
-    /// ReAct mode implementation
-    async fn execute_react(
-        &self,
-        scheduler: &SkillScheduler,
-        memory: &ConversationMemory,
-        input: &str,
-        session_id: &str,
-    ) -> String {
-        let input_trimmed = input.trim();
-        if input_trimmed == "clear" {
-            memory.clear_session(session_id);
-            return t!("app.conversation_cleared").to_string();
-        }
-        if input_trimmed == "exit" || input_trimmed == "quit" {
-            return "goodbye".to_string();
-        }
-        if input_trimmed.is_empty() {
-            return String::new();
-        }
-        let history = memory.get_history(session_id);
-        let mut step_results: Vec<StepResult> = Vec::new();
-        let mut final_response = None;
-        let mut iteration = 0;
-        while iteration < self.max_iterations {
-            iteration += 1;
-            let execution_summary = if step_results.is_empty() {
-                String::new()
-            } else {
-                let mut summary = format!("\n## {}\n", t!("skill.previous_executed_steps"));
-                for (i, result) in step_results.iter().enumerate() {
-                    summary.push_str(&format!("{}. {}\n", i + 1, result.to_string()));
-                }
-                summary
-            };
-            let system_prompt = Self::build_react_prompt(scheduler);
-            let user_prompt = format!(
-                "{}\n\n## {}\n{}\n\n## {}\n{}\n\n{}\n\n## {}\n",
-                system_prompt,
-                t!("prompt.original_request"),
-                input_trimmed,
-                t!("prompt.conversation_history"),
-                history,
-                execution_summary,
-                t!("prompt.your_response")
-            );
-            let llm_response = match scheduler.get_llm().generate(&user_prompt).await {
-                Ok(resp) => resp,
-                Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
-            };
-            let instruction = match Self::parse_react_response(&llm_response) {
-                Ok(instr) => instr,
-                Err(_) => return llm_response,
-            };
-            match instruction {
-                ReactInstruction::Done(message) => {
-                    final_response = Some(message);
-                    break;
-                }
-                ReactInstruction::Single(call) => {
-                    let step_index = step_results.len();
-                    let step_name = call.action.clone();
-                    if let Some(cb) = &self.callback {
-                        cb.on_step_start(&step_name, step_index).await;
-                    }
-                    match self.executor.execute(&call).await {
-                        Ok(output) => {
-                            if let Some(cb) = &self.callback {
-                                cb.on_step_success(&step_name, step_index, &output).await;
-                            }
-                            step_results.push(StepResult {
-                                skill: call.action.clone(),
-                                parameters: call.parameters.clone(),
-                                output: output.clone(),
-                                status: ExecutionStatus::Success,
-                            });
-                        }
-                        Err(e) => {
-                            let error_msg = e.to_string();
-                            if let Some(cb) = &self.callback {
-                                cb.on_step_failure(&step_name, step_index, &error_msg).await;
-                            }
-                            step_results.push(StepResult {
-                                skill: call.action.clone(),
-                                parameters: call.parameters.clone(),
-                                output: error_msg.clone(),
-                                status: ExecutionStatus::Failure,
-                            });
-                            final_response = Some(format!(
-                                "{} '{}': {}",
-                                t!("error.skill_failed"),
-                                call.action,
-                                error_msg
-                            ));
-                            break;
-                        }
-                    }
-                }
-                ReactInstruction::Batch(steps) => {
-                    let results = self.execute_batch_plan(&steps).await;
-                    for result in results {
-                        step_results.push(result);
-                    }
-                    let summary = self.format_step_results(&step_results);
-                    final_response = Some(summary);
-                    break;
-                }
-            }
-        }
-        if iteration >= self.max_iterations {
-            final_response = Some(t!("error.max_iterations_reached").to_string());
-        }
-        let final_response = final_response.unwrap_or_else(|| {
-            if step_results.is_empty() {
-                t!("skill.no_actions_executed").to_string()
-            } else {
-                self.format_step_results(&step_results)
-            }
-        });
-        if let Some(cb) = &self.callback {
-            let has_failure = step_results
-                .iter()
-                .any(|r| r.status == ExecutionStatus::Failure)
-                || final_response.starts_with("Error:")
-                || final_response.contains("failed");
-
-            if has_failure {
-                cb.on_workflow_failed(&final_response).await;
-            } else {
-                cb.on_workflow_complete(&final_response).await;
-            }
-        }
-        memory.add_exchange(session_id, input, &final_response);
-        final_response
-    }
-
-    /// Batch mode implementation
-    async fn execute_batch(
-        &self,
-        scheduler: &SkillScheduler,
-        input: &str,
-        session_id: &str,
-    ) -> String {
-        // Build batch prompt
-        let registry_json = Self::get_atomic_skills_registry();
-        let batch_prompt = format!(
-            r#"You are an AI assistant that can execute atomic skills/tools.
-
-## Available Atomic Skills (JSON Registry)
-{}
-
-## Task
-Execute multiple skills in batch mode. Skills should have NO dependencies on each other.
-
-## Response Format
-{{
-  "mode": "batch",
-  "steps": [
-    {{"action": "skill1", "parameters": {{}}}},
-    {{"action": "skill2", "parameters": {{}}}}
-  ]
-}}
-
-If no skills are needed, respond with:
-{{"action": "done", "message": "Your answer"}}
-
-## User Input
-{}
-
-Respond with ONLY the JSON.
-"#,
-            registry_json, input
-        );
-        let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
-            Ok(resp) => resp,
-            Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
-        };
-        let instruction = match Self::parse_react_response(&llm_response) {
-            Ok(instr) => instr,
-            Err(_) => return llm_response,
-        };
-        match instruction {
-            ReactInstruction::Done(message) => message,
-            ReactInstruction::Batch(steps) => {
-                let results = self.execute_batch_plan(&steps).await;
-                self.format_step_results(&results)
-            }
-            ReactInstruction::Single(_) => t!("error.batch_mode_invalid").to_string(),
-        }
-    }
-
-    /// Chain mode implementation (sequential with variable passing)
-    async fn execute_chain(
-        &self,
-        scheduler: &SkillScheduler,
-        input: &str,
-        session_id: &str,
-    ) -> String {
-        let registry_json = Self::get_atomic_skills_registry();
-        let chain_prompt = format!(
-            r#"You are an AI assistant that can chain atomic skills together.
-
-## CRITICAL: Variable Reference Format
-When referencing a previous output, use this EXACT format:
-{{{{variable_name}}}}
-
-Example: if output_as is "step1", reference as {{{{step1}}}}
-
-## Available Atomic Skills
-{}
-
-## Response Format
-{{"mode": "chain", "steps": [
-  {{"action": "calculator", "parameters": {{"expression": "5 * 3"}}, "output_as": "result1"}},
-  {{"action": "calculator", "parameters": {{"expression": "{{{{result1}}}} + 10"}}, "output_as": "result2"}}
-]}}
-
-## User Input
-{}
-
-Respond with ONLY the JSON.
-"#,
-            registry_json, input
-        );
-        let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
-            Ok(resp) => resp,
-            Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
-        };
-        let chain = match Self::parse_chain_response(&llm_response) {
-            Ok(chain) => chain,
-            Err(e) => return format!("Failed to parse chain: {}", e),
-        };
-        let mut context = HashMap::new();
-        context.insert("user_input".to_string(), Value::String(input.to_string()));
-        let mut results = Vec::new();
-        for (idx, step) in chain.steps.iter().enumerate() {
-            let step_name = step.action.clone();
-            if let Some(cb) = &self.callback {
-                cb.on_step_start(&step_name, idx).await;
-            }
-            let mut resolved_params = HashMap::new();
-            for (key, value) in &step.parameters {
-                let resolved = Self::resolve_variables_deep(value, &context);
-                resolved_params.insert(key.clone(), resolved);
-            }
-            let call = SkillCall {
-                action: step.action.clone(),
-                parameters: resolved_params,
-            };
-            match self.executor.execute(&call).await {
-                Ok(output) => {
-                    if let Some(cb) = &self.callback {
-                        cb.on_step_success(&step_name, idx, &output).await;
-                    }
-                    if let Some(output_as) = &step.output_as {
-                        if let Ok(num) = output.parse::<f64>() {
-                            context.insert(output_as.clone(), json!(num));
-                        } else {
-                            context.insert(output_as.clone(), Value::String(output.clone()));
-                        }
-                    }
-                    results.push(StepResult {
-                        skill: step.action.clone(),
-                        parameters: call.parameters,
-                        output: output.clone(),
-                        status: ExecutionStatus::Success,
-                    });
-                }
-                Err(e) => {
-                    let error_msg = e.to_string();
-                    if let Some(cb) = &self.callback {
-                        cb.on_step_failure(&step_name, idx, &error_msg).await;
-                    }
-                    results.push(StepResult {
-                        skill: step.action.clone(),
-                        parameters: call.parameters,
-                        output: error_msg.clone(),
-                        status: ExecutionStatus::Failure,
-                    });
-                    if let Some(cb) = &self.callback {
-                        cb.on_workflow_failed(&error_msg).await;
-                    }
-                    return format!("Skill '{}' failed: {}", step.action, error_msg);
-                }
-            }
-        }
-        let final_output = self.format_step_results(&results);
-        if let Some(cb) = &self.callback {
-            let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
-            if has_failure {
-                cb.on_workflow_failed(&final_output).await;
-            } else {
-                cb.on_workflow_complete(&final_output).await;
-            }
-        }
-        final_output
-    }
-
     /// Deep recursive resolution of variable references
     fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
         if let Some(s) = value.as_str() {
@@ -624,93 +304,6 @@ Respond with ONLY the JSON.
             return Value::Array(new_arr);
         }
         value.clone()
-    }
-
-    /// Plan-and-Execute mode implementation
-    async fn execute_plan_and_execute(
-        &self,
-        scheduler: &SkillScheduler,
-        input: &str,
-        session_id: &str,
-    ) -> String {
-        let registry_json = Self::get_atomic_skills_registry();
-        let plan_prompt = format!(
-            r#"You are an AI assistant that creates execution plans for atomic skills.
-
-## Available Atomic Skills (JSON Registry)
-{}
-
-## Task
-Create a complete execution plan that handles dependencies and conditions.
-
-## IMPORTANT: Response Format
-You MUST return a JSON object with exactly this structure:
-
-{{"mode": "plan", "plan": {{"steps": [
-  {{"id": "step1", "action": "skill_name", "parameters": {{"param": "value"}}, "output_as": "result1"}},
-  {{"id": "step2", "action": "skill_name", "parameters": {{"input": "{{{{result1}}}}"}}, "condition": {{"op": "contains", "left": "{{{{result1}}}}", "right": "error"}}}}
-]}}}}
-
-## Parameters Field
-The "plan" object MUST contain a "steps" array. The "parameters" field is OPTIONAL.
-DO NOT include "parameters" unless you need to pass initial values.
-
-## Condition Operators
-- eq: equal
-- ne: not equal
-- gt: greater than
-- lt: less than
-- contains: string contains
-
-## Example 1 (simple plan without parameters)
-{{"mode": "plan", "plan": {{"steps": [
-  {{"id": "step1", "action": "file_read", "parameters": {{"path": "data.txt"}}, "output_as": "content"}}
-]}}}}
-
-## Example 2 (conditional plan)
-{{"mode": "plan", "plan": {{"steps": [
-  {{"id": "step1", "action": "weather", "parameters": {{"city": "Beijing"}}, "output_as": "weather_data"}},
-  {{"id": "step2", "action": "send_email", "parameters": {{"to": "admin@example.com", "subject": "Weather Alert", "body": "{{{{weather_data}}}}"}}, "condition": {{"op": "contains", "left": "{{{{weather_data}}}}", "right": "rain"}}}}
-]}}}}
-
-## User Input
-{}
-
-If no skills are needed:
-{{"mode": "done", "message": "Your answer"}}
-
-Respond with ONLY the JSON. No markdown, no extra text.
-"#,
-            registry_json, input
-        );
-        let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
-            Ok(resp) => resp,
-            Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
-        };
-        let instruction = match Self::parse_plan_response(&llm_response) {
-            Ok(instr) => instr,
-            Err(e) => return format!("Failed to parse plan: {}", e),
-        };
-        match instruction {
-            PlanInstruction {
-                mode,
-                plan,
-                message,
-            } => {
-                if mode == "done" {
-                    return message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
-                }
-
-                if let Some(plan) = plan {
-                    match self.execute_workflow_plan(&plan).await {
-                        Ok(result) => result,
-                        Err(e) => format!("Workflow failed: {}", e),
-                    }
-                } else {
-                    t!("skill.no_actions_executed").to_string()
-                }
-            }
-        }
     }
 
     /// Execute a workflow plan with variable resolution and conditions
@@ -976,65 +569,6 @@ Respond with ONLY the JSON. No markdown, no extra text.
         output
     }
 
-    /// Helper functions for building prompts
-    pub fn get_atomic_skills_registry() -> String {
-        let skills = crate::executors::registry::list_skills();
-        let registry: Vec<serde_json::Value> = skills
-            .iter()
-            .filter_map(|name| {
-                crate::executors::registry::get_skill(name).map(|skill| {
-                    serde_json::json!({
-                        "name": name,
-                        "description": skill.description(),
-                        "category": skill.category(),
-                        "parameters": skill.parameters(),
-                    })
-                })
-            })
-            .collect();
-        serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
-    }
-
-    pub fn build_react_prompt(scheduler: &SkillScheduler) -> String {
-        let registry_json = Self::get_atomic_skills_registry();
-        format!(
-            r#"You are an AI assistant that can execute atomic skills/tools.
-
-## Available Atomic Skills (JSON Registry)
-{}
-
-## Response Format
-
-You can respond in one of three ways:
-
-### 1. Execute a single skill
-{{"action": "skill_name", "parameters": {{"param1": "value1"}}}}
-
-### 2. Execute multiple skills in sequence (no dependencies)
-{{
-  "mode": "batch",
-  "steps": [
-    {{"action": "skill1", "parameters": {{}}}},
-    {{"action": "skill2", "parameters": {{}}}}
-  ]
-}}
-
-### 3. Finish and return final answer
-{{"action": "done", "message": "Your final answer here"}}
-
-## Rules
-
-- If the task requires conditional logic (e.g., "if rain then send email"), use mode "single" and execute one skill at a time
-- After each skill execution, you will receive the result and can decide the next step
-- Use "batch" mode only when skills have no dependencies on each other's results
-- Use "done" when you have completed the task or no skill is needed
-
-## Previous Execution Results (if any)
-"#,
-            registry_json
-        )
-    }
-
     pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
         let json_str = Self::extract_json(response);
         let value: Value = serde_json::from_str(&json_str)?;
@@ -1133,6 +667,530 @@ You can respond in one of three ways:
                 Value::String(format!("$ref:{}", ref_reference.path))
             }
             ValueRef::Expression(expr) => Value::String(format!("$expr:{}", expr.expr)),
+        }
+    }
+
+    /// Execute workflow with pre-built registries (optimized version)
+    pub async fn execute(
+        &self,
+        scheduler: &SkillScheduler,
+        memory: &ConversationMemory,
+        skills_dir: &PathBuf,
+        input: &str,
+        session_id: &str,
+        skills_registry: &str,
+        instances_registry: &str,
+        is_first_message: bool,
+    ) -> String {
+        match self.mode {
+            WorkflowMode::ReAct => {
+                self.execute_react(
+                    scheduler,
+                    memory,
+                    input,
+                    session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+            WorkflowMode::Batch => {
+                self.execute_batch(
+                    scheduler,
+                    input,
+                    session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+            WorkflowMode::Chain => {
+                self.execute_chain(
+                    scheduler,
+                    input,
+                    session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+            WorkflowMode::PlanAndExecute => {
+                self.execute_plan_and_execute(
+                    scheduler,
+                    input,
+                    session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+        }
+    }
+
+    /// ReAct mode with registry (optimized)
+    async fn execute_react(
+        &self,
+        scheduler: &SkillScheduler,
+        memory: &ConversationMemory,
+        input: &str,
+        session_id: &str,
+        skills_registry: &str,
+        instances_registry: &str,
+        is_first_message: bool,
+    ) -> String {
+        let input_trimmed = input.trim();
+        if input_trimmed == "clear" {
+            memory.clear_session(session_id);
+            return t!("app.conversation_cleared").to_string();
+        }
+        if input_trimmed == "exit" || input_trimmed == "quit" {
+            return "goodbye".to_string();
+        }
+        if input_trimmed.is_empty() {
+            return String::new();
+        }
+
+        let history = memory.get_history(session_id);
+        let mut step_results: Vec<StepResult> = Vec::new();
+        let mut final_response = None;
+        let mut iteration = 0;
+
+        while iteration < self.max_iterations {
+            iteration += 1;
+            let execution_summary = if step_results.is_empty() {
+                String::new()
+            } else {
+                let mut summary = format!("\n## {}\n", t!("skill.previous_executed_steps"));
+                for (i, result) in step_results.iter().enumerate() {
+                    summary.push_str(&format!("{}. {}\n", i + 1, result.to_string()));
+                }
+                summary
+            };
+
+            // Build prompt with cached registries
+            let system_prompt = Self::build_react_prompt(skills_registry, instances_registry);
+            let user_prompt = if is_first_message && history.is_empty() && step_results.is_empty() {
+                // First message: include registries (already in system_prompt)
+                format!(
+                    "{}\n\n## {}\n{}\n\n## {}\n\n## {}\n",
+                    system_prompt,
+                    t!("prompt.original_request"),
+                    input_trimmed,
+                    t!("prompt.your_response"),
+                    t!("prompt.first_message_hint")
+                )
+            } else {
+                format!(
+                    "{}\n\n## {}\n{}\n\n## {}\n{}\n\n## {}\n",
+                    system_prompt,
+                    t!("prompt.original_request"),
+                    input_trimmed,
+                    t!("prompt.conversation_history"),
+                    history,
+                    t!("prompt.your_response")
+                )
+            };
+
+            let llm_response = match scheduler.get_llm().generate(&user_prompt).await {
+                Ok(resp) => resp,
+                Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+            };
+
+            let instruction = match Self::parse_react_response(&llm_response) {
+                Ok(instr) => instr,
+                Err(_) => return llm_response,
+            };
+
+            match instruction {
+                ReactInstruction::Done(message) => {
+                    final_response = Some(message);
+                    break;
+                }
+                ReactInstruction::Single(call) => {
+                    let step_index = step_results.len();
+                    let step_name = call.action.clone();
+                    if let Some(cb) = &self.callback {
+                        cb.on_step_start(&step_name, step_index).await;
+                    }
+                    match self.executor.execute(&call).await {
+                        Ok(output) => {
+                            if let Some(cb) = &self.callback {
+                                cb.on_step_success(&step_name, step_index, &output).await;
+                            }
+                            step_results.push(StepResult {
+                                skill: call.action.clone(),
+                                parameters: call.parameters.clone(),
+                                output: output.clone(),
+                                status: ExecutionStatus::Success,
+                            });
+                        }
+                        Err(e) => {
+                            let error_msg = e.to_string();
+                            if let Some(cb) = &self.callback {
+                                cb.on_step_failure(&step_name, step_index, &error_msg).await;
+                            }
+                            step_results.push(StepResult {
+                                skill: call.action.clone(),
+                                parameters: call.parameters.clone(),
+                                output: error_msg.clone(),
+                                status: ExecutionStatus::Failure,
+                            });
+                            final_response = Some(format!(
+                                "{} '{}': {}",
+                                t!("error.skill_failed"),
+                                call.action,
+                                error_msg
+                            ));
+                            break;
+                        }
+                    }
+                }
+                ReactInstruction::Batch(steps) => {
+                    let results = self.execute_batch_plan(&steps).await;
+                    for result in results {
+                        step_results.push(result);
+                    }
+                    let summary = self.format_step_results(&step_results);
+                    final_response = Some(summary);
+                    break;
+                }
+            }
+        }
+
+        if iteration >= self.max_iterations {
+            final_response = Some(t!("error.max_iterations_reached").to_string());
+        }
+
+        let final_response = final_response.unwrap_or_else(|| {
+            if step_results.is_empty() {
+                t!("skill.no_actions_executed").to_string()
+            } else {
+                self.format_step_results(&step_results)
+            }
+        });
+
+        if let Some(cb) = &self.callback {
+            let has_failure = step_results
+                .iter()
+                .any(|r| r.status == ExecutionStatus::Failure)
+                || final_response.starts_with("Error:")
+                || final_response.contains("failed");
+
+            if has_failure {
+                cb.on_workflow_failed(&final_response).await;
+            } else {
+                cb.on_workflow_complete(&final_response).await;
+            }
+        }
+
+        memory.add_exchange(session_id, input, &final_response);
+        final_response
+    }
+
+    /// Build ReAct prompt with pre-built registries
+    pub fn build_react_prompt(skills_registry: &str, instances_registry: &str) -> String {
+        format!(
+            r#"You are an AI assistant that can execute atomic skills/tools.
+
+## Available Atomic Skills (JSON Registry)
+{}
+
+## Available Instances (Configured Services)
+{}
+
+## Response Format
+
+You can respond in one of three ways:
+
+### 1. Execute a single skill
+{{"action": "skill_name", "parameters": {{"param1": "value1"}}}}
+
+### 2. Execute multiple skills in sequence (no dependencies)
+{{
+  "mode": "batch",
+  "steps": [
+    {{"action": "skill1", "parameters": {{}}}},
+    {{"action": "skill2", "parameters": {{}}}}
+  ]
+}}
+
+### 3. Finish and return final answer
+{{"action": "done", "message": "Your final answer here"}}
+
+## Rules
+
+- If the task requires conditional logic (e.g., "if rain then send email"), use mode "single" and execute one skill at a time
+- After each skill execution, you will receive the result and can decide the next step
+- Use "batch" mode only when skills have no dependencies on each other's results
+- Use "done" when you have completed the task or no skill is needed
+- When calling database skills, choose the appropriate instance_id from the Available Instances list based on user's intent
+
+## Previous Execution Results (if any)
+"#,
+            skills_registry, instances_registry
+        )
+    }
+
+    // Batch mode with registry
+    async fn execute_batch(
+        &self,
+        scheduler: &SkillScheduler,
+        input: &str,
+        session_id: &str,
+        skills_registry: &str,
+        instances_registry: &str,
+        is_first_message: bool,
+    ) -> String {
+        let batch_prompt = format!(
+            r#"You are an AI assistant that can execute atomic skills/tools.
+
+## Available Atomic Skills (JSON Registry)
+{}
+
+## Available Instances
+{}
+
+## Task
+Execute multiple skills in batch mode. Skills should have NO dependencies on each other.
+
+## Response Format
+{{
+  "mode": "batch",
+  "steps": [
+    {{"action": "skill1", "parameters": {{}}}},
+    {{"action": "skill2", "parameters": {{}}}}
+  ]
+}}
+
+If no skills are needed, respond with:
+{{"action": "done", "message": "Your answer"}}
+
+## User Input
+{}
+
+Respond with ONLY the JSON.
+"#,
+            skills_registry, instances_registry, input
+        );
+
+        let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
+            Ok(resp) => resp,
+            Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+        };
+
+        let instruction = match Self::parse_react_response(&llm_response) {
+            Ok(instr) => instr,
+            Err(_) => return llm_response,
+        };
+
+        match instruction {
+            ReactInstruction::Done(message) => message,
+            ReactInstruction::Batch(steps) => {
+                let results = self.execute_batch_plan(&steps).await;
+                self.format_step_results(&results)
+            }
+            ReactInstruction::Single(_) => t!("error.batch_mode_invalid").to_string(),
+        }
+    }
+
+    // Chain mode with registry
+    async fn execute_chain(
+        &self,
+        scheduler: &SkillScheduler,
+        input: &str,
+        session_id: &str,
+        skills_registry: &str,
+        instances_registry: &str,
+        is_first_message: bool,
+    ) -> String {
+        let chain_prompt = format!(
+            r#"You are an AI assistant that can chain atomic skills together.
+
+## CRITICAL: Variable Reference Format
+When referencing a previous output, use this EXACT format:
+{{{{variable_name}}}}
+
+Example: if output_as is "step1", reference as {{{{step1}}}}
+
+## Available Atomic Skills
+{}
+
+## Available Instances
+{}
+
+## Response Format
+{{"mode": "chain", "steps": [
+  {{"action": "calculator", "parameters": {{"expression": "5 * 3"}}, "output_as": "result1"}},
+  {{"action": "calculator", "parameters": {{"expression": "{{{{result1}}}} + 10"}}, "output_as": "result2"}}
+]}}
+
+## User Input
+{}
+
+Respond with ONLY the JSON.
+"#,
+            skills_registry, instances_registry, input
+        );
+
+        let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
+            Ok(resp) => resp,
+            Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+        };
+
+        let chain = match Self::parse_chain_response(&llm_response) {
+            Ok(chain) => chain,
+            Err(e) => return format!("Failed to parse chain: {}", e),
+        };
+
+        let mut context = HashMap::new();
+        context.insert("user_input".to_string(), Value::String(input.to_string()));
+        let mut results = Vec::new();
+
+        for (idx, step) in chain.steps.iter().enumerate() {
+            let step_name = step.action.clone();
+            if let Some(cb) = &self.callback {
+                cb.on_step_start(&step_name, idx).await;
+            }
+            let mut resolved_params = HashMap::new();
+            for (key, value) in &step.parameters {
+                let resolved = Self::resolve_variables_deep(value, &context);
+                resolved_params.insert(key.clone(), resolved);
+            }
+            let call = SkillCall {
+                action: step.action.clone(),
+                parameters: resolved_params,
+            };
+            match self.executor.execute(&call).await {
+                Ok(output) => {
+                    if let Some(cb) = &self.callback {
+                        cb.on_step_success(&step_name, idx, &output).await;
+                    }
+                    if let Some(output_as) = &step.output_as {
+                        if let Ok(num) = output.parse::<f64>() {
+                            context.insert(output_as.clone(), json!(num));
+                        } else {
+                            context.insert(output_as.clone(), Value::String(output.clone()));
+                        }
+                    }
+                    results.push(StepResult {
+                        skill: step.action.clone(),
+                        parameters: call.parameters,
+                        output: output.clone(),
+                        status: ExecutionStatus::Success,
+                    });
+                }
+                Err(e) => {
+                    let error_msg = e.to_string();
+                    if let Some(cb) = &self.callback {
+                        cb.on_step_failure(&step_name, idx, &error_msg).await;
+                    }
+                    results.push(StepResult {
+                        skill: step.action.clone(),
+                        parameters: call.parameters,
+                        output: error_msg.clone(),
+                        status: ExecutionStatus::Failure,
+                    });
+                    if let Some(cb) = &self.callback {
+                        cb.on_workflow_failed(&error_msg).await;
+                    }
+                    return format!("Skill '{}' failed: {}", step.action, error_msg);
+                }
+            }
+        }
+
+        let final_output = self.format_step_results(&results);
+        if let Some(cb) = &self.callback {
+            let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
+            if has_failure {
+                cb.on_workflow_failed(&final_output).await;
+            } else {
+                cb.on_workflow_complete(&final_output).await;
+            }
+        }
+        final_output
+    }
+
+    // Plan-and-Execute mode with registry
+    async fn execute_plan_and_execute(
+        &self,
+        scheduler: &SkillScheduler,
+        input: &str,
+        session_id: &str,
+        skills_registry: &str,
+        instances_registry: &str,
+        is_first_message: bool,
+    ) -> String {
+        let plan_prompt = format!(
+            r#"You are an AI assistant that creates execution plans for atomic skills.
+
+## Available Atomic Skills (JSON Registry)
+{}
+
+## Available Instances
+{}
+
+## Task
+Create a complete execution plan that handles dependencies and conditions.
+
+## IMPORTANT: Response Format
+You MUST return a JSON object with exactly this structure:
+
+{{"mode": "plan", "plan": {{"steps": [
+  {{"id": "step1", "action": "skill_name", "parameters": {{"param": "value"}}, "output_as": "result1"}},
+  {{"id": "step2", "action": "skill_name", "parameters": {{"input": "{{{{result1}}}}"}}, "condition": {{"op": "contains", "left": "{{{{result1}}}}", "right": "error"}}}}
+]}}}}
+
+## Condition Operators
+- eq: equal
+- ne: not equal
+- gt: greater than
+- lt: less than
+- contains: string contains
+
+## User Input
+{}
+
+If no skills are needed:
+{{"mode": "done", "message": "Your answer"}}
+
+Respond with ONLY the JSON. No markdown, no extra text.
+"#,
+            skills_registry, instances_registry, input
+        );
+
+        let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
+            Ok(resp) => resp,
+            Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+        };
+
+        let instruction = match Self::parse_plan_response(&llm_response) {
+            Ok(instr) => instr,
+            Err(e) => return format!("Failed to parse plan: {}", e),
+        };
+
+        match instruction {
+            PlanInstruction {
+                mode,
+                plan,
+                message,
+            } => {
+                if mode == "done" {
+                    return message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
+                }
+
+                if let Some(plan) = plan {
+                    match self.execute_workflow_plan(&plan).await {
+                        Ok(result) => result,
+                        Err(e) => format!("Workflow failed: {}", e),
+                    }
+                } else {
+                    t!("skill.no_actions_executed").to_string()
+                }
+            }
         }
     }
 }

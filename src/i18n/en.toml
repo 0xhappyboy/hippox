@@ -1,11 +1,12 @@
 [app]
-name = "Hippo Agent"
-running = "Hippo Agent is running!"
+name = "Hippox"
+running = "Hippox Agent is running!"
 available_skills = "Available skills:"
 try_saying = "Try saying: hello, hi, or nihao"
 type_exit = "Type 'exit' to quit, 'clear' to clear conversation"
 goodbye = "Goodbye!"
 conversation_cleared = "Conversation cleared!"
+welcome_message = "Hippox AI Assistant is ready! I have loaded all available skills and instances. How can I help you today?"
 
 [skill]
 selected = "Selected skill: {}"
@@ -15,11 +16,24 @@ executing = "Executing skill: {}"
 description = "Description: {}"
 instructions = "Instructions: {}"
 user_input = "User input: {}"
+no_skills_available = "No atomic skills available"
+no_skill_md_available = "No SKILL.md files found"
+no_steps_executed = "No steps were executed"
+no_actions_executed = "No actions were executed"
+previous_executed_steps = "Previous Executed Steps"
 
 [error]
 config_not_found = "Skills directory not found: {}"
 invalid_skill_format = "Invalid SKILL.md format: missing frontmatter"
 llm_api_key_missing = "{}_API_KEY not set"
+llm_error = "LLM error"
+max_iterations_reached = "Maximum iterations reached, stopping"
+skill_failed = "Skill failed"
+task_panic = "Task panic"
+load_skill_failed = "Failed to load skill"
+list_skills_failed = "Failed to list skills"
+skill_not_found = "Skill not found"
+batch_mode_invalid = "Invalid response: expected batch mode"
 
 [prompt]
 select_skill = """
@@ -31,3 +45,9 @@ Available skills:
 User request: {}
 
 Respond with ONLY the skill name, nothing else. If no skill matches, respond with 'none'."""
+select_skill_header = "Select the most appropriate skill from the list below."
+fallback = "No specific skill matched the user's request."
+original_request = "Original Request"
+conversation_history = "Conversation History"
+your_response = "Your Response"
+first_message_hint = "All available skills and instances have been provided above. You can start executing tasks."

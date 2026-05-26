@@ -10,7 +10,7 @@ use crate::{HippoxConfig, i18n};
 use crate::{get_config, t};
 use langhub::LLMClient;
 use langhub::types::ModelProvider;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -31,6 +31,16 @@ pub enum ConfigInitMethod {
     ParamsJsonStr(String),
 }
 
+/// Welcome message structure containing registry information
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WelcomeMessage {
+    pub type_: String,
+    pub message: String,
+    pub skills_registry: Value,
+    pub instances_registry: Value,
+    pub version: String,
+}
+
 /// Core engine for Hippox
 ///
 /// This is the main entry point for the Hippox engine. It handles:
@@ -45,6 +55,11 @@ pub struct Hippox {
     skills_dir: PathBuf,
     workflow_mode: WorkflowMode,
     workflow_executor: WorkflowExecutor,
+    // Cached registries (generated once at initialization)
+    cached_skills_registry: String,
+    cached_instances_registry: String,
+    cached_welcome_message: String,
+    is_first_message: bool,
 }
 
 impl Hippox {
@@ -80,21 +95,31 @@ impl Hippox {
             "Initializing Hippox core with skills directory: {}, workflow mode: {}",
             skills_dir, workflow_mode
         );
+
         // init config
         match config_method {
             ConfigInitMethod::TomlFile(path) => init_config_from_toml_file(&path)?,
             ConfigInitMethod::JsonFile(path) => init_config_from_json_file(&path)?,
             ConfigInitMethod::ParamsJsonStr(json) => init_config_from_params_json_str(&json)?,
         }
+
         // set i18n
         let config = get_config();
         i18n::set_language(&config.lang);
+
         // init llm
         let llm = LLMClient::new_with_key(provider, api_key, extra_keys)?;
+
+        // Generate cached registries (once at startup)
+        let skills_registry = Self::generate_skills_registry();
+        let instances_registry = Self::generate_instances_registry();
+        let welcome_message = Self::generate_welcome_message(&skills_registry, &instances_registry);
+
         // init llm scheduler
         let scheduler = SkillScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
+
         Ok(Self {
             scheduler,
             executor,
@@ -102,7 +127,175 @@ impl Hippox {
             skills_dir: PathBuf::from(skills_dir),
             workflow_mode,
             workflow_executor,
+            cached_skills_registry: skills_registry,
+            cached_instances_registry: instances_registry,
+            cached_welcome_message: welcome_message,
+            is_first_message: true,
         })
+    }
+
+    /// Generate skills registry (atomic skills metadata)
+    fn generate_skills_registry() -> String {
+        let skills = crate::executors::registry::list_skills();
+        let registry: Vec<serde_json::Value> = skills
+            .iter()
+            .filter_map(|name| {
+                crate::executors::registry::get_skill(name).map(|skill| {
+                    serde_json::json!({
+                        "name": name,
+                        "description": skill.description(),
+                        "category": skill.category(),
+                        "parameters": skill.parameters(),
+                        "example_call": skill.example_call(),
+                        "example_output": skill.example_output(),
+                    })
+                })
+            })
+            .collect();
+        serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Generate instances registry (configured database/service instances)
+    fn generate_instances_registry() -> String {
+        let config = get_config();
+        let mut instances = serde_json::Map::new();
+
+        // PostgreSQL instances
+        let pg_instances: Vec<serde_json::Value> = config
+            .postgresql_instances
+            .values()
+            .map(|inst| {
+                json!({
+                    "id": inst.id,
+                    "name": inst.name,
+                    "description": inst.description,
+                    "type": "postgresql"
+                })
+            })
+            .collect();
+        if !pg_instances.is_empty() {
+            instances.insert("postgresql".to_string(), json!(pg_instances));
+        }
+
+        // MySQL instances
+        let mysql_instances: Vec<serde_json::Value> = config
+            .mysql_instances
+            .values()
+            .map(|inst| {
+                json!({
+                    "id": inst.id,
+                    "name": inst.name,
+                    "description": inst.description,
+                    "type": "mysql"
+                })
+            })
+            .collect();
+        if !mysql_instances.is_empty() {
+            instances.insert("mysql".to_string(), json!(mysql_instances));
+        }
+
+        // Redis instances
+        let redis_instances: Vec<serde_json::Value> = config
+            .redis_instances
+            .values()
+            .map(|inst| {
+                json!({
+                    "id": inst.id,
+                    "name": inst.name,
+                    "description": inst.description,
+                    "type": "redis"
+                })
+            })
+            .collect();
+        if !redis_instances.is_empty() {
+            instances.insert("redis".to_string(), json!(redis_instances));
+        }
+
+        // SQLite instances
+        let sqlite_instances: Vec<serde_json::Value> = config
+            .sqlite_instances
+            .values()
+            .map(|inst| {
+                json!({
+                    "id": inst.id,
+                    "name": inst.name,
+                    "description": inst.description,
+                    "type": "sqlite"
+                })
+            })
+            .collect();
+        if !sqlite_instances.is_empty() {
+            instances.insert("sqlite".to_string(), json!(sqlite_instances));
+        }
+
+        // Docker instances
+        let docker_instances: Vec<serde_json::Value> = config
+            .docker_instances
+            .values()
+            .map(|inst| {
+                json!({
+                    "id": inst.id,
+                    "name": inst.name,
+                    "description": inst.description,
+                    "type": "docker"
+                })
+            })
+            .collect();
+        if !docker_instances.is_empty() {
+            instances.insert("docker".to_string(), json!(docker_instances));
+        }
+
+        // Kubernetes instances
+        let k8s_instances: Vec<serde_json::Value> = config
+            .k8s_instances
+            .values()
+            .map(|inst| {
+                json!({
+                    "id": inst.id,
+                    "name": inst.name,
+                    "description": inst.description,
+                    "type": "kubernetes",
+                    "namespace": inst.namespace
+                })
+            })
+            .collect();
+        if !k8s_instances.is_empty() {
+            instances.insert("kubernetes".to_string(), json!(k8s_instances));
+        }
+
+        serde_json::to_string_pretty(&instances).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Generate welcome message with registries
+    fn generate_welcome_message(skills_registry: &str, instances_registry: &str) -> String {
+        let welcome = WelcomeMessage {
+            type_: "welcome".to_string(),
+            message: format!("{}\n\n{}", STARTUP_BANNER, t!("app.welcome_message")),
+            skills_registry: serde_json::from_str(skills_registry).unwrap_or(Value::Null),
+            instances_registry: serde_json::from_str(instances_registry).unwrap_or(Value::Null),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        };
+        serde_json::to_string_pretty(&welcome).unwrap_or_else(|_| {
+            format!(
+                "{{\"type\":\"welcome\",\"message\":\"{}\"}}",
+                t!("app.welcome_message")
+            )
+        })
+    }
+
+    /// Get cached welcome message (for first response)
+    pub fn get_welcome_message(&self) -> &str {
+        &self.cached_welcome_message
+    }
+
+    /// Get cached skills registry
+    pub fn get_skills_registry(&self) -> &str {
+        &self.cached_skills_registry
+    }
+
+    /// Get cached instances registry
+    pub fn get_instances_registry(&self) -> &str {
+        &self.cached_instances_registry
     }
 
     /// Handle natural language input from user using configured workflow mode
@@ -114,11 +307,12 @@ impl Hippox {
     /// * `input` - Natural language input from the user
     /// * `session_id` - Optional session ID for conversation history
     ///                  (uses "default" if None)
+    /// * `is_first_message` - Whether this is the first message (skip registry in prompt)
     ///
     /// # Returns
     /// The response string after processing
     pub async fn handle_natural_language(
-        &self,
+        &mut self,
         input: &str,
         session_id: Option<&str>,
         callback: Option<Arc<dyn WorkflowCallback>>,
@@ -128,6 +322,11 @@ impl Hippox {
         if let Some(cb) = callback {
             executor = executor.with_callback(cb);
         }
+        // is first message
+        if (self.is_first_message) {
+            self.is_first_message = false;
+        }
+        // Pass cached registries to executor
         executor
             .execute(
                 &self.scheduler,
@@ -135,25 +334,16 @@ impl Hippox {
                 &self.skills_dir,
                 input,
                 session_id,
+                &self.cached_skills_registry,
+                &self.cached_instances_registry,
+                self.is_first_message,
             )
             .await
     }
 
     /// Handle multiple natural language inputs in parallel
-    ///
-    /// This function processes multiple natural language inputs concurrently.
-    /// Each input uses its own session ID or shares the same session.
-    ///
-    /// # Arguments
-    /// * `inputs` - A vector of tuples: `Vec<(String, Option<String>)>`
-    ///     - First element: The natural language input text
-    ///     - Second element: Optional session ID for conversation history
-    ///       (uses "default" if None)
-    ///
-    /// # Returns
-    /// A vector of response strings in the **same order** as the input tasks.
     pub async fn handle_natural_language_batch(
-        &self,
+        &mut self,
         inputs: Vec<(String, Option<String>, Option<Arc<dyn WorkflowCallback>>)>,
     ) -> Vec<String> {
         if inputs.is_empty() {
@@ -185,19 +375,8 @@ impl Hippox {
     }
 
     /// Handle SKILL.md file execution
-    ///
-    /// This function loads and executes a SKILL.md file as a predefined workflow.
-    /// It uses the workflow executor to actually call atomic skills, following
-    /// the configured workflow mode (ReAct, Batch, Chain, PlanAndExecute).
-    ///
-    /// # Arguments
-    /// * `skill_name` - Name of the skill (subdirectory name containing SKILL.md)
-    /// * `params` - Optional parameters to pass to the skill execution
-    ///
-    /// # Returns
-    /// The execution result as a string
     pub async fn handle_skill_md(
-        &self,
+        &mut self,
         skill_name: &str,
         params: Option<HashMap<String, Value>>,
         callback: Option<Arc<dyn WorkflowCallback>>,
@@ -229,15 +408,19 @@ impl Hippox {
                 instructions = instructions.replace(&placeholder, &replacement);
             }
         }
-        let registry_json = self.get_atomic_skills_registry();
+        // Use cached registries
         let enhanced_input = format!(
-            "{}\n\n## Available Atomic Skills\n{}\n\n## Task\nExecute the workflow step by step according to the instructions above.",
-            instructions, registry_json
+            "{}\n\n## Available Atomic Skills\n{}\n\n## Available Instances\n{}\n\n## Task\nExecute the workflow step by step according to the instructions above.",
+            instructions, self.cached_skills_registry, self.cached_instances_registry
         );
         let session_id = format!("skill_md_{}", skill_name);
         let mut executor = self.workflow_executor.clone();
         if let Some(cb) = callback {
             executor = executor.with_callback(cb);
+        }
+        // is first message
+        if (self.is_first_message) {
+            self.is_first_message = false;
         }
         executor
             .execute(
@@ -246,22 +429,14 @@ impl Hippox {
                 &self.skills_dir,
                 &enhanced_input,
                 &session_id,
+                &self.cached_skills_registry,
+                &self.cached_instances_registry,
+                self.is_first_message,
             )
             .await
     }
 
     /// Handle multiple SKILL.md files execution in parallel
-    ///
-    /// This function executes multiple SKILL.md workflows concurrently.
-    /// Each skill execution uses its own session ID and follows the configured workflow mode.
-    ///
-    /// # Arguments
-    /// * `tasks` - A vector of tuples: `Vec<(String, Option<HashMap<String, Value>>)>`
-    ///     - First element: The skill name
-    ///     - Second element: Optional parameters for the skill
-    ///
-    /// # Returns
-    /// A vector of execution results in the same order as the input tasks
     pub async fn handle_skill_md_batch(
         &self,
         tasks: Vec<(
@@ -296,25 +471,6 @@ impl Hippox {
             }
         }
         results
-    }
-
-    /// Get the atomic skills registry as JSON string
-    fn get_atomic_skills_registry(&self) -> String {
-        let skills = crate::executors::registry::list_skills();
-        let registry: Vec<serde_json::Value> = skills
-            .iter()
-            .filter_map(|name| {
-                crate::executors::registry::get_skill(name).map(|skill| {
-                    serde_json::json!({
-                        "name": name,
-                        "description": skill.description(),
-                        "category": skill.category(),
-                        "parameters": skill.parameters(),
-                    })
-                })
-            })
-            .collect();
-        serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
     }
 
     /// Clear conversation history for a session
@@ -436,6 +592,17 @@ impl Hippox {
     pub fn get_config(&self) -> HippoxConfig {
         crate::config::get_config()
     }
+
+    /// Reload registries (call after config changes)
+    pub fn reload_registries(&mut self) {
+        self.cached_skills_registry = Self::generate_skills_registry();
+        self.cached_instances_registry = Self::generate_instances_registry();
+        self.cached_welcome_message = Self::generate_welcome_message(
+            &self.cached_skills_registry,
+            &self.cached_instances_registry,
+        );
+        info!("Registries reloaded successfully");
+    }
 }
 
 #[cfg(test)]
@@ -465,5 +632,49 @@ Process the request and return a result.
             skill_name, description, skill_name, description
         );
         std::fs::write(skill_md, content).unwrap();
+    }
+
+    #[test]
+    fn test_generate_skills_registry() {
+        let registry = Hippox::generate_skills_registry();
+        assert!(!registry.is_empty());
+        assert!(registry.contains("helloworld") || registry.contains("file_read"));
+    }
+
+    #[test]
+    fn test_generate_instances_registry() {
+        let registry = Hippox::generate_instances_registry();
+        // Registry should be valid JSON even if empty
+        assert!(serde_json::from_str::<Value>(&registry).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_hippox_real_conversation() {
+        use langhub::types::ModelProvider;
+        use std::collections::HashMap;
+        use std::io::{self, Write};
+        let api_key = "";
+        let provider = ModelProvider::DeepSeek;
+        let skills_dir = "./skills";
+        let config_json = r#"{
+        "lang": "en"
+    }"#;
+        let hippox = Hippox::new(
+            skills_dir,
+            provider,
+            Some(api_key.to_string()),
+            None,
+            ConfigInitMethod::ParamsJsonStr(config_json.to_string()),
+        )
+        .await;
+        let r = hippox
+            .unwrap()
+            .handle_natural_language(
+                "Tell me what skills I have and what my profile is.",
+                None,
+                None,
+            )
+            .await;
+        println!("{}", r);
     }
 }

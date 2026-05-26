@@ -1,11 +1,12 @@
 [app]
-name = "河马AI代理"
-running = "河马AI代理正在运行！"
+name = "Hippox(河马)"
+running = "Hippox(河马)正在运行!"
 available_skills = "可用技能："
 try_saying = "试试说：你好，嗨，或你好"
 type_exit = "输入 'exit' 退出，'clear' 清除对话"
 goodbye = "再见！"
 conversation_cleared = "对话已清除！"
+welcome_message = "Hippox(河马)已就绪! 我已经加载了所有可用的技能和实例。今天我能帮你做什么？"
 
 [skill]
 selected = "已选择技能：{}"
@@ -15,11 +16,24 @@ executing = "正在执行技能：{}"
 description = "描述：{}"
 instructions = "指令：{}"
 user_input = "用户输入：{}"
+no_skills_available = "没有可用的原子技能"
+no_skill_md_available = "没有找到 SKILL.md 文件"
+no_steps_executed = "没有执行任何步骤"
+no_actions_executed = "没有执行任何操作"
+previous_executed_steps = "已执行的步骤"
 
 [error]
 config_not_found = "未找到技能目录：{}"
 invalid_skill_format = "无效的 SKILL.md 格式：缺少 frontmatter"
 llm_api_key_missing = "未设置 {}_API_KEY 环境变量"
+llm_error = "LLM 错误"
+max_iterations_reached = "达到最大迭代次数，停止执行"
+skill_failed = "技能执行失败"
+task_panic = "任务崩溃"
+load_skill_failed = "加载技能失败"
+list_skills_failed = "列出技能失败"
+skill_not_found = "未找到技能"
+batch_mode_invalid = "无效的响应：期望批处理模式"
 
 [prompt]
 select_skill = """
@@ -31,3 +45,9 @@ select_skill = """
 用户请求：{}
 
 只回复技能名称，不要回复其他内容。如果没有匹配的技能，回复 'none'。"""
+select_skill_header = "从下面的列表中选择最合适的技能。"
+fallback = "没有找到匹配用户请求的特定技能。"
+original_request = "原始请求"
+conversation_history = "对话历史"
+your_response = "你的回复"
+first_message_hint = "所有可用的技能和实例已在上方提供。你可以开始执行任务了。"
