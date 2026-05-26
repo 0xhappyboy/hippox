@@ -835,37 +835,26 @@ impl WorkflowExecutor {
         if input_trimmed.is_empty() {
             return String::new();
         }
-
         let history = memory.get_history(session_id);
         let mut step_results: Vec<StepResult> = Vec::new();
         let mut final_response = None;
         let mut iteration = 0;
-
         while iteration < self.max_iterations {
             iteration += 1;
-            let execution_summary = if step_results.is_empty() {
+            // Build observation from previous step results
+            let observation = if step_results.is_empty() {
                 String::new()
             } else {
-                let mut summary = format!("\n## {}\n", t!("skill.previous_executed_steps"));
-                for (i, result) in step_results.iter().enumerate() {
-                    summary.push_str(&format!("{}. {}\n", i + 1, result.to_string()));
-                }
-                summary
-            };
-
-            // Build prompt with cached registries
-            let system_prompt = Self::build_react_prompt(skills_registry, instances_registry);
-            let user_prompt = if is_first_message && history.is_empty() && step_results.is_empty() {
-                // First message: include registries (already in system_prompt)
+                let last_result = step_results.last().unwrap();
                 format!(
-                    "{}\n\n## {}\n{}\n\n## {}\n\n## {}\n",
-                    system_prompt,
-                    t!("prompt.original_request"),
-                    input_trimmed,
-                    t!("prompt.your_response"),
-                    t!("prompt.first_message_hint")
+                    "\n## Observation\nSkill '{}' executed.\nStatus: {:?}\nOutput: {}\n",
+                    last_result.skill, last_result.status, last_result.output
                 )
-            } else {
+            };
+            // Build prompt with observations
+            let system_prompt = Self::build_react_prompt(skills_registry, instances_registry);
+            let user_prompt = if step_results.is_empty() {
+                // First iteration: no observation yet
                 format!(
                     "{}\n\n## {}\n{}\n\n## {}\n{}\n\n## {}\n",
                     system_prompt,
@@ -875,18 +864,27 @@ impl WorkflowExecutor {
                     history,
                     t!("prompt.your_response")
                 )
+            } else {
+                // Subsequent iterations: include observation
+                format!(
+                    "{}\n\n## {}\n{}\n\n## {}\n{}\n\n{}\n\n## {}\n",
+                    system_prompt,
+                    t!("prompt.original_request"),
+                    input_trimmed,
+                    t!("prompt.conversation_history"),
+                    history,
+                    observation,
+                    t!("prompt.your_response")
+                )
             };
-
             let llm_response = match scheduler.get_llm().generate(&user_prompt).await {
                 Ok(resp) => resp,
                 Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
             };
-
             let instruction = match Self::parse_react_response(&llm_response) {
                 Ok(instr) => instr,
                 Err(_) => return llm_response,
             };
-
             match instruction {
                 ReactInstruction::Done(message) => {
                     final_response = Some(message);
@@ -942,11 +940,9 @@ impl WorkflowExecutor {
                 }
             }
         }
-
         if iteration >= self.max_iterations {
             final_response = Some(t!("error.max_iterations_reached").to_string());
         }
-
         let final_response = final_response.unwrap_or_else(|| {
             if step_results.is_empty() {
                 t!("skill.no_actions_executed").to_string()
@@ -954,7 +950,6 @@ impl WorkflowExecutor {
                 self.format_step_results(&step_results)
             }
         });
-
         if let Some(cb) = &self.callback {
             let has_failure = step_results
                 .iter()
@@ -968,7 +963,6 @@ impl WorkflowExecutor {
                 cb.on_workflow_complete(&final_response).await;
             }
         }
-
         memory.add_exchange(session_id, input, &final_response);
         final_response
     }
