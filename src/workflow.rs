@@ -976,7 +976,7 @@ impl WorkflowExecutor {
     /// Build ReAct prompt with pre-built registries
     pub fn build_react_prompt(skills_registry: &str, instances_registry: &str) -> String {
         format!(
-            r#"You are an AI assistant that can execute atomic skills/tools.
+            r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
 
 ## Available Atomic Skills (JSON Registry)
 {}
@@ -1028,7 +1028,7 @@ You can respond in one of three ways:
         is_first_message: bool,
     ) -> String {
         let batch_prompt = format!(
-            r#"You are an AI assistant that can execute atomic skills/tools.
+            r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
 
 ## Available Atomic Skills (JSON Registry)
 {}
@@ -1090,7 +1090,7 @@ Respond with ONLY the JSON.
         is_first_message: bool,
     ) -> String {
         let chain_prompt = format!(
-            r#"You are an AI assistant that can chain atomic skills together.
+            r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
 
 ## CRITICAL: Variable Reference Format
 When referencing a previous output, use this EXACT format:
@@ -1207,7 +1207,7 @@ Respond with ONLY the JSON.
         is_first_message: bool,
     ) -> String {
         let plan_prompt = format!(
-            r#"You are an AI assistant that creates execution plans for atomic skills.
+            r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
 
 ## Available Atomic Skills (JSON Registry)
 {}
