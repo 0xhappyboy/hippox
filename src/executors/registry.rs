@@ -669,11 +669,6 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     );
     #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
-        "k8s_get_services".to_string(),
-        Arc::new(super::skills::k8s::K8sGetServicesSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "devops", feature = "all"))]
-    registry.insert(
         "k8s_scale_deployment".to_string(),
         Arc::new(super::skills::k8s::K8sScaleDeploymentSkill) as Arc<dyn Skill>,
     );
@@ -681,11 +676,6 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     registry.insert(
         "k8s_restart_deployment".to_string(),
         Arc::new(super::skills::k8s::K8sRestartDeploymentSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "devops", feature = "all"))]
-    registry.insert(
-        "k8s_port_forward".to_string(),
-        Arc::new(super::skills::k8s::K8sPortForwardSkill) as Arc<dyn Skill>,
     );
     #[cfg(any(feature = "devops", feature = "all"))]
     registry.insert(
@@ -706,31 +696,6 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     registry.insert(
         "k8s_delete_resource".to_string(),
         Arc::new(super::skills::k8s::K8sDeleteResourceSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "devops", feature = "all"))]
-    registry.insert(
-        "k8s_get_events".to_string(),
-        Arc::new(super::skills::k8s::K8sGetEventsSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "devops", feature = "all"))]
-    registry.insert(
-        "k8s_get_configmaps".to_string(),
-        Arc::new(super::skills::k8s::K8sGetConfigMapsSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "devops", feature = "all"))]
-    registry.insert(
-        "k8s_get_secrets".to_string(),
-        Arc::new(super::skills::k8s::K8sGetSecretsSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "devops", feature = "all"))]
-    registry.insert(
-        "k8s_get_ingresses".to_string(),
-        Arc::new(super::skills::k8s::K8sGetIngressesSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "devops", feature = "all"))]
-    registry.insert(
-        "k8s_get_statefulsets".to_string(),
-        Arc::new(super::skills::k8s::K8sGetStatefulSetsSkill) as Arc<dyn Skill>,
     );
     // ==================== Docker Skills ====================
     #[cfg(any(feature = "devops", feature = "all"))]

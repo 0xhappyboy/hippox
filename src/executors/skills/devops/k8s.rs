@@ -6,51 +6,60 @@
 //! - `K8sGetLogsSkill`: Get pod logs
 //! - `K8sExecSkill`: Execute commands in a pod
 //! - `K8sGetDeploymentsSkill`: List deployments
-//! - `K8sGetServicesSkill`: List services
 //! - `K8sScaleDeploymentSkill`: Scale a deployment
 //! - `K8sRestartDeploymentSkill`: Restart a deployment
-//! - `K8sPortForwardSkill`: Port forward to a pod
 //! - `K8sGetNodesSkill`: List cluster nodes
 //! - `K8sGetNamespacesSkill`: List namespaces
 //! - `K8sApplyYamlSkill`: Apply YAML/JSON manifest
 //! - `K8sDeleteResourceSkill`: Delete k8s resources
-//! - `K8sGetEventsSkill`: Get cluster events
 //! - `K8sGetConfigMapsSkill`: List configmaps
 //! - `K8sGetSecretsSkill`: List secrets
 //! - `K8sGetIngressesSkill`: List ingresses
 //! - `K8sGetStatefulSetsSkill`: List statefulsets
 
-use crate::config::get_config;
+use crate::config::{get_k8s_instance, list_k8s_instances};
 use crate::executors::types::{Skill, SkillParameter};
 use crate::executors::{ExecOptions, exec_async, exec_with_stdin_async};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+/// Helper to get K8s instance config
+fn get_k8s_config(instance_id: Option<&str>) -> Result<crate::config::K8sConfig> {
+    if let Some(id) = instance_id {
+        get_k8s_instance(id).ok_or_else(|| anyhow::anyhow!("K8s instance not found: {}", id))
+    } else {
+        let instances = list_k8s_instances();
+        instances.into_iter().next().ok_or_else(|| {
+            anyhow::anyhow!("No K8s instance configured. Please add a K8s instance first.")
+        })
+    }
+}
+
 /// Helper to build kubectl command args with config
 fn build_kubectl_args(
     base_args: &[&str],
     namespace: Option<&str>,
     all_namespaces: bool,
+    config: &crate::config::K8sConfig,
 ) -> Vec<String> {
-    let config = get_config();
     let mut args = Vec::new();
-    if let Some(kubeconfig) = config.get_kubeconfig() {
+    if !config.kubeconfig.is_empty() {
         args.push("--kubeconfig".to_string());
-        args.push(kubeconfig);
+        args.push(config.kubeconfig.clone());
     }
-    if !config.k8s_context.is_empty() {
+    if !config.context.is_empty() {
         args.push("--context".to_string());
-        args.push(config.k8s_context.clone());
+        args.push(config.context.clone());
     }
     if all_namespaces {
         args.push("--all-namespaces".to_string());
     } else if let Some(ns) = namespace {
         args.push("-n".to_string());
         args.push(ns.to_string());
-    } else {
+    } else if !config.namespace.is_empty() && config.namespace != "default" {
         args.push("-n".to_string());
-        args.push(config.k8s_namespace.clone());
+        args.push(config.namespace.clone());
     }
 
     for arg in base_args {
@@ -60,9 +69,8 @@ fn build_kubectl_args(
 }
 
 /// Helper to build kubectl command with timeout
-async fn exec_kubectl(args: &[&str]) -> Result<String> {
-    let config = get_config();
-    let opts = ExecOptions::new().with_timeout(config.k8s_timeout);
+async fn exec_kubectl(args: &[&str], config: &crate::config::K8sConfig) -> Result<String> {
+    let opts = ExecOptions::new().with_timeout(config.timeout);
     let result = exec_async("kubectl", args, Some(opts)).await?;
     if result.success {
         Ok(result.stdout)
@@ -72,7 +80,11 @@ async fn exec_kubectl(args: &[&str]) -> Result<String> {
 }
 
 /// Helper to build kubectl command with custom options
-async fn exec_kubectl_with_opts(args: &[&str], opts: ExecOptions) -> Result<String> {
+async fn exec_kubectl_with_opts(
+    args: &[&str],
+    opts: ExecOptions,
+    config: &crate::config::K8sConfig,
+) -> Result<String> {
     let result = exec_async("kubectl", args, Some(opts)).await?;
     if result.success {
         Ok(result.stdout)
@@ -100,13 +112,34 @@ impl Skill for K8sGetPodsSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("kube-system")),
                 enum_values: None,
             },
@@ -141,6 +174,24 @@ impl Skill for K8sGetPodsSkill {
                     "yaml".to_string(),
                 ]),
             },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -148,6 +199,7 @@ impl Skill for K8sGetPodsSkill {
         json!({
             "action": "k8s_get_pods",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "namespace": "production",
                 "selector": "app=web"
             }
@@ -155,7 +207,7 @@ impl Skill for K8sGetPodsSkill {
     }
 
     fn example_output(&self) -> String {
-        "NAME                     READY   STATUS    RESTARTS   AGE   IP           NODE\nweb-7b4c8d9f6-abc12       1/1     Running   0          5d    10.244.1.2   node-1\nweb-7b4c8d9f6-def34       1/1     Running   0          5d    10.244.2.3   node-2".to_string()
+        "NAME                     READY   STATUS    RESTARTS   AGE   IP           NODE\nweb-7b4c8d9f6-abc12       1/1     Running   0          5d    10.244.1.2   node-1\nweb-7b4c8d9f6-def34       1/1     Running   0          5d    10.244.2.3   node-2 [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -163,6 +215,17 @@ impl Skill for K8sGetPodsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        // Override config with parameters
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let all_namespaces = parameters
             .get("all_namespaces")
@@ -173,6 +236,7 @@ impl Skill for K8sGetPodsSkill {
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("wide");
+
         let mut base_args = vec!["get", "pods"];
         match output {
             "json" => {
@@ -192,21 +256,22 @@ impl Skill for K8sGetPodsSkill {
             base_args.push("-l");
             base_args.push(sel);
         }
-        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
+
+        let args = build_kubectl_args(&base_args, namespace, all_namespaces, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let result = exec_async("kubectl", &args_ref, None).await?;
-        if !result.success {
-            return Err(anyhow::anyhow!(
-                "kubectl get pods failed: {}",
-                result.stderr
-            ));
-        }
-        if output == "json" {
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result.stdout) {
-                return Ok(serde_json::to_string_pretty(&json_value)?);
+        let result = exec_kubectl(&args_ref, &instance).await?;
+
+        let output_result = if output == "json" {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
+                serde_json::to_string_pretty(&json_value)?
+            } else {
+                result
             }
-        }
-        Ok(result.stdout)
+        } else {
+            result
+        };
+
+        Ok(format!("{} [instance: {}]", output_result, instance.name))
     }
 }
 
@@ -229,7 +294,28 @@ impl Skill for K8sDescribePodSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "pod".to_string(),
                 param_type: "string".to_string(),
@@ -242,10 +328,28 @@ impl Skill for K8sDescribePodSkill {
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
                 enum_values: None,
             },
         ]
@@ -255,6 +359,7 @@ impl Skill for K8sDescribePodSkill {
         json!({
             "action": "k8s_describe_pod",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "pod": "nginx-7b4c8d9f6-abc12",
                 "namespace": "default"
             }
@@ -262,7 +367,7 @@ impl Skill for K8sDescribePodSkill {
     }
 
     fn example_output(&self) -> String {
-        "Name:         nginx-7b4c8d9f6-abc12\nNamespace:    default\nPriority:     0\nNode:         node-1/192.168.1.10\n...".to_string()
+        "Name:         nginx-7b4c8d9f6-abc12\nNamespace:    default\nPriority:     0\nNode:         node-1/192.168.1.10\n... [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -270,15 +375,28 @@ impl Skill for K8sDescribePodSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let pod = parameters
             .get("pod")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pod"))?;
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+
         let base_args = vec!["describe", "pod", pod];
-        let args = build_kubectl_args(&base_args, namespace, false);
+        let args = build_kubectl_args(&base_args, namespace, false, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await
+        let result = exec_kubectl(&args_ref, &instance).await?;
+
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }
 
@@ -301,7 +419,28 @@ impl Skill for K8sGetLogsSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "pod".to_string(),
                 param_type: "string".to_string(),
@@ -314,9 +453,9 @@ impl Skill for K8sGetLogsSkill {
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
                 enum_values: None,
             },
@@ -365,6 +504,24 @@ impl Skill for K8sGetLogsSkill {
                 example: Some(json!(true)),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -372,6 +529,7 @@ impl Skill for K8sGetLogsSkill {
         json!({
             "action": "k8s_get_logs",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "pod": "nginx-7b4c8d9f6-abc12",
                 "tail": 50
             }
@@ -379,7 +537,7 @@ impl Skill for K8sGetLogsSkill {
     }
 
     fn example_output(&self) -> String {
-        "2024-01-15T10:30:00Z [info] Server started\n2024-01-15T10:30:01Z [info] Listening on port 80".to_string()
+        "2024-01-15T10:30:00Z [info] Server started\n2024-01-15T10:30:01Z [info] Listening on port 80 [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -387,6 +545,16 @@ impl Skill for K8sGetLogsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let pod = parameters
             .get("pod")
             .and_then(|v| v.as_str())
@@ -406,6 +574,7 @@ impl Skill for K8sGetLogsSkill {
             .get("follow")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+
         let tail_str = tail.to_string();
         let mut base_args = vec!["logs", pod, "--tail", &tail_str];
         if let Some(c) = container {
@@ -422,14 +591,18 @@ impl Skill for K8sGetLogsSkill {
         if follow {
             base_args.push("--follow");
         }
-        let args = build_kubectl_args(&base_args, namespace, false);
+
+        let args = build_kubectl_args(&base_args, namespace, false, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let result = exec_kubectl(&args_ref).await?;
-        if result.is_empty() {
-            Ok("No logs available".to_string())
+        let result = exec_kubectl(&args_ref, &instance).await?;
+
+        let output = if result.is_empty() {
+            "No logs available".to_string()
         } else {
-            Ok(result)
-        }
+            result
+        };
+
+        Ok(format!("{} [instance: {}]", output, instance.name))
     }
 }
 
@@ -452,7 +625,28 @@ impl Skill for K8sExecSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "pod".to_string(),
                 param_type: "string".to_string(),
@@ -474,9 +668,9 @@ impl Skill for K8sExecSkill {
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
                 enum_values: None,
             },
@@ -507,6 +701,24 @@ impl Skill for K8sExecSkill {
                 example: Some(json!(true)),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -514,6 +726,7 @@ impl Skill for K8sExecSkill {
         json!({
             "action": "k8s_exec",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "pod": "mysql-abc123",
                 "command": "mysql -e 'SHOW DATABASES'"
             }
@@ -521,7 +734,8 @@ impl Skill for K8sExecSkill {
     }
 
     fn example_output(&self) -> String {
-        "Database\ninformation_schema\nmysql\nperformance_schema\nsys".to_string()
+        "Database\ninformation_schema\nmysql\nperformance_schema\nsys [instance: k8s_prod]"
+            .to_string()
     }
 
     fn category(&self) -> &str {
@@ -529,7 +743,16 @@ impl Skill for K8sExecSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let pod = parameters
             .get("pod")
             .and_then(|v| v.as_str())
@@ -548,6 +771,7 @@ impl Skill for K8sExecSkill {
             .get("tty")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+
         let mut base_args = vec!["exec", pod];
         if interactive {
             base_args.push("-i");
@@ -563,18 +787,23 @@ impl Skill for K8sExecSkill {
         base_args.push("sh");
         base_args.push("-c");
         base_args.push(command);
-        let args = build_kubectl_args(&base_args, namespace, false);
+
+        let args = build_kubectl_args(&base_args, namespace, false, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let opts = ExecOptions::new().with_timeout(config.k8s_timeout);
+        let opts = ExecOptions::new().with_timeout(instance.timeout);
         let result = exec_async("kubectl", &args_ref, Some(opts)).await?;
+
         if !result.success {
             return Err(anyhow::anyhow!("Command failed: {}", result.stderr));
         }
-        if result.stdout.is_empty() {
-            Ok("Command executed successfully (no output)".to_string())
+
+        let output = if result.stdout.is_empty() {
+            "Command executed successfully (no output)".to_string()
         } else {
-            Ok(result.stdout)
-        }
+            result.stdout
+        };
+
+        Ok(format!("{} [instance: {}]", output, instance.name))
     }
 }
 
@@ -597,13 +826,34 @@ impl Skill for K8sGetDeploymentsSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
                 enum_values: None,
             },
@@ -629,6 +879,24 @@ impl Skill for K8sGetDeploymentsSkill {
                     "yaml".to_string(),
                 ]),
             },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -636,13 +904,14 @@ impl Skill for K8sGetDeploymentsSkill {
         json!({
             "action": "k8s_get_deployments",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "namespace": "default"
             }
         })
     }
 
     fn example_output(&self) -> String {
-        "NAME    READY   UP-TO-DATE   AVAILABLE   AGE\nnginx   3/3     3            3           5d"
+        "NAME    READY   UP-TO-DATE   AVAILABLE   AGE\nnginx   3/3     3            3           5d [instance: k8s_prod]"
             .to_string()
     }
 
@@ -651,6 +920,16 @@ impl Skill for K8sGetDeploymentsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
         let all_namespaces = parameters
             .get("all_namespaces")
@@ -660,6 +939,7 @@ impl Skill for K8sGetDeploymentsSkill {
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("wide");
+
         let mut base_args = vec!["get", "deployments"];
         match output {
             "json" => {
@@ -675,123 +955,22 @@ impl Skill for K8sGetDeploymentsSkill {
                 base_args.push("wide");
             }
         }
-        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
+
+        let args = build_kubectl_args(&base_args, namespace, all_namespaces, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let result = exec_kubectl(&args_ref).await?;
-        if output == "json" {
+        let result = exec_kubectl(&args_ref, &instance).await?;
+
+        let output_result = if output == "json" {
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
-                return Ok(serde_json::to_string_pretty(&json_value)?);
+                serde_json::to_string_pretty(&json_value)?
+            } else {
+                result
             }
-        }
-        Ok(result)
-    }
-}
+        } else {
+            result
+        };
 
-/// A skill for listing services.
-#[derive(Debug)]
-pub struct K8sGetServicesSkill;
-
-#[async_trait::async_trait]
-impl Skill for K8sGetServicesSkill {
-    fn name(&self) -> &str {
-        "k8s_get_services"
-    }
-
-    fn description(&self) -> &str {
-        "List k8s services in a namespace"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to check service endpoints, ClusterIPs, and port mappings"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "namespace".to_string(),
-                param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
-                required: false,
-                default: Some(json!("default")),
-                example: Some(json!("production")),
-                enum_values: None,
-            },
-            SkillParameter {
-                name: "all_namespaces".to_string(),
-                param_type: "boolean".to_string(),
-                description: "List services in all namespaces".to_string(),
-                required: false,
-                default: Some(json!(false)),
-                example: Some(json!(true)),
-                enum_values: None,
-            },
-            SkillParameter {
-                name: "output".to_string(),
-                param_type: "string".to_string(),
-                description: "Output format: wide, json, yaml".to_string(),
-                required: false,
-                default: Some(json!("wide")),
-                example: Some(json!("json")),
-                enum_values: Some(vec![
-                    "wide".to_string(),
-                    "json".to_string(),
-                    "yaml".to_string(),
-                ]),
-            },
-        ]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "k8s_get_services",
-            "parameters": {
-                "namespace": "default"
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE\nk8s   ClusterIP   10.96.0.1       <none>        443/TCP        10d\nnginx        LoadBalancer 10.96.100.50   192.168.1.10  80:30080/TCP   5d".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "devops"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
-        let all_namespaces = parameters
-            .get("all_namespaces")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let output = parameters
-            .get("output")
-            .and_then(|v| v.as_str())
-            .unwrap_or("wide");
-        let mut base_args = vec!["get", "services"];
-        match output {
-            "json" => {
-                base_args.push("-o");
-                base_args.push("json");
-            }
-            "yaml" => {
-                base_args.push("-o");
-                base_args.push("yaml");
-            }
-            _ => {
-                base_args.push("-o");
-                base_args.push("wide");
-            }
-        }
-        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let result = exec_kubectl(&args_ref).await?;
-        if output == "json" {
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
-                return Ok(serde_json::to_string_pretty(&json_value)?);
-            }
-        }
-        Ok(result)
+        Ok(format!("{} [instance: {}]", output_result, instance.name))
     }
 }
 
@@ -814,7 +993,28 @@ impl Skill for K8sScaleDeploymentSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "deployment".to_string(),
                 param_type: "string".to_string(),
@@ -836,10 +1036,28 @@ impl Skill for K8sScaleDeploymentSkill {
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
                 enum_values: None,
             },
         ]
@@ -849,6 +1067,7 @@ impl Skill for K8sScaleDeploymentSkill {
         json!({
             "action": "k8s_scale_deployment",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "deployment": "nginx",
                 "replicas": 5
             }
@@ -856,7 +1075,7 @@ impl Skill for K8sScaleDeploymentSkill {
     }
 
     fn example_output(&self) -> String {
-        "Deployment 'nginx' scaled to 5 replicas".to_string()
+        "Deployment 'nginx' scaled to 5 replicas [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -864,6 +1083,16 @@ impl Skill for K8sScaleDeploymentSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let deployment = parameters
             .get("deployment")
             .and_then(|v| v.as_str())
@@ -873,6 +1102,7 @@ impl Skill for K8sScaleDeploymentSkill {
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: replicas"))?;
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+
         let replicas_str = replicas.to_string();
         let base_args = vec![
             "scale",
@@ -881,12 +1111,14 @@ impl Skill for K8sScaleDeploymentSkill {
             "--replicas",
             &replicas_str,
         ];
-        let args = build_kubectl_args(&base_args, namespace, false);
+        let args = build_kubectl_args(&base_args, namespace, false, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await?;
+
+        exec_kubectl(&args_ref, &instance).await?;
+
         Ok(format!(
-            "Deployment '{}' scaled to {} replicas",
-            deployment, replicas
+            "Deployment '{}' scaled to {} replicas [instance: {}]",
+            deployment, replicas, instance.name
         ))
     }
 }
@@ -910,7 +1142,28 @@ impl Skill for K8sRestartDeploymentSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "deployment".to_string(),
                 param_type: "string".to_string(),
@@ -923,10 +1176,28 @@ impl Skill for K8sRestartDeploymentSkill {
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
                 enum_values: None,
             },
         ]
@@ -936,13 +1207,14 @@ impl Skill for K8sRestartDeploymentSkill {
         json!({
             "action": "k8s_restart_deployment",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "deployment": "nginx"
             }
         })
     }
 
     fn example_output(&self) -> String {
-        "Deployment 'nginx' restarted successfully".to_string()
+        "Deployment 'nginx' restarted successfully [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -950,122 +1222,31 @@ impl Skill for K8sRestartDeploymentSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let deployment = parameters
             .get("deployment")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: deployment"))?;
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+
         let base_args = vec!["rollout", "restart", "deployment", deployment];
-        let args = build_kubectl_args(&base_args, namespace, false);
+        let args = build_kubectl_args(&base_args, namespace, false, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await?;
+
+        exec_kubectl(&args_ref, &instance).await?;
+
         Ok(format!(
-            "Deployment '{}' restarted successfully",
-            deployment
-        ))
-    }
-}
-
-/// A skill for port forwarding to a pod.
-#[derive(Debug)]
-pub struct K8sPortForwardSkill;
-
-#[async_trait::async_trait]
-impl Skill for K8sPortForwardSkill {
-    fn name(&self) -> &str {
-        "k8s_port_forward"
-    }
-
-    fn description(&self) -> &str {
-        "Forward a local port to a port on a k8s pod"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to access pod services locally for debugging or testing"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "pod".to_string(),
-                param_type: "string".to_string(),
-                description: "Pod name".to_string(),
-                required: true,
-                default: None,
-                example: Some(json!("my-app-abc123")),
-                enum_values: None,
-            },
-            SkillParameter {
-                name: "local_port".to_string(),
-                param_type: "integer".to_string(),
-                description: "Local port to forward from".to_string(),
-                required: true,
-                default: None,
-                example: Some(json!(8080)),
-                enum_values: None,
-            },
-            SkillParameter {
-                name: "remote_port".to_string(),
-                param_type: "integer".to_string(),
-                description: "Remote port on the pod".to_string(),
-                required: true,
-                default: None,
-                example: Some(json!(80)),
-                enum_values: None,
-            },
-            SkillParameter {
-                name: "namespace".to_string(),
-                param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
-                required: false,
-                default: Some(json!("default")),
-                example: Some(json!("production")),
-                enum_values: None,
-            },
-        ]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "k8s_port_forward",
-            "parameters": {
-                "pod": "nginx-abc123",
-                "local_port": 8080,
-                "remote_port": 80
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "Port forwarding established: localhost:8080 -> pod:80".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "devops"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pod = parameters
-            .get("pod")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pod"))?;
-        let local_port = parameters
-            .get("local_port")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: local_port"))?;
-        let remote_port = parameters
-            .get("remote_port")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: remote_port"))?;
-        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
-        let port_str = format!("{}:{}", local_port, remote_port);
-        let base_args = vec!["port-forward", pod, &port_str];
-        let args = build_kubectl_args(&base_args, namespace, false);
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await?;
-        Ok(format!(
-            "Port forwarding established: localhost:{} -> pod:{}",
-            local_port, remote_port
+            "Deployment '{}' restarted successfully [instance: {}]",
+            deployment, instance.name
         ))
     }
 }
@@ -1089,29 +1270,73 @@ impl Skill for K8sGetNodesSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "output".to_string(),
-            param_type: "string".to_string(),
-            description: "Output format: wide, json, yaml".to_string(),
-            required: false,
-            default: Some(json!("wide")),
-            example: Some(json!("json")),
-            enum_values: Some(vec![
-                "wide".to_string(),
-                "json".to_string(),
-                "yaml".to_string(),
-            ]),
-        }]
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
+        vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
+            SkillParameter {
+                name: "output".to_string(),
+                param_type: "string".to_string(),
+                description: "Output format: wide, json, yaml".to_string(),
+                required: false,
+                default: Some(json!("wide")),
+                example: Some(json!("json")),
+                enum_values: Some(vec![
+                    "wide".to_string(),
+                    "json".to_string(),
+                    "yaml".to_string(),
+                ]),
+            },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
+                enum_values: None,
+            },
+        ]
     }
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "k8s_get_nodes"
+            "action": "k8s_get_nodes",
+            "parameters": {
+                "instance_id": "k8s_prod"
+            }
         })
     }
 
     fn example_output(&self) -> String {
-        "NAME     STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP\nnode-1   Ready    master   10d   v1.28.0   192.168.1.10   <none>\nnode-2   Ready    worker   10d   v1.28.0   192.168.1.11   <none>".to_string()
+        "NAME     STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP\nnode-1   Ready    master   10d   v1.28.0   192.168.1.10   <none>\nnode-2   Ready    worker   10d   v1.28.0   192.168.1.11   <none> [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -1119,10 +1344,21 @@ impl Skill for K8sGetNodesSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let output = parameters
             .get("output")
             .and_then(|v| v.as_str())
             .unwrap_or("wide");
+
         let mut args = vec!["get", "nodes"];
         match output {
             "json" => {
@@ -1138,14 +1374,34 @@ impl Skill for K8sGetNodesSkill {
                 args.push("wide");
             }
         }
+
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
-        let result = exec_kubectl(&args_ref).await?;
-        if output == "json" {
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
-                return Ok(serde_json::to_string_pretty(&json_value)?);
-            }
+
+        // For nodes, we need to handle kubeconfig/context differently (no namespace)
+        let mut full_args = Vec::new();
+        if !instance.kubeconfig.is_empty() {
+            full_args.push("--kubeconfig");
+            full_args.push(instance.kubeconfig.as_str());
         }
-        Ok(result)
+        if !instance.context.is_empty() {
+            full_args.push("--context");
+            full_args.push(instance.context.as_str());
+        }
+        full_args.extend(args_ref);
+
+        let result = exec_kubectl(&full_args, &instance).await?;
+
+        let output_result = if output == "json" {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
+                serde_json::to_string_pretty(&json_value)?
+            } else {
+                result
+            }
+        } else {
+            result
+        };
+
+        Ok(format!("{} [instance: {}]", output_result, instance.name))
     }
 }
 
@@ -1168,29 +1424,73 @@ impl Skill for K8sGetNamespacesSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "output".to_string(),
-            param_type: "string".to_string(),
-            description: "Output format: json, yaml".to_string(),
-            required: false,
-            default: Some(json!("table")),
-            example: Some(json!("json")),
-            enum_values: Some(vec![
-                "table".to_string(),
-                "json".to_string(),
-                "yaml".to_string(),
-            ]),
-        }]
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
+        vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
+            SkillParameter {
+                name: "output".to_string(),
+                param_type: "string".to_string(),
+                description: "Output format: json, yaml".to_string(),
+                required: false,
+                default: Some(json!("table")),
+                example: Some(json!("json")),
+                enum_values: Some(vec![
+                    "table".to_string(),
+                    "json".to_string(),
+                    "yaml".to_string(),
+                ]),
+            },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
+                enum_values: None,
+            },
+        ]
     }
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "k8s_get_namespaces"
+            "action": "k8s_get_namespaces",
+            "parameters": {
+                "instance_id": "k8s_prod"
+            }
         })
     }
 
     fn example_output(&self) -> String {
-        "NAME              STATUS   AGE\ndefault           Active   10d\nkube-system       Active   10d\nkube-public       Active   10d".to_string()
+        "NAME              STATUS   AGE\ndefault           Active   10d\nkube-system       Active   10d\nkube-public       Active   10d [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -1198,6 +1498,14 @@ impl Skill for K8sGetNamespacesSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
         let output = parameters
             .get("output")
             .and_then(|v| v.as_str())
@@ -1214,14 +1522,28 @@ impl Skill for K8sGetNamespacesSkill {
             }
             _ => {}
         }
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_ref()).collect();
-        let result = exec_kubectl(&args_ref).await?;
-        if output == "json" {
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
-                return Ok(serde_json::to_string_pretty(&json_value)?);
-            }
+        let mut full_args = Vec::new();
+        if !instance.kubeconfig.is_empty() {
+            full_args.push("--kubeconfig");
+            full_args.push(instance.kubeconfig.as_str());
         }
-        Ok(result)
+        if !instance.context.is_empty() {
+            full_args.push("--context");
+            full_args.push(instance.context.as_str());
+        }
+        full_args.extend(args.iter().map(|s| s));
+        let result = exec_kubectl(&full_args, &instance).await?;
+        let output_result = if output == "json" {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&result) {
+                serde_json::to_string_pretty(&json_value)?
+            } else {
+                result
+            }
+        } else {
+            result
+        };
+
+        Ok(format!("{} [instance: {}]", output_result, instance.name))
     }
 }
 
@@ -1244,7 +1566,28 @@ impl Skill for K8sApplyYamlSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "manifest".to_string(),
                 param_type: "string".to_string(),
@@ -1259,10 +1602,28 @@ impl Skill for K8sApplyYamlSkill {
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
                 enum_values: None,
             },
         ]
@@ -1272,13 +1633,14 @@ impl Skill for K8sApplyYamlSkill {
         json!({
             "action": "k8s_apply_yaml",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "manifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: nginx\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
             }
         })
     }
 
     fn example_output(&self) -> String {
-        "pod/nginx created".to_string()
+        "pod/nginx created [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -1286,21 +1648,33 @@ impl Skill for K8sApplyYamlSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let manifest = parameters
             .get("manifest")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: manifest"))?;
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
+
         let base_args = vec!["apply", "-f", "-"];
-        let args = build_kubectl_args(&base_args, namespace, false);
+        let args = build_kubectl_args(&base_args, namespace, false, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let opts = ExecOptions::new().with_timeout(config.k8s_timeout);
+        let opts = ExecOptions::new().with_timeout(instance.timeout);
         let result = exec_with_stdin_async("kubectl", &args_ref, manifest, Some(opts)).await?;
+
         if !result.success {
             return Err(anyhow::anyhow!("Apply failed: {}", result.stderr));
         }
-        Ok(result.stdout)
+
+        Ok(format!("{} [instance: {}]", result.stdout, instance.name))
     }
 }
 
@@ -1323,7 +1697,28 @@ impl Skill for K8sDeleteResourceSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_k8s_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s instance ID (use 'list_k8s_instances' to see available clusters)"
+                    .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("k8s_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "resource_type".to_string(),
                 param_type: "string".to_string(),
@@ -1355,9 +1750,9 @@ impl Skill for K8sDeleteResourceSkill {
             SkillParameter {
                 name: "namespace".to_string(),
                 param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
+                description: "k8s namespace (default: instance default)".to_string(),
                 required: false,
-                default: Some(json!("default")),
+                default: None,
                 example: Some(json!("production")),
                 enum_values: None,
             },
@@ -1370,6 +1765,24 @@ impl Skill for K8sDeleteResourceSkill {
                 example: Some(json!(true)),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "kubeconfig".to_string(),
+                param_type: "string".to_string(),
+                description: "Kubeconfig path (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("/path/to/kubeconfig".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "context".to_string(),
+                param_type: "string".to_string(),
+                description: "K8s context (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("prod-cluster".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -1377,6 +1790,7 @@ impl Skill for K8sDeleteResourceSkill {
         json!({
             "action": "k8s_delete_resource",
             "parameters": {
+                "instance_id": "k8s_prod",
                 "resource_type": "deployment",
                 "name": "nginx"
             }
@@ -1384,7 +1798,7 @@ impl Skill for K8sDeleteResourceSkill {
     }
 
     fn example_output(&self) -> String {
-        "deployment.apps/nginx deleted".to_string()
+        "deployment.apps/nginx deleted [instance: k8s_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -1392,6 +1806,16 @@ impl Skill for K8sDeleteResourceSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_k8s_config(instance_id)?;
+
+        if let Some(kubeconfig) = parameters.get("kubeconfig").and_then(|v| v.as_str()) {
+            instance.kubeconfig = kubeconfig.to_string();
+        }
+        if let Some(context) = parameters.get("context").and_then(|v| v.as_str()) {
+            instance.context = context.to_string();
+        }
+
         let resource_type = parameters
             .get("resource_type")
             .and_then(|v| v.as_str())
@@ -1405,326 +1829,18 @@ impl Skill for K8sDeleteResourceSkill {
             .get("force")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+
         let mut base_args = vec!["delete", resource_type, name];
         if force && resource_type == "pod" {
             base_args.push("--force");
             base_args.push("--grace-period=0");
         }
-        let args = build_kubectl_args(&base_args, namespace, false);
+
+        let args = build_kubectl_args(&base_args, namespace, false, &instance);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await
-    }
-}
+        let result = exec_kubectl(&args_ref, &instance).await?;
 
-/// A skill for getting cluster events.
-#[derive(Debug)]
-pub struct K8sGetEventsSkill;
-
-#[async_trait::async_trait]
-impl Skill for K8sGetEventsSkill {
-    fn name(&self) -> &str {
-        "k8s_get_events"
-    }
-
-    fn description(&self) -> &str {
-        "Get k8s cluster events"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to debug issues, see what's happening in the cluster, or monitor changes"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "namespace".to_string(),
-                param_type: "string".to_string(),
-                description: "k8s namespace (default: default)".to_string(),
-                required: false,
-                default: Some(json!("default")),
-                example: Some(json!("kube-system")),
-                enum_values: None,
-            },
-            SkillParameter {
-                name: "all_namespaces".to_string(),
-                param_type: "boolean".to_string(),
-                description: "Get events from all namespaces".to_string(),
-                required: false,
-                default: Some(json!(false)),
-                example: Some(json!(true)),
-                enum_values: None,
-            },
-            SkillParameter {
-                name: "watch".to_string(),
-                param_type: "boolean".to_string(),
-                description: "Watch events (default: false)".to_string(),
-                required: false,
-                default: Some(json!(false)),
-                example: Some(json!(true)),
-                enum_values: None,
-            },
-        ]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "k8s_get_events",
-            "parameters": {
-                "namespace": "default"
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "LAST SEEN   TYPE     REASON              OBJECT              MESSAGE\n2m          Normal   Scheduled           pod/my-pod          Successfully assigned default/my-pod to node-1".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "devops"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
-        let all_namespaces = parameters
-            .get("all_namespaces")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let watch = parameters
-            .get("watch")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let mut base_args = vec!["get", "events"];
-        if watch {
-            base_args.push("--watch");
-        }
-        let args = build_kubectl_args(&base_args, namespace, all_namespaces);
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await
-    }
-}
-
-/// A skill for listing ConfigMaps.
-#[derive(Debug)]
-pub struct K8sGetConfigMapsSkill;
-
-#[async_trait::async_trait]
-impl Skill for K8sGetConfigMapsSkill {
-    fn name(&self) -> &str {
-        "k8s_get_configmaps"
-    }
-
-    fn description(&self) -> &str {
-        "List k8s ConfigMaps in a namespace"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to see available ConfigMaps and their data"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "namespace".to_string(),
-            param_type: "string".to_string(),
-            description: "k8s namespace (default: default)".to_string(),
-            required: false,
-            default: Some(json!("default")),
-            example: Some(json!("production")),
-            enum_values: None,
-        }]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "k8s_get_configmaps",
-            "parameters": {
-                "namespace": "default"
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "NAME               DATA   AGE\napp-config         3      5d\ndb-config          2      5d"
-            .to_string()
-    }
-
-    fn category(&self) -> &str {
-        "devops"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
-        let base_args = vec!["get", "configmaps"];
-        let args = build_kubectl_args(&base_args, namespace, false);
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await
-    }
-}
-
-/// A skill for listing Secrets.
-#[derive(Debug)]
-pub struct K8sGetSecretsSkill;
-
-#[async_trait::async_trait]
-impl Skill for K8sGetSecretsSkill {
-    fn name(&self) -> &str {
-        "k8s_get_secrets"
-    }
-
-    fn description(&self) -> &str {
-        "List k8s Secrets in a namespace (names only, not values)"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to see available secrets (names only, not values)"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "namespace".to_string(),
-            param_type: "string".to_string(),
-            description: "k8s namespace (default: default)".to_string(),
-            required: false,
-            default: Some(json!("default")),
-            example: Some(json!("production")),
-            enum_values: None,
-        }]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "k8s_get_secrets",
-            "parameters": {
-                "namespace": "default"
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "NAME                  TYPE                                  DATA   AGE\ndb-secret             Opaque                                2      5d\ntls-secret            k8s.io/tls                     2      5d".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "devops"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
-        let base_args = vec!["get", "secrets"];
-        let args = build_kubectl_args(&base_args, namespace, false);
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await
-    }
-}
-
-/// A skill for listing Ingresses.
-#[derive(Debug)]
-pub struct K8sGetIngressesSkill;
-
-#[async_trait::async_trait]
-impl Skill for K8sGetIngressesSkill {
-    fn name(&self) -> &str {
-        "k8s_get_ingresses"
-    }
-
-    fn description(&self) -> &str {
-        "List k8s Ingress resources in a namespace"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to check ingress rules and external access configuration"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "namespace".to_string(),
-            param_type: "string".to_string(),
-            description: "k8s namespace (default: default)".to_string(),
-            required: false,
-            default: Some(json!("default")),
-            example: Some(json!("production")),
-            enum_values: None,
-        }]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "k8s_get_ingresses",
-            "parameters": {
-                "namespace": "default"
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "NAME         CLASS    HOSTS         ADDRESS        PORTS   AGE\nmy-ingress   nginx    example.com   192.168.1.10   80      5d".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "devops"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
-        let base_args = vec!["get", "ingresses"];
-        let args = build_kubectl_args(&base_args, namespace, false);
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await
-    }
-}
-
-/// A skill for listing StatefulSets.
-#[derive(Debug)]
-pub struct K8sGetStatefulSetsSkill;
-
-#[async_trait::async_trait]
-impl Skill for K8sGetStatefulSetsSkill {
-    fn name(&self) -> &str {
-        "k8s_get_statefulsets"
-    }
-
-    fn description(&self) -> &str {
-        "List k8s StatefulSets in a namespace"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to check stateful applications like databases"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "namespace".to_string(),
-            param_type: "string".to_string(),
-            description: "k8s namespace (default: default)".to_string(),
-            required: false,
-            default: Some(json!("default")),
-            example: Some(json!("production")),
-            enum_values: None,
-        }]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "k8s_get_statefulsets",
-            "parameters": {
-                "namespace": "default"
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "NAME     READY   AGE\nmysql    3/3     10d".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "devops"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let namespace = parameters.get("namespace").and_then(|v| v.as_str());
-        let base_args = vec!["get", "statefulsets"];
-        let args = build_kubectl_args(&base_args, namespace, false);
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        exec_kubectl(&args_ref).await
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }
 

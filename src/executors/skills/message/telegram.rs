@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    config,
+    config::{get_telegram_instance, list_telegram_instances},
     executors::{
         RequestConfig, execute,
         types::{Skill, SkillParameter},
@@ -28,7 +28,19 @@ impl Skill for SendTelegramSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_telegram_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "Telegram instance ID (use 'list_telegram_instances' to see available instances)".to_string(),
+                required: false,
+                default: if instance_ids.is_empty() { None } else { Some(Value::String(instance_ids[0].clone())) },
+                example: Some(Value::String("telegram_bot1".to_string())),
+                enum_values: if instance_ids.is_empty() { None } else { Some(instance_ids) },
+            },
             SkillParameter {
                 name: "chat_id".to_string(),
                 param_type: "string".to_string(),
@@ -69,6 +81,15 @@ impl Skill for SendTelegramSkill {
                 example: Some(Value::Bool(true)),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "bot_token".to_string(),
+                param_type: "string".to_string(),
+                description: "Bot token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -76,6 +97,7 @@ impl Skill for SendTelegramSkill {
         json!({
             "action": "send_telegram",
             "parameters": {
+                "instance_id": "telegram_bot1",
                 "chat_id": "123456789",
                 "text": "Hello from Hippo!"
             }
@@ -83,7 +105,7 @@ impl Skill for SendTelegramSkill {
     }
 
     fn example_output(&self) -> String {
-        "Telegram message sent successfully to chat 123456789".to_string()
+        "Telegram message sent successfully to chat 123456789 [instance: telegram_bot1]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -107,11 +129,35 @@ impl Skill for SendTelegramSkill {
             .get("disable_notification")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let config = config::get_config();
-        if !config.is_telegram_configured() {
-            anyhow::bail!("Telegram not configured. Please set param: telegram_bot_token");
+
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+
+        // Get instance configuration
+        let instance = if let Some(id) = instance_id {
+            get_telegram_instance(id)
+                .ok_or_else(|| anyhow::anyhow!("Telegram instance not found: {}", id))?
+        } else {
+            let instances = list_telegram_instances();
+            instances.into_iter().next().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No Telegram instance configured. Please add a Telegram instance first."
+                )
+            })?
+        };
+
+        // Parameter priority: parameter > instance config
+        let bot_token = parameters
+            .get("bot_token")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.bot_token.as_str());
+
+        if bot_token.is_empty() {
+            anyhow::bail!(
+                "Telegram bot_token not configured for instance: {}",
+                instance.name
+            );
         }
-        let bot_token = config.telegram_bot_token;
+
         let url = format!("https://api.telegram.org/bot{}/sendMessage", bot_token);
         let mut body = HashMap::new();
         body.insert("chat_id".to_string(), json!(chat_id));
@@ -121,6 +167,7 @@ impl Skill for SendTelegramSkill {
             "disable_notification".to_string(),
             json!(disable_notification),
         );
+
         let http_config = RequestConfig {
             url,
             method: "POST".to_string(),
@@ -128,11 +175,12 @@ impl Skill for SendTelegramSkill {
             body: Some(serde_json::to_string(&body)?),
             timeout_secs: Some(30),
         };
+
         let response = execute(&http_config).await?;
         if response.is_success {
             Ok(format!(
-                "Telegram message sent successfully to chat {}",
-                chat_id
+                "Telegram message sent successfully to chat {} [instance: {}]",
+                chat_id, instance.name
             ))
         } else {
             Err(anyhow::anyhow!(

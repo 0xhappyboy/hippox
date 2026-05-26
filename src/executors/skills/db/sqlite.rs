@@ -1,4 +1,5 @@
 use crate::config::get_config;
+use crate::config::get_sqlite_instance;
 use crate::executors::types::{Skill, SkillParameter};
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -11,12 +12,14 @@ use tokio::sync::Mutex;
 
 struct SqliteConnectionPool {
     pool: Arc<Mutex<Option<Pool<Sqlite>>>>,
+    instance_id: String,
 }
 
 impl SqliteConnectionPool {
-    fn new() -> Self {
+    fn new(instance_id: String) -> Self {
         Self {
             pool: Arc::new(Mutex::new(None)),
+            instance_id,
         }
     }
 
@@ -25,13 +28,12 @@ impl SqliteConnectionPool {
         if let Some(pool) = pool_guard.as_ref() {
             return Ok(pool.clone());
         }
-        let config = get_config();
-        if config.sqlite_path.is_empty() {
-            anyhow::bail!("SQLite configuration incomplete: database path is required");
-        }
-        let url = format!("sqlite:{}", config.sqlite_path);
+        let instance = get_sqlite_instance(&self.instance_id)
+            .ok_or_else(|| anyhow::anyhow!("SQLite instance '{}' not found", self.instance_id))?;
+
+        let url = format!("sqlite:{}", instance.path);
         let pool = SqlitePoolOptions::new()
-            .max_connections(config.sqlite_pool_size as u32)
+            .max_connections(instance.pool_size as u32)
             .connect(&url)
             .await?;
         *pool_guard = Some(pool.clone());
@@ -39,7 +41,20 @@ impl SqliteConnectionPool {
     }
 }
 
-static SQLITE_POOL: Lazy<SqliteConnectionPool> = Lazy::new(|| SqliteConnectionPool::new());
+static SQLITE_POOLS: Lazy<Arc<Mutex<HashMap<String, SqliteConnectionPool>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+async fn get_sqlite_pool(instance_id: &str) -> Result<Pool<Sqlite>> {
+    let mut pools = SQLITE_POOLS.lock().await;
+    if !pools.contains_key(instance_id) {
+        pools.insert(
+            instance_id.to_string(),
+            SqliteConnectionPool::new(instance_id.to_string()),
+        );
+    }
+    let pool = pools.get(instance_id).unwrap();
+    pool.get_pool().await
+}
 
 /// SQLite Query Skill
 #[derive(Debug)]
@@ -61,6 +76,15 @@ impl Skill for SqliteQuerySkill {
 
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "SQLite instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("sqlite_local".to_string())),
+                enum_values: None,
+            },
             SkillParameter {
                 name: "query".to_string(),
                 param_type: "string".to_string(),
@@ -97,6 +121,7 @@ impl Skill for SqliteQuerySkill {
         json!({
             "action": "sqlite_query",
             "parameters": {
+                "instance_id": "sqlite_local",
                 "query": "SELECT * FROM users WHERE age > ?",
                 "params": [18],
                 "limit": 10
@@ -113,7 +138,13 @@ impl Skill for SqliteQuerySkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = SQLITE_POOL.get_pool().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_sqlite_pool(instance_id).await?;
+
         let query = parameters
             .get("query")
             .and_then(|v| v.as_str())
@@ -207,6 +238,15 @@ impl Skill for SqliteExecuteSkill {
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
             SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "SQLite instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("sqlite_local".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
                 name: "query".to_string(),
                 param_type: "string".to_string(),
                 description: "SQL query to execute (INSERT, UPDATE, DELETE)".to_string(),
@@ -233,6 +273,7 @@ impl Skill for SqliteExecuteSkill {
         json!({
             "action": "sqlite_execute",
             "parameters": {
+                "instance_id": "sqlite_local",
                 "query": "UPDATE users SET age = ? WHERE name = ?",
                 "params": [26, "John"]
             }
@@ -248,7 +289,13 @@ impl Skill for SqliteExecuteSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = SQLITE_POOL.get_pool().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_sqlite_pool(instance_id).await?;
+
         let query = parameters
             .get("query")
             .and_then(|v| v.as_str())
@@ -305,12 +352,23 @@ impl Skill for SqliteListTablesSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![]
+        vec![SkillParameter {
+            name: "instance_id".to_string(),
+            param_type: "string".to_string(),
+            description: "SQLite instance ID (from config)".to_string(),
+            required: false,
+            default: Some(Value::String("default".to_string())),
+            example: Some(Value::String("sqlite_local".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "sqlite_list_tables"
+            "action": "sqlite_list_tables",
+            "parameters": {
+                "instance_id": "sqlite_local"
+            }
         })
     }
 
@@ -322,8 +380,14 @@ impl Skill for SqliteListTablesSkill {
         "database"
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = SQLITE_POOL.get_pool().await?;
+    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_sqlite_pool(instance_id).await?;
+
         let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             .fetch_all(&pool)
             .await?;

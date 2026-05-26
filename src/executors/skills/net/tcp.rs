@@ -1,4 +1,4 @@
-use crate::config::get_config;
+use crate::config::{get_tcp_instance, list_tcp_instances};
 use crate::executors::types::{Skill, SkillParameter};
 use anyhow::Result;
 use base64::Engine;
@@ -28,23 +28,45 @@ impl Skill for TcpSendSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        let config = get_config();
+        let instances = list_tcp_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "TCP instance ID (use 'list_tcp_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("tcp_server1".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "host".to_string(),
                 param_type: "string".to_string(),
-                description: "Target hostname or IP address".to_string(),
-                required: true,
-                default: Some(Value::String(config.tcp_host.clone())),
+                description: "Target hostname or IP address (overrides instance config)"
+                    .to_string(),
+                required: false,
+                default: None,
                 example: Some(Value::String("127.0.0.1".to_string())),
                 enum_values: None,
             },
             SkillParameter {
                 name: "port".to_string(),
                 param_type: "integer".to_string(),
-                description: "Target port number".to_string(),
-                required: true,
-                default: Some(Value::Number(config.tcp_port.into())),
+                description: "Target port number (overrides instance config)".to_string(),
+                required: false,
+                default: None,
                 example: Some(Value::Number(8080.into())),
                 enum_values: None,
             },
@@ -62,7 +84,7 @@ impl Skill for TcpSendSkill {
                 param_type: "string".to_string(),
                 description: "Data encoding (utf8, hex, base64)".to_string(),
                 required: false,
-                default: Some(Value::String(config.tcp_encoding.clone())),
+                default: Some(Value::String("utf8".to_string())),
                 example: Some(Value::String("hex".to_string())),
                 enum_values: Some(vec![
                     "utf8".to_string(),
@@ -75,7 +97,7 @@ impl Skill for TcpSendSkill {
                 param_type: "integer".to_string(),
                 description: "Connection and send timeout in seconds".to_string(),
                 required: false,
-                default: Some(Value::Number(config.tcp_timeout.into())),
+                default: Some(Value::Number(30.into())),
                 example: Some(Value::Number(5.into())),
                 enum_values: None,
             },
@@ -122,8 +144,7 @@ impl Skill for TcpSendSkill {
         json!({
             "action": "tcp_send",
             "parameters": {
-                "host": "localhost",
-                "port": 9999,
+                "instance_id": "tcp_server1",
                 "data": "Hello, TCP Server!",
                 "wait_response": true
             }
@@ -131,7 +152,8 @@ impl Skill for TcpSendSkill {
     }
 
     fn example_output(&self) -> String {
-        "Successfully sent 18 bytes to localhost:9999\nResponse: Server ACK".to_string()
+        "Successfully sent 18 bytes to localhost:9999\nResponse: Server ACK [instance: tcp_server1]"
+            .to_string()
     }
 
     fn category(&self) -> &str {
@@ -139,15 +161,25 @@ impl Skill for TcpSendSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+
+        let instance = if let Some(id) = instance_id {
+            get_tcp_instance(id).ok_or_else(|| anyhow::anyhow!("TCP instance not found: {}", id))?
+        } else {
+            let instances = list_tcp_instances();
+            instances.into_iter().next().ok_or_else(|| {
+                anyhow::anyhow!("No TCP instance configured. Please add a TCP instance first.")
+            })?
+        };
+
         let host = parameters
             .get("host")
             .and_then(|v| v.as_str())
-            .unwrap_or_else(|| config.tcp_host.as_str());
+            .unwrap_or_else(|| instance.host.as_str());
         let port = parameters
             .get("port")
             .and_then(|v| v.as_u64())
-            .unwrap_or(config.tcp_port.into()) as u16;
+            .unwrap_or(instance.port.into()) as u16;
         let data_str = parameters
             .get("data")
             .and_then(|v| v.as_str())
@@ -155,11 +187,11 @@ impl Skill for TcpSendSkill {
         let encoding = parameters
             .get("encoding")
             .and_then(|v| v.as_str())
-            .unwrap_or_else(|| config.tcp_encoding.as_str());
+            .unwrap_or("utf8");
         let timeout_secs = parameters
             .get("timeout")
             .and_then(|v| v.as_u64())
-            .unwrap_or(config.tcp_timeout);
+            .unwrap_or(instance.timeout);
         let delimiter = parameters
             .get("delimiter")
             .and_then(|v| v.as_str())
@@ -176,22 +208,26 @@ impl Skill for TcpSendSkill {
             .get("response_buffer")
             .and_then(|v| v.as_u64())
             .unwrap_or(4096) as usize;
+
         let data = match encoding {
             "hex" => hex::decode(data_str)?,
             "base64" => STANDARD.decode(data_str)?,
             _ => data_str.as_bytes().to_vec(),
         };
+
         let delimiter_bytes = match delimiter {
             "\\n" => "\n".as_bytes(),
             "\\r\\n" => "\r\n".as_bytes(),
             "\\r" => "\r".as_bytes(),
             _ => delimiter.as_bytes(),
         };
+
         let final_data = if !delimiter_bytes.is_empty() {
             [data.as_slice(), delimiter_bytes].concat()
         } else {
             data
         };
+
         let addr = format!("{}:{}", host, port);
         let connection = timeout(
             std::time::Duration::from_secs(timeout_secs),
@@ -199,15 +235,18 @@ impl Skill for TcpSendSkill {
         )
         .await??;
         let mut stream = connection;
+
         let bytes_sent = timeout(std::time::Duration::from_secs(timeout_secs), async {
             stream.write_all(&final_data).await?;
             Ok::<_, anyhow::Error>(final_data.len())
         })
         .await??;
+
         let mut result = format!(
-            "Successfully sent {} bytes to {}:{}",
-            bytes_sent, host, port
+            "Successfully sent {} bytes to {}:{} [instance: {}]",
+            bytes_sent, host, port, instance.name
         );
+
         if wait_response {
             let mut buffer = vec![0u8; response_buffer];
             let read_result = timeout(
@@ -218,6 +257,7 @@ impl Skill for TcpSendSkill {
             let response = String::from_utf8_lossy(&buffer[..read_result]);
             result.push_str(&format!("\nResponse: {}", response));
         }
+
         Ok(result)
     }
 
@@ -249,14 +289,35 @@ impl Skill for TcpReceiveSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        let config = get_config();
+        let instances = list_tcp_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "TCP instance ID (use 'list_tcp_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("tcp_server1".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "port".to_string(),
                 param_type: "integer".to_string(),
-                description: "Port to listen on".to_string(),
-                required: true,
-                default: Some(Value::Number(config.tcp_port.into())),
+                description: "Port to listen on (overrides instance config)".to_string(),
+                required: false,
+                default: None,
                 example: Some(Value::Number(8888.into())),
                 enum_values: None,
             },
@@ -283,7 +344,7 @@ impl Skill for TcpReceiveSkill {
                 param_type: "integer".to_string(),
                 description: "Wait timeout in seconds".to_string(),
                 required: false,
-                default: Some(Value::Number(config.tcp_timeout.into())),
+                default: Some(Value::Number(30.into())),
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
@@ -292,7 +353,7 @@ impl Skill for TcpReceiveSkill {
                 param_type: "string".to_string(),
                 description: "Output encoding (utf8, hex, base64)".to_string(),
                 required: false,
-                default: Some(Value::String(config.tcp_encoding.clone())),
+                default: Some(Value::String("utf8".to_string())),
                 example: Some(Value::String("hex".to_string())),
                 enum_values: Some(vec![
                     "utf8".to_string(),
@@ -316,7 +377,7 @@ impl Skill for TcpReceiveSkill {
         json!({
             "action": "tcp_receive",
             "parameters": {
-                "port": 8888,
+                "instance_id": "tcp_server1",
                 "timeout": 10,
                 "send_response": "OK"
             }
@@ -324,7 +385,7 @@ impl Skill for TcpReceiveSkill {
     }
 
     fn example_output(&self) -> String {
-        "Received 42 bytes from 127.0.0.1:54321:\nHello, TCP Server!\nResponse sent: OK".to_string()
+        "Received 42 bytes from 127.0.0.1:54321:\nHello, TCP Server!\nResponse sent: OK [instance: tcp_server1]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -332,11 +393,21 @@ impl Skill for TcpReceiveSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+
+        let instance = if let Some(id) = instance_id {
+            get_tcp_instance(id).ok_or_else(|| anyhow::anyhow!("TCP instance not found: {}", id))?
+        } else {
+            let instances = list_tcp_instances();
+            instances.into_iter().next().ok_or_else(|| {
+                anyhow::anyhow!("No TCP instance configured. Please add a TCP instance first.")
+            })?
+        };
+
         let port = parameters
             .get("port")
             .and_then(|v| v.as_u64())
-            .unwrap_or(config.tcp_port.into()) as u16;
+            .unwrap_or(instance.port.into()) as u16;
         let bind_address = parameters
             .get("bind_address")
             .and_then(|v| v.as_str())
@@ -348,12 +419,13 @@ impl Skill for TcpReceiveSkill {
         let timeout_secs = parameters
             .get("timeout")
             .and_then(|v| v.as_u64())
-            .unwrap_or(config.tcp_timeout);
+            .unwrap_or(instance.timeout);
         let encoding = parameters
             .get("encoding")
             .and_then(|v| v.as_str())
-            .unwrap_or_else(|| config.tcp_encoding.as_str());
+            .unwrap_or("utf8");
         let send_response = parameters.get("send_response").and_then(|v| v.as_str());
+
         let addr = format!("{}:{}", bind_address, port);
         let listener = TcpListener::bind(&addr).await?;
         let accept_result = timeout(
@@ -362,6 +434,7 @@ impl Skill for TcpReceiveSkill {
         )
         .await??;
         let (mut stream, client_addr) = accept_result;
+
         let mut buffer = vec![0u8; buffer_size];
         let read_result = timeout(
             std::time::Duration::from_secs(timeout_secs),
@@ -369,23 +442,27 @@ impl Skill for TcpReceiveSkill {
         )
         .await??;
         let received_data = &buffer[..read_result];
+
         let output = match encoding {
             "hex" => hex::encode(received_data),
             "base64" => base64::encode(received_data),
             _ => String::from_utf8_lossy(received_data).to_string(),
         };
+
         let mut result = format!(
-            "Received {} bytes from {}:\n{}",
-            read_result, client_addr, output
+            "Received {} bytes from {}:\n{} [instance: {}]",
+            read_result, client_addr, output, instance.name
         );
+
         if let Some(response) = send_response {
             stream.write_all(response.as_bytes()).await?;
             result.push_str(&format!("\nResponse sent: {}", response));
         }
+
         Ok(result)
     }
 
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> Result<()> {
         Ok(())
     }
 }

@@ -1,4 +1,5 @@
 use crate::config::get_config;
+use crate::config::get_postgresql_instance;
 use crate::executors::types::{Skill, SkillParameter};
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -12,12 +13,14 @@ use tokio::sync::Mutex;
 
 struct PgConnectionPool {
     pool: Arc<Mutex<Option<PgPool>>>,
+    instance_id: String,
 }
 
 impl PgConnectionPool {
-    fn new() -> Self {
+    fn new(instance_id: String) -> Self {
         Self {
             pool: Arc::new(Mutex::new(None)),
+            instance_id,
         }
     }
 
@@ -26,21 +29,17 @@ impl PgConnectionPool {
         if let Some(pool) = pool_guard.as_ref() {
             return Ok(pool.clone());
         }
-        let config = get_config();
-        if config.pg_host.is_empty() || config.pg_database.is_empty() {
-            anyhow::bail!("PostgreSQL configuration incomplete: host and database are required");
-        }
+        let instance = get_postgresql_instance(&self.instance_id).ok_or_else(|| {
+            anyhow::anyhow!("PostgreSQL instance '{}' not found", self.instance_id)
+        })?;
+
         let url = format!(
             "postgresql://{}:{}@{}:{}/{}",
-            config.pg_username,
-            config.pg_password,
-            config.pg_host,
-            config.pg_port,
-            config.pg_database
+            instance.username, instance.password, instance.host, instance.port, instance.database
         );
         let pool = PgPoolOptions::new()
-            .max_connections(config.pg_pool_size as u32)
-            .acquire_timeout(Duration::from_secs(config.pg_timeout))
+            .max_connections(instance.pool_size as u32)
+            .acquire_timeout(Duration::from_secs(instance.timeout))
             .connect(&url)
             .await?;
         *pool_guard = Some(pool.clone());
@@ -48,7 +47,20 @@ impl PgConnectionPool {
     }
 }
 
-static PG_POOL: Lazy<PgConnectionPool> = Lazy::new(|| PgConnectionPool::new());
+static PG_POOLS: Lazy<Arc<Mutex<HashMap<String, PgConnectionPool>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+async fn get_pg_pool(instance_id: &str) -> Result<PgPool> {
+    let mut pools = PG_POOLS.lock().await;
+    if !pools.contains_key(instance_id) {
+        pools.insert(
+            instance_id.to_string(),
+            PgConnectionPool::new(instance_id.to_string()),
+        );
+    }
+    let pool = pools.get(instance_id).unwrap();
+    pool.get_pool().await
+}
 
 /// PostgreSQL Query Skill
 #[derive(Debug)]
@@ -70,6 +82,15 @@ impl Skill for PostgresQuerySkill {
 
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "PostgreSQL instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("pg_prod".to_string())),
+                enum_values: None,
+            },
             SkillParameter {
                 name: "query".to_string(),
                 param_type: "string".to_string(),
@@ -106,6 +127,7 @@ impl Skill for PostgresQuerySkill {
         json!({
             "action": "postgres_query",
             "parameters": {
+                "instance_id": "pg_prod",
                 "query": "SELECT * FROM users WHERE age > $1",
                 "params": [18],
                 "limit": 10
@@ -122,7 +144,13 @@ impl Skill for PostgresQuerySkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = PG_POOL.get_pool().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_pg_pool(instance_id).await?;
+
         let query = parameters
             .get("query")
             .and_then(|v| v.as_str())
@@ -221,6 +249,15 @@ impl Skill for PostgresExecuteSkill {
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
             SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "PostgreSQL instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("pg_prod".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
                 name: "query".to_string(),
                 param_type: "string".to_string(),
                 description: "SQL query to execute (INSERT, UPDATE, DELETE)".to_string(),
@@ -247,6 +284,7 @@ impl Skill for PostgresExecuteSkill {
         json!({
             "action": "postgres_execute",
             "parameters": {
+                "instance_id": "pg_prod",
                 "query": "UPDATE users SET age = $1 WHERE name = $2",
                 "params": [26, "John"]
             }
@@ -262,7 +300,13 @@ impl Skill for PostgresExecuteSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = PG_POOL.get_pool().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_pg_pool(instance_id).await?;
+
         let query = parameters
             .get("query")
             .and_then(|v| v.as_str())
@@ -319,21 +363,33 @@ impl Skill for PostgresListTablesSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "schema".to_string(),
-            param_type: "string".to_string(),
-            description: "Schema name (default: public)".to_string(),
-            required: false,
-            default: Some(Value::String("public".to_string())),
-            example: Some(Value::String("public".to_string())),
-            enum_values: None,
-        }]
+        vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "PostgreSQL instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("pg_prod".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "schema".to_string(),
+                param_type: "string".to_string(),
+                description: "Schema name (default: public)".to_string(),
+                required: false,
+                default: Some(Value::String("public".to_string())),
+                example: Some(Value::String("public".to_string())),
+                enum_values: None,
+            },
+        ]
     }
 
     fn example_call(&self) -> Value {
         json!({
             "action": "postgres_list_tables",
             "parameters": {
+                "instance_id": "pg_prod",
                 "schema": "public"
             }
         })
@@ -348,7 +404,13 @@ impl Skill for PostgresListTablesSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = PG_POOL.get_pool().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_pg_pool(instance_id).await?;
+
         let schema = parameters
             .get("schema")
             .and_then(|v| v.as_str())

@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    config,
+    config::{get_wecom_instance, list_wecom_instances},
     executors::{
         RequestConfig, execute,
         types::{Skill, SkillParameter},
@@ -28,7 +28,19 @@ impl Skill for SendWecomSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_wecom_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "WeCom instance ID (use 'list_wecom_instances' to see available instances)".to_string(),
+                required: false,
+                default: if instance_ids.is_empty() { None } else { Some(Value::String(instance_ids[0].clone())) },
+                example: Some(Value::String("wecom_prod".to_string())),
+                enum_values: if instance_ids.is_empty() { None } else { Some(instance_ids) },
+            },
             SkillParameter {
                 name: "text".to_string(),
                 param_type: "string".to_string(),
@@ -104,6 +116,24 @@ impl Skill for SendWecomSkill {
                 ])),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "webhook".to_string(),
+                param_type: "string".to_string(),
+                description: "Webhook URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "key".to_string(),
+                param_type: "string".to_string(),
+                description: "Webhook key (alternative to webhook URL)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("your-webhook-key".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -111,13 +141,14 @@ impl Skill for SendWecomSkill {
         json!({
             "action": "send_wecom",
             "parameters": {
+                "instance_id": "wecom_prod",
                 "text": "Hello from Hippo!"
             }
         })
     }
 
     fn example_output(&self) -> String {
-        "WeCom message sent successfully".to_string()
+        "WeCom message sent successfully [instance: wecom_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -153,11 +184,45 @@ impl Skill for SendWecomSkill {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        let cfg = config::get_config();
-        if !cfg.is_wecom_configured() {
-            anyhow::bail!("WeCom not configured. Please set param: wecom_webhook");
+
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+
+        // Get instance configuration
+        let instance = if let Some(id) = instance_id {
+            get_wecom_instance(id)
+                .ok_or_else(|| anyhow::anyhow!("WeCom instance not found: {}", id))?
+        } else {
+            let instances = list_wecom_instances();
+            instances.into_iter().next().ok_or_else(|| {
+                anyhow::anyhow!("No WeCom instance configured. Please add a WeCom instance first.")
+            })?
+        };
+
+        // Build webhook URL
+        let webhook = if let Some(webhook_url) = parameters.get("webhook").and_then(|v| v.as_str())
+        {
+            webhook_url.to_string()
+        } else if let Some(key) = parameters.get("key").and_then(|v| v.as_str()) {
+            format!(
+                "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={}",
+                key
+            )
+        } else if let Some(key) = &instance.key {
+            format!(
+                "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={}",
+                key
+            )
+        } else {
+            instance.webhook.clone()
+        };
+
+        if webhook.is_empty() {
+            anyhow::bail!(
+                "WeCom webhook not configured for instance: {}",
+                instance.name
+            );
         }
-        let webhook = cfg.wecom_webhook;
+
         let mut body = serde_json::Map::new();
         match msg_type {
             "markdown" => {
@@ -215,7 +280,6 @@ impl Skill for SendWecomSkill {
                     "content": text
                 });
 
-                // Add @ mention support
                 if !mentioned_list.is_empty() {
                     text_content["mentioned_list"] = json!(mentioned_list);
                 }
@@ -226,6 +290,7 @@ impl Skill for SendWecomSkill {
                 body.insert("text".to_string(), text_content);
             }
         }
+
         let http_config = RequestConfig {
             url: webhook,
             method: "POST".to_string(),
@@ -233,12 +298,16 @@ impl Skill for SendWecomSkill {
             body: Some(serde_json::to_string(&body)?),
             timeout_secs: Some(30),
         };
+
         let response = execute(&http_config).await?;
         if response.is_success {
             if let Ok(resp_json) = serde_json::from_str::<Value>(&response.body) {
                 if let Some(errcode) = resp_json.get("errcode").and_then(|v| v.as_i64()) {
                     if errcode == 0 {
-                        return Ok("WeCom message sent successfully".to_string());
+                        return Ok(format!(
+                            "WeCom message sent successfully [instance: {}]",
+                            instance.name
+                        ));
                     } else {
                         let errmsg = resp_json
                             .get("errmsg")
@@ -248,7 +317,10 @@ impl Skill for SendWecomSkill {
                     }
                 }
             }
-            Ok("WeCom message sent successfully".to_string())
+            Ok(format!(
+                "WeCom message sent successfully [instance: {}]",
+                instance.name
+            ))
         } else {
             Err(anyhow::anyhow!(
                 "Failed to send WeCom message: {}",

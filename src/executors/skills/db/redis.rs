@@ -1,4 +1,5 @@
 use crate::config::get_config;
+use crate::config::get_redis_instance;
 use crate::executors::types::{Skill, SkillParameter};
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -10,14 +11,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[derive(Clone)]
 struct RedisConnectionPool {
     client: Arc<Mutex<Option<Client>>>,
+    instance_id: String,
 }
 
 impl RedisConnectionPool {
-    fn new() -> Self {
+    fn new(instance_id: String) -> Self {
         Self {
             client: Arc::new(Mutex::new(None)),
+            instance_id,
         }
     }
 
@@ -26,13 +30,15 @@ impl RedisConnectionPool {
         if let Some(client) = client_guard.as_ref() {
             return Ok(client.clone());
         }
-        let config = get_config();
-        let redis_url = if config.redis_password.is_empty() {
-            format!("redis://{}:{}/", config.redis_host, config.redis_port)
+        let instance = get_redis_instance(&self.instance_id)
+            .ok_or_else(|| anyhow::anyhow!("Redis instance '{}' not found", self.instance_id))?;
+
+        let redis_url = if instance.password.is_empty() {
+            format!("redis://{}:{}/", instance.host, instance.port)
         } else {
             format!(
                 "redis://:{}@{}:{}/{}",
-                config.redis_password, config.redis_host, config.redis_port, config.redis_db
+                instance.password, instance.host, instance.port, instance.db
             )
         };
         let client = Client::open(redis_url)?;
@@ -47,7 +53,19 @@ impl RedisConnectionPool {
     }
 }
 
-static REDIS_POOL: Lazy<RedisConnectionPool> = Lazy::new(|| RedisConnectionPool::new());
+static REDIS_POOLS: Lazy<Arc<Mutex<HashMap<String, RedisConnectionPool>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+async fn get_redis_pool(instance_id: &str) -> Result<RedisConnectionPool> {
+    let mut pools = REDIS_POOLS.lock().await;
+    if !pools.contains_key(instance_id) {
+        pools.insert(
+            instance_id.to_string(),
+            RedisConnectionPool::new(instance_id.to_string()),
+        );
+    }
+    Ok(pools.get(instance_id).unwrap().clone())
+}
 
 /// Redis Set Skill
 #[derive(Debug)]
@@ -69,6 +87,15 @@ impl Skill for RedisSetSkill {
 
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("redis_cache".to_string())),
+                enum_values: None,
+            },
             SkillParameter {
                 name: "key".to_string(),
                 param_type: "string".to_string(),
@@ -103,6 +130,7 @@ impl Skill for RedisSetSkill {
         json!({
             "action": "redis_set",
             "parameters": {
+                "instance_id": "redis_cache",
                 "key": "user:100",
                 "value": "John Doe",
                 "ttl": 3600
@@ -119,7 +147,14 @@ impl Skill for RedisSetSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let mut conn = REDIS_POOL.get_connection().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_redis_pool(instance_id).await?;
+        let mut conn = pool.get_connection().await?;
+
         let key = parameters
             .get("key")
             .and_then(|v| v.as_str())
@@ -155,21 +190,33 @@ impl Skill for RedisGetSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "key".to_string(),
-            param_type: "string".to_string(),
-            description: "Redis key".to_string(),
-            required: true,
-            default: None,
-            example: Some(Value::String("user:100".to_string())),
-            enum_values: None,
-        }]
+        vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("redis_cache".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "key".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis key".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("user:100".to_string())),
+                enum_values: None,
+            },
+        ]
     }
 
     fn example_call(&self) -> Value {
         json!({
             "action": "redis_get",
             "parameters": {
+                "instance_id": "redis_cache",
                 "key": "user:100"
             }
         })
@@ -184,7 +231,14 @@ impl Skill for RedisGetSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let mut conn = REDIS_POOL.get_connection().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_redis_pool(instance_id).await?;
+        let mut conn = pool.get_connection().await?;
+
         let key = parameters
             .get("key")
             .and_then(|v| v.as_str())
@@ -216,21 +270,33 @@ impl Skill for RedisDelSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "key".to_string(),
-            param_type: "string".to_string(),
-            description: "Redis key to delete".to_string(),
-            required: true,
-            default: None,
-            example: Some(Value::String("user:100".to_string())),
-            enum_values: None,
-        }]
+        vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("redis_cache".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "key".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis key to delete".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("user:100".to_string())),
+                enum_values: None,
+            },
+        ]
     }
 
     fn example_call(&self) -> Value {
         json!({
             "action": "redis_del",
             "parameters": {
+                "instance_id": "redis_cache",
                 "key": "user:100"
             }
         })
@@ -245,7 +311,14 @@ impl Skill for RedisDelSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let mut conn = REDIS_POOL.get_connection().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_redis_pool(instance_id).await?;
+        let mut conn = pool.get_connection().await?;
+
         let key = parameters
             .get("key")
             .and_then(|v| v.as_str())
@@ -278,21 +351,33 @@ impl Skill for RedisKeysSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "pattern".to_string(),
-            param_type: "string".to_string(),
-            description: "Key pattern (e.g., user:*)".to_string(),
-            required: false,
-            default: Some(Value::String("*".to_string())),
-            example: Some(Value::String("user:*".to_string())),
-            enum_values: None,
-        }]
+        vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("redis_cache".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "pattern".to_string(),
+                param_type: "string".to_string(),
+                description: "Key pattern (e.g., user:*)".to_string(),
+                required: false,
+                default: Some(Value::String("*".to_string())),
+                example: Some(Value::String("user:*".to_string())),
+                enum_values: None,
+            },
+        ]
     }
 
     fn example_call(&self) -> Value {
         json!({
             "action": "redis_keys",
             "parameters": {
+                "instance_id": "redis_cache",
                 "pattern": "user:*"
             }
         })
@@ -307,7 +392,14 @@ impl Skill for RedisKeysSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let mut conn = REDIS_POOL.get_connection().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_redis_pool(instance_id).await?;
+        let mut conn = pool.get_connection().await?;
+
         let pattern = parameters
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -337,6 +429,15 @@ impl Skill for RedisHSetSkill {
 
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("redis_cache".to_string())),
+                enum_values: None,
+            },
             SkillParameter {
                 name: "key".to_string(),
                 param_type: "string".to_string(),
@@ -371,6 +472,7 @@ impl Skill for RedisHSetSkill {
         json!({
             "action": "redis_hset",
             "parameters": {
+                "instance_id": "redis_cache",
                 "key": "user:100",
                 "field": "name",
                 "value": "John Doe"
@@ -387,7 +489,14 @@ impl Skill for RedisHSetSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let mut conn = REDIS_POOL.get_connection().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_redis_pool(instance_id).await?;
+        let mut conn = pool.get_connection().await?;
+
         let key = parameters
             .get("key")
             .and_then(|v| v.as_str())
@@ -429,6 +538,15 @@ impl Skill for RedisHGetSkill {
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
             SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "Redis instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("redis_cache".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
                 name: "key".to_string(),
                 param_type: "string".to_string(),
                 description: "Hash key".to_string(),
@@ -453,6 +571,7 @@ impl Skill for RedisHGetSkill {
         json!({
             "action": "redis_hget",
             "parameters": {
+                "instance_id": "redis_cache",
                 "key": "user:100",
                 "field": "name"
             }
@@ -468,7 +587,14 @@ impl Skill for RedisHGetSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let mut conn = REDIS_POOL.get_connection().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_redis_pool(instance_id).await?;
+        let mut conn = pool.get_connection().await?;
+
         let key = parameters
             .get("key")
             .and_then(|v| v.as_str())

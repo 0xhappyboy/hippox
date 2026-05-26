@@ -1,4 +1,5 @@
 use crate::config::get_config;
+use crate::config::get_mysql_instance;
 use crate::executors::types::{Skill, SkillParameter};
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -11,12 +12,14 @@ use tokio::sync::Mutex;
 
 struct MySqlConnectionPool {
     pool: Arc<Mutex<Option<MySqlPool>>>,
+    instance_id: String,
 }
 
 impl MySqlConnectionPool {
-    fn new() -> Self {
+    fn new(instance_id: String) -> Self {
         Self {
             pool: Arc::new(Mutex::new(None)),
+            instance_id,
         }
     }
 
@@ -25,17 +28,12 @@ impl MySqlConnectionPool {
         if let Some(pool) = pool_guard.as_ref() {
             return Ok(pool.clone());
         }
-        let config = get_config();
-        if config.mysql_host.is_empty() || config.mysql_database.is_empty() {
-            anyhow::bail!("MySQL configuration incomplete: host and database are required");
-        }
+        let instance = get_mysql_instance(&self.instance_id)
+            .ok_or_else(|| anyhow::anyhow!("MySQL instance '{}' not found", self.instance_id))?;
+
         let url = format!(
             "mysql://{}:{}@{}:{}/{}",
-            config.mysql_username,
-            config.mysql_password,
-            config.mysql_host,
-            config.mysql_port,
-            config.mysql_database
+            instance.username, instance.password, instance.host, instance.port, instance.database
         );
         let pool = MySqlPool::connect(&url).await?;
         *pool_guard = Some(pool.clone());
@@ -43,7 +41,20 @@ impl MySqlConnectionPool {
     }
 }
 
-static MYSQL_POOL: Lazy<MySqlConnectionPool> = Lazy::new(|| MySqlConnectionPool::new());
+static MYSQL_POOLS: Lazy<Arc<Mutex<HashMap<String, MySqlConnectionPool>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+async fn get_mysql_pool(instance_id: &str) -> Result<MySqlPool> {
+    let mut pools = MYSQL_POOLS.lock().await;
+    if !pools.contains_key(instance_id) {
+        pools.insert(
+            instance_id.to_string(),
+            MySqlConnectionPool::new(instance_id.to_string()),
+        );
+    }
+    let pool = pools.get(instance_id).unwrap();
+    pool.get_pool().await
+}
 
 /// MySQL Query Skill
 #[derive(Debug)]
@@ -65,6 +76,15 @@ impl Skill for MysqlQuerySkill {
 
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "MySQL instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("mysql_prod".to_string())),
+                enum_values: None,
+            },
             SkillParameter {
                 name: "query".to_string(),
                 param_type: "string".to_string(),
@@ -101,6 +121,7 @@ impl Skill for MysqlQuerySkill {
         json!({
             "action": "mysql_query",
             "parameters": {
+                "instance_id": "mysql_prod",
                 "query": "SELECT * FROM users WHERE age > ?",
                 "params": [18],
                 "limit": 10
@@ -117,7 +138,13 @@ impl Skill for MysqlQuerySkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = MYSQL_POOL.get_pool().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_mysql_pool(instance_id).await?;
+
         let query = parameters
             .get("query")
             .and_then(|v| v.as_str())
@@ -224,6 +251,15 @@ impl Skill for MysqlExecuteSkill {
     fn parameters(&self) -> Vec<SkillParameter> {
         vec![
             SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "MySQL instance ID (from config)".to_string(),
+                required: false,
+                default: Some(Value::String("default".to_string())),
+                example: Some(Value::String("mysql_prod".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
                 name: "query".to_string(),
                 param_type: "string".to_string(),
                 description: "SQL query to execute (INSERT, UPDATE, DELETE)".to_string(),
@@ -250,6 +286,7 @@ impl Skill for MysqlExecuteSkill {
         json!({
             "action": "mysql_execute",
             "parameters": {
+                "instance_id": "mysql_prod",
                 "query": "UPDATE users SET age = ? WHERE name = ?",
                 "params": [26, "John"]
             }
@@ -265,7 +302,13 @@ impl Skill for MysqlExecuteSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = MYSQL_POOL.get_pool().await?;
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_mysql_pool(instance_id).await?;
+
         let query = parameters
             .get("query")
             .and_then(|v| v.as_str())
@@ -322,12 +365,23 @@ impl Skill for MysqlListTablesSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![]
+        vec![SkillParameter {
+            name: "instance_id".to_string(),
+            param_type: "string".to_string(),
+            description: "MySQL instance ID (from config)".to_string(),
+            required: false,
+            default: Some(Value::String("default".to_string())),
+            example: Some(Value::String("mysql_prod".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "mysql_list_tables"
+            "action": "mysql_list_tables",
+            "parameters": {
+                "instance_id": "mysql_prod"
+            }
         })
     }
 
@@ -339,8 +393,14 @@ impl Skill for MysqlListTablesSkill {
         "database"
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
-        let pool = MYSQL_POOL.get_pool().await?;
+    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters
+            .get("instance_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let pool = get_mysql_pool(instance_id).await?;
+
         let rows = sqlx::query("SHOW TABLES").fetch_all(&pool).await?;
         let tables: Vec<String> = rows.iter().map(|row| row.get(0)).collect();
         Ok(json!(tables).to_string())

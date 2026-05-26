@@ -1,7 +1,6 @@
 #![allow(warnings)]
 mod config;
 mod core;
-mod envs;
 mod executors;
 mod i18n;
 mod memory;
@@ -9,7 +8,7 @@ mod skill_loader;
 mod skill_scheduler;
 mod workflow;
 
-pub use crate::config::{GLOBAL_CONFIG, HippoxConfig, get_config};
+pub use crate::config::*;
 pub use crate::core::ConfigInitMethod;
 pub use crate::core::Hippox;
 pub use crate::executors::registry;

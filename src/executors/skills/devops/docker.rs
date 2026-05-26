@@ -1,11 +1,21 @@
-//! Docker container management utilities.
-
-use crate::config::get_config;
+use crate::config::{get_docker_instance, list_docker_instances};
 use crate::executors::types::{Skill, SkillParameter};
 use crate::executors::{ExecOptions, exec_async};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+
+/// Helper to get Docker instance config or fallback to default
+fn get_docker_config(instance_id: Option<&str>) -> Result<crate::config::DockerConfig> {
+    if let Some(id) = instance_id {
+        get_docker_instance(id).ok_or_else(|| anyhow::anyhow!("Docker instance not found: {}", id))
+    } else {
+        let instances = list_docker_instances();
+        instances.into_iter().next().ok_or_else(|| {
+            anyhow::anyhow!("No Docker instance configured. Please add a Docker instance first.")
+        })
+    }
+}
 
 /// A skill for listing Docker containers.
 #[derive(Debug)]
@@ -26,7 +36,29 @@ impl Skill for DockerPsSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_docker_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "Docker instance ID (use 'list_docker_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("docker_local".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "all".to_string(),
                 param_type: "boolean".to_string(),
@@ -58,6 +90,15 @@ impl Skill for DockerPsSkill {
                     "quiet".to_string(),
                 ]),
             },
+            SkillParameter {
+                name: "host".to_string(),
+                param_type: "string".to_string(),
+                description: "Docker host (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("unix:///var/run/docker.sock".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -65,13 +106,14 @@ impl Skill for DockerPsSkill {
         json!({
             "action": "docker_ps",
             "parameters": {
+                "instance_id": "docker_local",
                 "all": true
             }
         })
     }
 
     fn example_output(&self) -> String {
-        "CONTAINER ID   IMAGE     COMMAND   STATUS          PORTS     NAMES\nabc123def456   nginx     \"nginx\"   Up 2 hours      80/tcp    web_nginx".to_string()
+        "CONTAINER ID   IMAGE     COMMAND   STATUS          PORTS     NAMES\nabc123def456   nginx     \"nginx\"   Up 2 hours      80/tcp    web_nginx [instance: docker_local]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -79,7 +121,14 @@ impl Skill for DockerPsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let instance = get_docker_config(instance_id)?;
+
+        let host = parameters
+            .get("host")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.host.as_str());
+
         let all = parameters
             .get("all")
             .and_then(|v| v.as_bool())
@@ -89,6 +138,7 @@ impl Skill for DockerPsSkill {
             .get("format")
             .and_then(|v| v.as_str())
             .unwrap_or("table");
+
         let mut args = vec!["ps"];
         if all {
             args.push("-a");
@@ -107,24 +157,29 @@ impl Skill for DockerPsSkill {
             }
             _ => {}
         }
-        let mut opts = ExecOptions::new().with_timeout(config.docker_timeout);
-        if config.is_docker_configured() {
-            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
+
+        let mut opts = ExecOptions::new().with_timeout(instance.timeout);
+        if !host.is_empty() {
+            opts = opts.with_env("DOCKER_HOST", host);
         }
+
         let result = exec_async("docker", &args, Some(opts)).await?;
         if !result.success {
             return Err(anyhow::anyhow!("Docker ps failed: {}", result.stderr));
         }
-        if format == "json" {
+
+        let output = if format == "json" {
             let containers: Vec<serde_json::Value> = result
                 .stdout
                 .lines()
                 .filter_map(|line| serde_json::from_str(line).ok())
                 .collect();
-            Ok(serde_json::to_string_pretty(&containers)?)
+            serde_json::to_string_pretty(&containers)?
         } else {
-            Ok(result.stdout)
-        }
+            result.stdout
+        };
+
+        Ok(format!("{} [instance: {}]", output, instance.name))
     }
 }
 
@@ -147,7 +202,29 @@ impl Skill for DockerStartStopSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_docker_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "Docker instance ID (use 'list_docker_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("docker_local".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "container".to_string(),
                 param_type: "string".to_string(),
@@ -181,6 +258,15 @@ impl Skill for DockerStartStopSkill {
                 example: Some(json!(30)),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "host".to_string(),
+                param_type: "string".to_string(),
+                description: "Docker host (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("unix:///var/run/docker.sock".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -188,6 +274,7 @@ impl Skill for DockerStartStopSkill {
         json!({
             "action": "docker_start_stop",
             "parameters": {
+                "instance_id": "docker_local",
                 "container": "redis",
                 "action": "restart"
             }
@@ -195,7 +282,7 @@ impl Skill for DockerStartStopSkill {
     }
 
     fn example_output(&self) -> String {
-        "Container 'redis' restarted successfully".to_string()
+        "Container 'redis' restarted successfully [instance: docker_local]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -203,7 +290,14 @@ impl Skill for DockerStartStopSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let instance = get_docker_config(instance_id)?;
+
+        let host = parameters
+            .get("host")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.host.as_str());
+
         let container = parameters
             .get("container")
             .and_then(|v| v.as_str())
@@ -215,7 +309,8 @@ impl Skill for DockerStartStopSkill {
         let timeout_secs = parameters
             .get("timeout")
             .and_then(|v| v.as_u64())
-            .unwrap_or(config.docker_timeout);
+            .unwrap_or(10);
+
         let docker_cmd = match action {
             "start" => "start",
             "stop" => "stop",
@@ -224,6 +319,7 @@ impl Skill for DockerStartStopSkill {
             "unpause" => "unpause",
             _ => return Err(anyhow::anyhow!("Unknown action: {}", action)),
         };
+
         let mut args: Vec<String> = vec![docker_cmd.to_string()];
         if action == "stop" {
             args.push("-t".to_string());
@@ -231,10 +327,12 @@ impl Skill for DockerStartStopSkill {
         }
         args.push(container.to_string());
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
         let mut opts = ExecOptions::new();
-        if config.is_docker_configured() {
-            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
+        if !host.is_empty() {
+            opts = opts.with_env("DOCKER_HOST", host);
         }
+
         let result = exec_async("docker", &args_ref, Some(opts)).await?;
         if !result.success {
             return Err(anyhow::anyhow!(
@@ -243,9 +341,10 @@ impl Skill for DockerStartStopSkill {
                 result.stderr
             ));
         }
+
         Ok(format!(
-            "Container '{}' {}ed successfully",
-            container, action
+            "Container '{}' {}ed successfully [instance: {}]",
+            container, action, instance.name
         ))
     }
 }
@@ -269,7 +368,29 @@ impl Skill for DockerLogsSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_docker_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "Docker instance ID (use 'list_docker_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("docker_local".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "container".to_string(),
                 param_type: "string".to_string(),
@@ -316,6 +437,15 @@ impl Skill for DockerLogsSkill {
                 example: Some(json!(true)),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "host".to_string(),
+                param_type: "string".to_string(),
+                description: "Docker host (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("unix:///var/run/docker.sock".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -323,6 +453,7 @@ impl Skill for DockerLogsSkill {
         json!({
             "action": "docker_logs",
             "parameters": {
+                "instance_id": "docker_local",
                 "container": "mysql",
                 "tail": 20
             }
@@ -330,7 +461,7 @@ impl Skill for DockerLogsSkill {
     }
 
     fn example_output(&self) -> String {
-        "2024-01-15T10:30:00Z [Note] [MY-010914] [Server] Shutdown complete\n2024-01-15T10:30:01Z [System] [MY-010116] [Server] /usr/sbin/mysqld: ready for connections".to_string()
+        "2024-01-15T10:30:00Z [Note] [MY-010914] [Server] Shutdown complete\n2024-01-15T10:30:01Z [System] [MY-010116] [Server] /usr/sbin/mysqld: ready for connections [instance: docker_local]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -338,7 +469,14 @@ impl Skill for DockerLogsSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let instance = get_docker_config(instance_id)?;
+
+        let host = parameters
+            .get("host")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.host.as_str());
+
         let container = parameters
             .get("container")
             .and_then(|v| v.as_str())
@@ -356,6 +494,7 @@ impl Skill for DockerLogsSkill {
             .get("timestamps")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+
         let tail_str = tail.to_string();
         let mut args = vec!["logs", "--tail", &tail_str];
         if let Some(s) = since {
@@ -369,19 +508,24 @@ impl Skill for DockerLogsSkill {
             args.push("--timestamps");
         }
         args.push(container);
+
         let mut opts = ExecOptions::new();
-        if config.is_docker_configured() {
-            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
+        if !host.is_empty() {
+            opts = opts.with_env("DOCKER_HOST", host);
         }
+
         let result = exec_async("docker", &args, Some(opts)).await?;
         if !result.success {
             return Err(anyhow::anyhow!("Failed to get logs: {}", result.stderr));
         }
-        if result.stdout.is_empty() {
-            Ok("No logs available".to_string())
+
+        let output = if result.stdout.is_empty() {
+            "No logs available".to_string()
         } else {
-            Ok(result.stdout)
-        }
+            result.stdout
+        };
+
+        Ok(format!("{} [instance: {}]", output, instance.name))
     }
 }
 
@@ -404,7 +548,29 @@ impl Skill for DockerInspectSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_docker_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "Docker instance ID (use 'list_docker_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("docker_local".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "container".to_string(),
                 param_type: "string".to_string(),
@@ -423,6 +589,15 @@ impl Skill for DockerInspectSkill {
                 example: Some(json!("{{.Name}} {{.State.Status}}")),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "host".to_string(),
+                param_type: "string".to_string(),
+                description: "Docker host (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("unix:///var/run/docker.sock".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -430,13 +605,14 @@ impl Skill for DockerInspectSkill {
         json!({
             "action": "docker_inspect",
             "parameters": {
+                "instance_id": "docker_local",
                 "container": "nginx"
             }
         })
     }
 
     fn example_output(&self) -> String {
-        "Detailed JSON container configuration".to_string()
+        "Detailed JSON container configuration [instance: docker_local]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -444,22 +620,32 @@ impl Skill for DockerInspectSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let instance = get_docker_config(instance_id)?;
+
+        let host = parameters
+            .get("host")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.host.as_str());
+
         let container = parameters
             .get("container")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: container"))?;
         let format = parameters.get("format").and_then(|v| v.as_str());
+
         let mut args = vec!["inspect"];
         if let Some(f) = format {
             args.push("--format");
             args.push(f);
         }
         args.push(container);
+
         let mut opts = ExecOptions::new();
-        if config.is_docker_configured() {
-            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
+        if !host.is_empty() {
+            opts = opts.with_env("DOCKER_HOST", host);
         }
+
         let result = exec_async("docker", &args, Some(opts)).await?;
         if !result.success {
             return Err(anyhow::anyhow!(
@@ -467,7 +653,8 @@ impl Skill for DockerInspectSkill {
                 result.stderr
             ));
         }
-        Ok(result.stdout)
+
+        Ok(format!("{} [instance: {}]", result.stdout, instance.name))
     }
 }
 
@@ -490,7 +677,29 @@ impl Skill for DockerExecSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_docker_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "Docker instance ID (use 'list_docker_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("docker_local".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "container".to_string(),
                 param_type: "string".to_string(),
@@ -536,6 +745,15 @@ impl Skill for DockerExecSkill {
                 example: Some(json!("/app")),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "host".to_string(),
+                param_type: "string".to_string(),
+                description: "Docker host (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("unix:///var/run/docker.sock".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -543,6 +761,7 @@ impl Skill for DockerExecSkill {
         json!({
             "action": "docker_exec",
             "parameters": {
+                "instance_id": "docker_local",
                 "container": "mysql",
                 "command": "mysql -e 'SHOW DATABASES'"
             }
@@ -550,7 +769,8 @@ impl Skill for DockerExecSkill {
     }
 
     fn example_output(&self) -> String {
-        "Database\ninformation_schema\nmysql\nperformance_schema\nsys".to_string()
+        "Database\ninformation_schema\nmysql\nperformance_schema\nsys [instance: docker_local]"
+            .to_string()
     }
 
     fn category(&self) -> &str {
@@ -558,7 +778,14 @@ impl Skill for DockerExecSkill {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let config = get_config();
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let instance = get_docker_config(instance_id)?;
+
+        let host = parameters
+            .get("host")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.host.as_str());
+
         let container = parameters
             .get("container")
             .and_then(|v| v.as_str())
@@ -576,6 +803,7 @@ impl Skill for DockerExecSkill {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let workdir = parameters.get("workdir").and_then(|v| v.as_str());
+
         let mut args = vec!["exec"];
         if interactive {
             args.push("-i");
@@ -591,19 +819,24 @@ impl Skill for DockerExecSkill {
         args.push("sh");
         args.push("-c");
         args.push(command);
+
         let mut opts = ExecOptions::new();
-        if config.is_docker_configured() {
-            opts = opts.with_env("DOCKER_HOST", config.get_docker_host());
+        if !host.is_empty() {
+            opts = opts.with_env("DOCKER_HOST", host);
         }
+
         let result = exec_async("docker", &args, Some(opts)).await?;
         if !result.success {
             return Err(anyhow::anyhow!("Command failed: {}", result.stderr));
         }
-        if result.stdout.is_empty() {
-            Ok("Command executed successfully (no output)".to_string())
+
+        let output = if result.stdout.is_empty() {
+            "Command executed successfully (no output)".to_string()
         } else {
-            Ok(result.stdout)
-        }
+            result.stdout
+        };
+
+        Ok(format!("{} [instance: {}]", output, instance.name))
     }
 }
 

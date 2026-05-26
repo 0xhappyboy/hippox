@@ -1,25 +1,31 @@
-use crate::config::get_config;
-use crate::executors::{RequestConfig, execute};
+use crate::config::{get_github_instance, list_github_instances};
 use crate::executors::types::{Skill, SkillParameter};
+use crate::executors::{RequestConfig, execute};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+
+/// Helper to get GitHub instance config
+fn get_github_config(instance_id: Option<&str>) -> Result<crate::config::GitHubConfig> {
+    if let Some(id) = instance_id {
+        get_github_instance(id).ok_or_else(|| anyhow::anyhow!("GitHub instance not found: {}", id))
+    } else {
+        let instances = list_github_instances();
+        instances.into_iter().next().ok_or_else(|| {
+            anyhow::anyhow!("No GitHub instance configured. Please add a GitHub instance first.")
+        })
+    }
+}
 
 /// GitHub base helper
 struct GitHubApi;
 
 impl GitHubApi {
-    fn build_url(endpoint: &str) -> String {
-        let config = get_config();
-        format!(
-            "{}/{}",
-            config.github_api_url.trim_end_matches('/'),
-            endpoint
-        )
+    fn build_url(endpoint: &str, config: &crate::config::GitHubConfig) -> String {
+        format!("{}/{}", config.api_url.trim_end_matches('/'), endpoint)
     }
 
-    fn build_headers() -> HashMap<String, String> {
-        let config = get_config();
+    fn build_headers(config: &crate::config::GitHubConfig) -> HashMap<String, String> {
         let mut headers = HashMap::new();
         headers.insert(
             "Accept".to_string(),
@@ -27,20 +33,19 @@ impl GitHubApi {
         );
         headers.insert(
             "Authorization".to_string(),
-            format!("Bearer {}", config.github_token),
+            format!("Bearer {}", config.token),
         );
         headers.insert("User-Agent".to_string(), "Hippox-Engine".to_string());
         headers
     }
 
-    async fn get(endpoint: &str) -> Result<String> {
-        let config = get_config();
+    async fn get(endpoint: &str, config: &crate::config::GitHubConfig) -> Result<String> {
         let req_config = RequestConfig {
-            url: Self::build_url(endpoint),
+            url: Self::build_url(endpoint, config),
             method: "GET".to_string(),
-            headers: Some(Self::build_headers()),
+            headers: Some(Self::build_headers(config)),
             body: None,
-            timeout_secs: Some(config.github_timeout),
+            timeout_secs: Some(config.timeout),
         };
         let response = execute(&req_config).await?;
         if response.is_success {
@@ -50,14 +55,17 @@ impl GitHubApi {
         }
     }
 
-    async fn post(endpoint: &str, body: &str) -> Result<String> {
-        let config = get_config();
+    async fn post(
+        endpoint: &str,
+        body: &str,
+        config: &crate::config::GitHubConfig,
+    ) -> Result<String> {
         let req_config = RequestConfig {
-            url: Self::build_url(endpoint),
+            url: Self::build_url(endpoint, config),
             method: "POST".to_string(),
-            headers: Some(Self::build_headers()),
+            headers: Some(Self::build_headers(config)),
             body: Some(body.to_string()),
-            timeout_secs: Some(config.github_timeout),
+            timeout_secs: Some(config.timeout),
         };
         let response = execute(&req_config).await?;
         if response.is_success {
@@ -67,14 +75,17 @@ impl GitHubApi {
         }
     }
 
-    async fn put(endpoint: &str, body: Option<&str>) -> Result<String> {
-        let config = get_config();
+    async fn put(
+        endpoint: &str,
+        body: Option<&str>,
+        config: &crate::config::GitHubConfig,
+    ) -> Result<String> {
         let req_config = RequestConfig {
-            url: Self::build_url(endpoint),
+            url: Self::build_url(endpoint, config),
             method: "PUT".to_string(),
-            headers: Some(Self::build_headers()),
+            headers: Some(Self::build_headers(config)),
             body: body.map(|s| s.to_string()),
-            timeout_secs: Some(config.github_timeout),
+            timeout_secs: Some(config.timeout),
         };
         let response = execute(&req_config).await?;
         if response.is_success {
@@ -84,14 +95,13 @@ impl GitHubApi {
         }
     }
 
-    async fn delete(endpoint: &str) -> Result<String> {
-        let config = get_config();
+    async fn delete(endpoint: &str, config: &crate::config::GitHubConfig) -> Result<String> {
         let req_config = RequestConfig {
-            url: Self::build_url(endpoint),
+            url: Self::build_url(endpoint, config),
             method: "DELETE".to_string(),
-            headers: Some(Self::build_headers()),
+            headers: Some(Self::build_headers(config)),
             body: None,
-            timeout_secs: Some(config.github_timeout),
+            timeout_secs: Some(config.timeout),
         };
         let response = execute(&req_config).await?;
         if response.is_success {
@@ -121,7 +131,29 @@ impl Skill for GithubGetRepo {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_github_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "GitHub instance ID (use 'list_github_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("github_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "owner".to_string(),
                 param_type: "string".to_string(),
@@ -140,6 +172,24 @@ impl Skill for GithubGetRepo {
                 example: Some(Value::String("rust".to_string())),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "token".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("ghp_xxxxxxxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "api_url".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub API URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://api.github.com".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -147,6 +197,7 @@ impl Skill for GithubGetRepo {
         json!({
             "action": "github_get_repo",
             "parameters": {
+                "instance_id": "github_prod",
                 "owner": "rust-lang",
                 "repo": "rust"
             }
@@ -154,7 +205,7 @@ impl Skill for GithubGetRepo {
     }
 
     fn example_output(&self) -> String {
-        r#"{"name": "rust", "full_name": "rust-lang/rust", "description": "Empowering everyone...", "stargazers_count": 85000, "forks_count": 11000}"#.to_string()
+        r#"{"name": "rust", "full_name": "rust-lang/rust", "description": "Empowering everyone...", "stargazers_count": 85000, "forks_count": 11000} [instance: github_prod]"#.to_string()
     }
 
     fn category(&self) -> &str {
@@ -162,6 +213,16 @@ impl Skill for GithubGetRepo {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_github_config(instance_id)?;
+
+        if let Some(token) = parameters.get("token").and_then(|v| v.as_str()) {
+            instance.token = token.to_string();
+        }
+        if let Some(api_url) = parameters.get("api_url").and_then(|v| v.as_str()) {
+            instance.api_url = api_url.to_string();
+        }
+
         let owner = parameters
             .get("owner")
             .and_then(|v| v.as_str())
@@ -170,8 +231,11 @@ impl Skill for GithubGetRepo {
             .get("repo")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: repo"))?;
+
         let endpoint = format!("repos/{}/{}", owner, repo);
-        GitHubApi::get(&endpoint).await
+        let result = GitHubApi::get(&endpoint, &instance).await?;
+
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }
 
@@ -194,7 +258,29 @@ impl Skill for GithubCreateIssue {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_github_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "GitHub instance ID (use 'list_github_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("github_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "owner".to_string(),
                 param_type: "string".to_string(),
@@ -240,6 +326,24 @@ impl Skill for GithubCreateIssue {
                 example: Some(json!(["bug", "help-wanted"])),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "token".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("ghp_xxxxxxxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "api_url".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub API URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://api.github.com".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -247,6 +351,7 @@ impl Skill for GithubCreateIssue {
         json!({
             "action": "github_create_issue",
             "parameters": {
+                "instance_id": "github_prod",
                 "owner": "rust-lang",
                 "repo": "rust",
                 "title": "Bug: compilation error",
@@ -257,7 +362,7 @@ impl Skill for GithubCreateIssue {
     }
 
     fn example_output(&self) -> String {
-        r#"{"number": 12345, "html_url": "https://github.com/rust-lang/rust/issues/12345"}"#
+        r#"{"number": 12345, "html_url": "https://github.com/rust-lang/rust/issues/12345"} [instance: github_prod]"#
             .to_string()
     }
 
@@ -266,6 +371,16 @@ impl Skill for GithubCreateIssue {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_github_config(instance_id)?;
+
+        if let Some(token) = parameters.get("token").and_then(|v| v.as_str()) {
+            instance.token = token.to_string();
+        }
+        if let Some(api_url) = parameters.get("api_url").and_then(|v| v.as_str()) {
+            instance.api_url = api_url.to_string();
+        }
+
         let owner = parameters
             .get("owner")
             .and_then(|v| v.as_str())
@@ -278,11 +393,12 @@ impl Skill for GithubCreateIssue {
             .get("title")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: title"))?;
-        let mut body = json!({
+
+        let mut body_json = json!({
             "title": title,
         });
         if let Some(b) = parameters.get("body").and_then(|v| v.as_str()) {
-            body["body"] = json!(b);
+            body_json["body"] = json!(b);
         }
         if let Some(labels) = parameters.get("labels").and_then(|v| v.as_array()) {
             let label_strings: Vec<String> = labels
@@ -290,10 +406,13 @@ impl Skill for GithubCreateIssue {
                 .filter_map(|l| l.as_str())
                 .map(|s| s.to_string())
                 .collect();
-            body["labels"] = json!(label_strings);
+            body_json["labels"] = json!(label_strings);
         }
+
         let endpoint = format!("repos/{}/{}/issues", owner, repo);
-        GitHubApi::post(&endpoint, &body.to_string()).await
+        let result = GitHubApi::post(&endpoint, &body_json.to_string(), &instance).await?;
+
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }
 
@@ -316,7 +435,29 @@ impl Skill for GithubListIssues {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_github_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "GitHub instance ID (use 'list_github_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("github_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "owner".to_string(),
                 param_type: "string".to_string(),
@@ -357,6 +498,24 @@ impl Skill for GithubListIssues {
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "token".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("ghp_xxxxxxxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "api_url".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub API URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://api.github.com".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -364,6 +523,7 @@ impl Skill for GithubListIssues {
         json!({
             "action": "github_list_issues",
             "parameters": {
+                "instance_id": "github_prod",
                 "owner": "rust-lang",
                 "repo": "rust",
                 "state": "open",
@@ -373,7 +533,8 @@ impl Skill for GithubListIssues {
     }
 
     fn example_output(&self) -> String {
-        r#"[{"number": 12345, "title": "Bug report", "state": "open"}]"#.to_string()
+        r#"[{"number": 12345, "title": "Bug report", "state": "open"}] [instance: github_prod]"#
+            .to_string()
     }
 
     fn category(&self) -> &str {
@@ -381,6 +542,16 @@ impl Skill for GithubListIssues {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_github_config(instance_id)?;
+
+        if let Some(token) = parameters.get("token").and_then(|v| v.as_str()) {
+            instance.token = token.to_string();
+        }
+        if let Some(api_url) = parameters.get("api_url").and_then(|v| v.as_str()) {
+            instance.api_url = api_url.to_string();
+        }
+
         let owner = parameters
             .get("owner")
             .and_then(|v| v.as_str())
@@ -397,11 +568,14 @@ impl Skill for GithubListIssues {
             .get("limit")
             .and_then(|v| v.as_u64())
             .unwrap_or(30);
+
         let endpoint = format!(
             "repos/{}/{}/issues?state={}&per_page={}",
             owner, repo, state, limit
         );
-        GitHubApi::get(&endpoint).await
+        let result = GitHubApi::get(&endpoint, &instance).await?;
+
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }
 
@@ -424,7 +598,29 @@ impl Skill for GithubStarRepo {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_github_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "GitHub instance ID (use 'list_github_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("github_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "owner".to_string(),
                 param_type: "string".to_string(),
@@ -443,6 +639,24 @@ impl Skill for GithubStarRepo {
                 example: Some(Value::String("rust".to_string())),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "token".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("ghp_xxxxxxxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "api_url".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub API URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://api.github.com".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -450,6 +664,7 @@ impl Skill for GithubStarRepo {
         json!({
             "action": "github_star_repo",
             "parameters": {
+                "instance_id": "github_prod",
                 "owner": "rust-lang",
                 "repo": "rust"
             }
@@ -457,7 +672,7 @@ impl Skill for GithubStarRepo {
     }
 
     fn example_output(&self) -> String {
-        "Successfully starred rust-lang/rust".to_string()
+        "Successfully starred rust-lang/rust [instance: github_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -465,6 +680,16 @@ impl Skill for GithubStarRepo {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_github_config(instance_id)?;
+
+        if let Some(token) = parameters.get("token").and_then(|v| v.as_str()) {
+            instance.token = token.to_string();
+        }
+        if let Some(api_url) = parameters.get("api_url").and_then(|v| v.as_str()) {
+            instance.api_url = api_url.to_string();
+        }
+
         let owner = parameters
             .get("owner")
             .and_then(|v| v.as_str())
@@ -473,9 +698,14 @@ impl Skill for GithubStarRepo {
             .get("repo")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: repo"))?;
+
         let endpoint = format!("user/starred/{}/{}", owner, repo);
-        GitHubApi::put(&endpoint, None).await?;
-        Ok(format!("Successfully starred {}/{}", owner, repo))
+        GitHubApi::put(&endpoint, None, &instance).await?;
+
+        Ok(format!(
+            "Successfully starred {}/{} [instance: {}]",
+            owner, repo, instance.name
+        ))
     }
 }
 
@@ -498,7 +728,29 @@ impl Skill for GithubSearchRepos {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_github_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "GitHub instance ID (use 'list_github_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("github_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "query".to_string(),
                 param_type: "string".to_string(),
@@ -517,6 +769,24 @@ impl Skill for GithubSearchRepos {
                 example: Some(Value::Number(5.into())),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "token".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("ghp_xxxxxxxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "api_url".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub API URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://api.github.com".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -524,6 +794,7 @@ impl Skill for GithubSearchRepos {
         json!({
             "action": "github_search_repos",
             "parameters": {
+                "instance_id": "github_prod",
                 "query": "rust language:rust",
                 "limit": 5
             }
@@ -531,7 +802,7 @@ impl Skill for GithubSearchRepos {
     }
 
     fn example_output(&self) -> String {
-        r#"{"total_count": 12345, "items": [{"full_name": "rust-lang/rust", "description": "..."}]}"#.to_string()
+        r#"{"total_count": 12345, "items": [{"full_name": "rust-lang/rust", "description": "..."}]} [instance: github_prod]"#.to_string()
     }
 
     fn category(&self) -> &str {
@@ -539,6 +810,16 @@ impl Skill for GithubSearchRepos {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_github_config(instance_id)?;
+
+        if let Some(token) = parameters.get("token").and_then(|v| v.as_str()) {
+            instance.token = token.to_string();
+        }
+        if let Some(api_url) = parameters.get("api_url").and_then(|v| v.as_str()) {
+            instance.api_url = api_url.to_string();
+        }
+
         let query = parameters
             .get("query")
             .and_then(|v| v.as_str())
@@ -547,9 +828,12 @@ impl Skill for GithubSearchRepos {
             .get("limit")
             .and_then(|v| v.as_u64())
             .unwrap_or(10);
+
         let encoded_query = urlencoding::encode(query);
         let endpoint = format!("search/repositories?q={}&per_page={}", encoded_query, limit);
-        GitHubApi::get(&endpoint).await
+        let result = GitHubApi::get(&endpoint, &instance).await?;
+
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }
 
@@ -572,28 +856,72 @@ impl Skill for GithubGetUser {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "username".to_string(),
-            param_type: "string".to_string(),
-            description: "GitHub username".to_string(),
-            required: true,
-            default: None,
-            example: Some(Value::String("octocat".to_string())),
-            enum_values: None,
-        }]
+        let instances = list_github_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
+        vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "GitHub instance ID (use 'list_github_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("github_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
+            SkillParameter {
+                name: "username".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub username".to_string(),
+                required: true,
+                default: None,
+                example: Some(Value::String("octocat".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "token".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("ghp_xxxxxxxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "api_url".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub API URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://api.github.com".to_string())),
+                enum_values: None,
+            },
+        ]
     }
 
     fn example_call(&self) -> Value {
         json!({
             "action": "github_get_user",
             "parameters": {
+                "instance_id": "github_prod",
                 "username": "octocat"
             }
         })
     }
 
     fn example_output(&self) -> String {
-        r#"{"login": "octocat", "name": "The Octocat", "public_repos": 8}"#.to_string()
+        r#"{"login": "octocat", "name": "The Octocat", "public_repos": 8} [instance: github_prod]"#
+            .to_string()
     }
 
     fn category(&self) -> &str {
@@ -601,13 +929,25 @@ impl Skill for GithubGetUser {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_github_config(instance_id)?;
+
+        if let Some(token) = parameters.get("token").and_then(|v| v.as_str()) {
+            instance.token = token.to_string();
+        }
+        if let Some(api_url) = parameters.get("api_url").and_then(|v| v.as_str()) {
+            instance.api_url = api_url.to_string();
+        }
+
         let username = parameters
             .get("username")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: username"))?;
 
         let endpoint = format!("users/{}", username);
-        GitHubApi::get(&endpoint).await
+        let result = GitHubApi::get(&endpoint, &instance).await?;
+
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }
 
@@ -630,7 +970,29 @@ impl Skill for GithubListPRs {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_github_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "GitHub instance ID (use 'list_github_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("github_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "owner".to_string(),
                 param_type: "string".to_string(),
@@ -671,6 +1033,24 @@ impl Skill for GithubListPRs {
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "token".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("ghp_xxxxxxxx".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "api_url".to_string(),
+                param_type: "string".to_string(),
+                description: "GitHub API URL (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("https://api.github.com".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -678,6 +1058,7 @@ impl Skill for GithubListPRs {
         json!({
             "action": "github_list_prs",
             "parameters": {
+                "instance_id": "github_prod",
                 "owner": "rust-lang",
                 "repo": "rust",
                 "state": "open",
@@ -687,7 +1068,7 @@ impl Skill for GithubListPRs {
     }
 
     fn example_output(&self) -> String {
-        r#"[{"number": 123, "title": "Add feature", "user": {"login": "contributor"}}]"#.to_string()
+        r#"[{"number": 123, "title": "Add feature", "user": {"login": "contributor"}}] [instance: github_prod]"#.to_string()
     }
 
     fn category(&self) -> &str {
@@ -695,6 +1076,16 @@ impl Skill for GithubListPRs {
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+        let mut instance = get_github_config(instance_id)?;
+
+        if let Some(token) = parameters.get("token").and_then(|v| v.as_str()) {
+            instance.token = token.to_string();
+        }
+        if let Some(api_url) = parameters.get("api_url").and_then(|v| v.as_str()) {
+            instance.api_url = api_url.to_string();
+        }
+
         let owner = parameters
             .get("owner")
             .and_then(|v| v.as_str())
@@ -716,6 +1107,8 @@ impl Skill for GithubListPRs {
             "repos/{}/{}/pulls?state={}&per_page={}",
             owner, repo, state, limit
         );
-        GitHubApi::get(&endpoint).await
+        let result = GitHubApi::get(&endpoint, &instance).await?;
+
+        Ok(format!("{} [instance: {}]", result, instance.name))
     }
 }

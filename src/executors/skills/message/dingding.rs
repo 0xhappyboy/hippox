@@ -3,8 +3,11 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    config,
-    executors::{RequestConfig, execute, types::{Skill, SkillParameter}},
+    config::{get_dingtalk_instance, list_dingtalk_instances},
+    executors::{
+        RequestConfig, execute,
+        types::{Skill, SkillParameter},
+    },
 };
 
 #[derive(Debug)]
@@ -25,7 +28,19 @@ impl Skill for SendDingDingSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_dingtalk_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description: "DingTalk instance ID (use 'list_dingtalk_instances' to see available instances)".to_string(),
+                required: false,
+                default: if instance_ids.is_empty() { None } else { Some(Value::String(instance_ids[0].clone())) },
+                example: Some(Value::String("dingtalk_prod".to_string())),
+                enum_values: if instance_ids.is_empty() { None } else { Some(instance_ids) },
+            },
             SkillParameter {
                 name: "text".to_string(),
                 param_type: "string".to_string(),
@@ -72,6 +87,24 @@ impl Skill for SendDingDingSkill {
                 example: Some(Value::String("Notification".to_string())),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "access_token".to_string(),
+                param_type: "string".to_string(),
+                description: "Access token (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("your_access_token".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "secret".to_string(),
+                param_type: "string".to_string(),
+                description: "Secret for signature (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("your_secret".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -79,13 +112,14 @@ impl Skill for SendDingDingSkill {
         json!({
             "action": "send_dingding",
             "parameters": {
+                "instance_id": "dingtalk_prod",
                 "text": "Hello from Hippo!"
             }
         })
     }
 
     fn example_output(&self) -> String {
-        "DingDing message sent successfully".to_string()
+        "DingDing message sent successfully [instance: dingtalk_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -97,16 +131,67 @@ impl Skill for SendDingDingSkill {
             .get("text")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'text' parameter"))?;
-        let config = config::get_config();
-        if !config.is_dingtalk_configured() {
-            anyhow::bail!("DingTalk not configured. Please set param: dingding_access_token");
+
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+
+        // Get instance configuration
+        let instance = if let Some(id) = instance_id {
+            get_dingtalk_instance(id)
+                .ok_or_else(|| anyhow::anyhow!("DingTalk instance not found: {}", id))?
+        } else {
+            let instances = list_dingtalk_instances();
+            instances.into_iter().next().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No DingTalk instance configured. Please add a DingTalk instance first."
+                )
+            })?
+        };
+
+        // Parameter priority: parameter > instance config
+        let access_token = parameters
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.access_token.as_str());
+
+        if access_token.is_empty() {
+            anyhow::bail!(
+                "DingTalk access_token not configured for instance: {}",
+                instance.name
+            );
         }
-        let access_token = config.dingding_access_token;
-        // Build webhook URL
-        let webhook = format!(
-            "https://oapi.dingtalk.com/robot/send?access_token={}",
-            access_token
-        );
+
+        // Build webhook URL with optional signature
+        let webhook = if let Some(secret) = parameters.get("secret").and_then(|v| v.as_str()) {
+            // Use provided secret
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            let sign_str = format!("{}\n{}", timestamp, secret);
+            let sign = format!("{:?}", md5::compute(sign_str.as_bytes()));
+            format!(
+                "https://oapi.dingtalk.com/robot/send?access_token={}&timestamp={}&sign={}",
+                access_token, timestamp, sign
+            )
+        } else if let Some(secret) = &instance.secret {
+            // Use instance secret
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            let sign_str = format!("{}\n{}", timestamp, secret);
+            let sign = format!("{:?}", md5::compute(sign_str.as_bytes()));
+            format!(
+                "https://oapi.dingtalk.com/robot/send?access_token={}&timestamp={}&sign={}",
+                access_token, timestamp, sign
+            )
+        } else {
+            format!(
+                "https://oapi.dingtalk.com/robot/send?access_token={}",
+                access_token
+            )
+        };
+
         let msg_type = parameters
             .get("msg_type")
             .and_then(|v| v.as_str())
@@ -126,6 +211,7 @@ impl Skill for SendDingDingSkill {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let title = parameters.get("title").and_then(|v| v.as_str());
+
         let mut body = serde_json::Map::new();
         if msg_type == "markdown" {
             let markdown_title = title
@@ -147,6 +233,7 @@ impl Skill for SendDingDingSkill {
                 }),
             );
         }
+
         let mut at = serde_json::Map::new();
         if !at_mobiles.is_empty() {
             at.insert("atMobiles".to_string(), json!(at_mobiles));
@@ -157,6 +244,7 @@ impl Skill for SendDingDingSkill {
         if !at.is_empty() {
             body.insert("at".to_string(), Value::Object(at));
         }
+
         let http_config = RequestConfig {
             url: webhook,
             method: "POST".to_string(),
@@ -164,12 +252,16 @@ impl Skill for SendDingDingSkill {
             body: Some(serde_json::to_string(&body)?),
             timeout_secs: Some(30),
         };
+
         let response = execute(&http_config).await?;
         if response.is_success {
             if let Ok(resp_json) = serde_json::from_str::<Value>(&response.body) {
                 if let Some(errcode) = resp_json.get("errcode").and_then(|v| v.as_i64()) {
                     if errcode == 0 {
-                        return Ok("DingDing message sent successfully".to_string());
+                        return Ok(format!(
+                            "DingDing message sent successfully [instance: {}]",
+                            instance.name
+                        ));
                     } else {
                         let errmsg = resp_json
                             .get("errmsg")
@@ -183,7 +275,10 @@ impl Skill for SendDingDingSkill {
                     }
                 }
             }
-            Ok("DingDing message sent successfully".to_string())
+            Ok(format!(
+                "DingDing message sent successfully [instance: {}]",
+                instance.name
+            ))
         } else {
             Err(anyhow::anyhow!(
                 "Failed to send DingDing message: {}",

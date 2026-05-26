@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    config,
+    config::{get_smtp_instance, list_smtp_instances},
     executors::types::{Skill, SkillParameter},
 };
 
@@ -25,7 +25,29 @@ impl Skill for SendEmailSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
+        let instances = list_smtp_instances();
+        let instance_ids: Vec<String> = instances.iter().map(|c| c.id.clone()).collect();
+
         vec![
+            SkillParameter {
+                name: "instance_id".to_string(),
+                param_type: "string".to_string(),
+                description:
+                    "SMTP instance ID (use 'list_smtp_instances' to see available instances)"
+                        .to_string(),
+                required: false,
+                default: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(Value::String(instance_ids[0].clone()))
+                },
+                example: Some(Value::String("smtp_prod".to_string())),
+                enum_values: if instance_ids.is_empty() {
+                    None
+                } else {
+                    Some(instance_ids)
+                },
+            },
             SkillParameter {
                 name: "to".to_string(),
                 param_type: "string".to_string(),
@@ -58,7 +80,7 @@ impl Skill for SendEmailSkill {
             SkillParameter {
                 name: "from".to_string(),
                 param_type: "string".to_string(),
-                description: "Sender email address (overrides default)".to_string(),
+                description: "Sender email address (overrides instance default)".to_string(),
                 required: false,
                 default: None,
                 example: Some(Value::String("bot@example.com".to_string())),
@@ -91,6 +113,42 @@ impl Skill for SendEmailSkill {
                 example: Some(Value::Bool(false)),
                 enum_values: None,
             },
+            SkillParameter {
+                name: "host".to_string(),
+                param_type: "string".to_string(),
+                description: "SMTP server host (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("smtp.gmail.com".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "port".to_string(),
+                param_type: "integer".to_string(),
+                description: "SMTP server port (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::Number(587.into())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "username".to_string(),
+                param_type: "string".to_string(),
+                description: "SMTP username (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("user@gmail.com".to_string())),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "password".to_string(),
+                param_type: "string".to_string(),
+                description: "SMTP password (overrides instance config)".to_string(),
+                required: false,
+                default: None,
+                example: Some(Value::String("your_password".to_string())),
+                enum_values: None,
+            },
         ]
     }
 
@@ -98,6 +156,7 @@ impl Skill for SendEmailSkill {
         json!({
             "action": "send_email",
             "parameters": {
+                "instance_id": "smtp_prod",
                 "to": "user@example.com",
                 "subject": "Hello",
                 "body": "This is a test email"
@@ -106,7 +165,7 @@ impl Skill for SendEmailSkill {
     }
 
     fn example_output(&self) -> String {
-        "Email sent successfully to user@example.com".to_string()
+        "Email sent successfully to user@example.com [instance: smtp_prod]".to_string()
     }
 
     fn category(&self) -> &str {
@@ -126,6 +185,37 @@ impl Skill for SendEmailSkill {
             .get("body")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'body' parameter"))?;
+
+        let instance_id = parameters.get("instance_id").and_then(|v| v.as_str());
+
+        // Get instance configuration
+        let instance = if let Some(id) = instance_id {
+            get_smtp_instance(id)
+                .ok_or_else(|| anyhow::anyhow!("SMTP instance not found: {}", id))?
+        } else {
+            let instances = list_smtp_instances();
+            instances.into_iter().next().ok_or_else(|| {
+                anyhow::anyhow!("No SMTP instance configured. Please add an SMTP instance first.")
+            })?
+        };
+
+        // Parameter priority: parameter > instance config
+        let smtp_host = parameters
+            .get("host")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.host.as_str());
+        let smtp_port = parameters
+            .get("port")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(instance.port.into()) as u16;
+        let smtp_username = parameters
+            .get("username")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.username.as_str());
+        let smtp_password = parameters
+            .get("password")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| instance.password.as_str());
         let from_override = parameters
             .get("from")
             .and_then(|v| v.as_str())
@@ -136,26 +226,23 @@ impl Skill for SendEmailSkill {
             .get("is_html")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
-        let config = config::get_config();
-        if !config.is_smtp_configured() {
-            anyhow::bail!(
-                "SMTP not configured. Please set param: smtp_host, smtp_port, smtp_username, smtp_password, smtp_from"
-            );
-        }
-        let smtp_host = config.smtp_host;
-        let smtp_port = config.smtp_port;
-        let smtp_username = config.smtp_username;
-        let smtp_password = config.smtp_password;
+
         let smtp_from = if from_override.is_empty() {
-            config.smtp_from
+            instance.from.as_str()
         } else {
-            from_override.to_string()
+            from_override
         };
+
+        if smtp_host.is_empty() {
+            anyhow::bail!("SMTP host not configured for instance: {}", instance.name);
+        }
+
         use lettre::message::MultiPart;
         use lettre::{
             AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::Mailbox,
             transport::smtp::authentication::Credentials,
         };
+
         let to_addr: Mailbox = to.parse()?;
         let from_addr: Mailbox = smtp_from.parse()?;
         let mut email_builder = Message::builder()
@@ -170,6 +257,7 @@ impl Skill for SendEmailSkill {
             let bcc_parsed: Mailbox = bcc_addr.parse()?;
             email_builder = email_builder.bcc(bcc_parsed);
         }
+
         let email = if is_html {
             email_builder.multipart(MultiPart::alternative_plain_html(
                 String::new(),
@@ -178,13 +266,18 @@ impl Skill for SendEmailSkill {
         } else {
             email_builder.body(body.to_string())?
         };
-        let creds = Credentials::new(smtp_username, smtp_password);
-        let mailer = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp_host)?
+
+        let creds = Credentials::new(smtp_username.to_string(), smtp_password.to_string());
+        let mailer = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)?
             .port(smtp_port)
             .credentials(creds)
             .build();
+
         match mailer.send(email).await {
-            Ok(_) => Ok(format!("Email sent successfully to {}", to)),
+            Ok(_) => Ok(format!(
+                "Email sent successfully to {} [instance: {}]",
+                to, instance.name
+            )),
             Err(e) => Err(anyhow::anyhow!("Failed to send email: {}", e)),
         }
     }
