@@ -239,6 +239,23 @@ impl SkillLoader {
         let instructions = parts[2].trim().to_string();
         Ok((frontmatter, instructions))
     }
+
+    /// Load a SKILL.md file from a specific path
+    ///
+    /// # Arguments
+    /// * `path` - Direct path to the SKILL.md file
+    ///            Example: "./skills/web-search/SKILL.md"
+    ///
+    /// # Returns
+    /// Some(SkillFile) if found and valid, None otherwise
+    pub fn load_from_path(path: &str) -> anyhow::Result<Option<SkillFile>> {
+        let skill_path = Path::new(path);
+        if skill_path.exists() && skill_path.is_file() {
+            Ok(Some(Self::parse_skill_file(skill_path)?))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 #[cfg(test)]

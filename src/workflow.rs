@@ -671,11 +671,14 @@ impl WorkflowExecutor {
     }
 
     /// Execute workflow with pre-built registries (optimized version)
+    ///
+    /// # Arguments
+    /// * `skills_dir` - Optional skills directory path. Only needed for SKILL.md loading.
+    ///                  Pass `None` if not executing SKILL.md files.
     pub async fn execute(
         &self,
         scheduler: &SkillScheduler,
         memory: &ConversationMemory,
-        skills_dir: &PathBuf,
         input: &str,
         session_id: &str,
         skills_registry: &str,
@@ -722,6 +725,85 @@ impl WorkflowExecutor {
                     scheduler,
                     input,
                     session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+        }
+    }
+
+    /// Execute a SKILL.md workflow file
+    pub async fn execute_skill_md(
+        &self,
+        scheduler: &SkillScheduler,
+        memory: &ConversationMemory,
+        skill_file: &crate::skill_loader::SkillFile,
+        params: Option<&HashMap<String, Value>>,
+        skills_registry: &str,
+        instances_registry: &str,
+        is_first_message: bool,
+    ) -> String {
+        let mut instructions = skill_file.instructions.clone();
+        // Substitute parameters
+        if let Some(params) = params {
+            for (key, value) in params {
+                let placeholder = format!("{{{{{}}}}}", key);
+                let replacement = match value {
+                    Value::String(s) => s.clone(),
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    _ => value.to_string(),
+                };
+                instructions = instructions.replace(&placeholder, &replacement);
+            }
+        }
+        let enhanced_input = format!(
+            "{}\n\n## Available Atomic Skills\n{}\n\n## Available Instances\n{}\n\n## Task\nExecute the workflow step by step according to the instructions above.",
+            instructions, skills_registry, instances_registry
+        );
+        let session_id = format!("skill_md_{}", skill_file.name);
+        match self.mode {
+            WorkflowMode::ReAct => {
+                self.execute_react(
+                    scheduler,
+                    memory,
+                    &enhanced_input,
+                    &session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+            WorkflowMode::Batch => {
+                self.execute_batch(
+                    scheduler,
+                    &enhanced_input,
+                    &session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+            WorkflowMode::Chain => {
+                self.execute_chain(
+                    scheduler,
+                    &enhanced_input,
+                    &session_id,
+                    skills_registry,
+                    instances_registry,
+                    is_first_message,
+                )
+                .await
+            }
+            WorkflowMode::PlanAndExecute => {
+                self.execute_plan_and_execute(
+                    scheduler,
+                    &enhanced_input,
+                    &session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,

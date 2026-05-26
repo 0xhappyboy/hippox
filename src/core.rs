@@ -53,27 +53,20 @@ pub struct Hippox {
     scheduler: SkillScheduler,
     executor: Executor,
     memory: ConversationMemory,
-    skills_dir: PathBuf,
     workflow_mode: WorkflowMode,
     workflow_executor: WorkflowExecutor,
-    // Cached registries (generated once at initialization)
-    cached_skills_registry: String,
-    cached_instances_registry: String,
-    cached_welcome_message: String,
     is_first_message: Arc<AtomicBool>,
 }
 
 impl Hippox {
     /// Create a new Hippox core instance with default ReAct workflow mode
     pub async fn new(
-        skills_dir: &str,
         provider: ModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
         config_method: ConfigInitMethod,
     ) -> anyhow::Result<Self> {
         Self::with_workflow_mode(
-            skills_dir,
             provider,
             api_key,
             extra_keys,
@@ -85,7 +78,6 @@ impl Hippox {
 
     /// Create a new Hippox core instance with specified workflow mode
     pub async fn with_workflow_mode(
-        skills_dir: &str,
         provider: ModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
@@ -93,38 +85,35 @@ impl Hippox {
         workflow_mode: WorkflowMode,
     ) -> anyhow::Result<Self> {
         info!(
-            "Initializing Hippox core with skills directory: {}, workflow mode: {}",
-            skills_dir, workflow_mode
+            "Initializing Hippox core with workflow mode: {}",
+            workflow_mode
         );
+
         // init config
         match config_method {
             ConfigInitMethod::TomlFile(path) => init_config_from_toml_file(&path)?,
             ConfigInitMethod::JsonFile(path) => init_config_from_json_file(&path)?,
             ConfigInitMethod::ParamsJsonStr(json) => init_config_from_params_json_str(&json)?,
         }
+
         // set i18n
         let config = get_config();
         i18n::set_language(&config.lang);
+
         // init llm
         let llm = LLMClient::new_with_key(provider, api_key, extra_keys)?;
-        // Generate cached registries (once at startup)
-        let skills_registry = Self::generate_skills_registry();
-        let instances_registry = Self::generate_instances_registry();
-        let welcome_message = Self::generate_welcome_message(&skills_registry, &instances_registry);
+
         // init llm scheduler
         let scheduler = SkillScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
+
         Ok(Self {
             scheduler,
             executor,
             memory: ConversationMemory::new(),
-            skills_dir: PathBuf::from(skills_dir),
             workflow_mode,
             workflow_executor,
-            cached_skills_registry: skills_registry,
-            cached_instances_registry: instances_registry,
-            cached_welcome_message: welcome_message,
             is_first_message: Arc::new(AtomicBool::new(false)),
         })
     }
@@ -278,19 +267,37 @@ impl Hippox {
         })
     }
 
-    /// Get cached welcome message (for first response)
-    pub fn get_welcome_message(&self) -> &str {
-        &self.cached_welcome_message
+    /// Notify LLM about updated skills registry
+    ///
+    /// Call this after dynamically registering new skills.
+    /// This will mark the session to resend the skills registry on next message.
+    pub fn refresh_llm_skill_registry(&self) {
+        self.is_first_message.store(false, Ordering::SeqCst);
     }
 
-    /// Get cached skills registry
-    pub fn get_skills_registry(&self) -> &str {
-        &self.cached_skills_registry
+    /// Notify LLM about updated instances registry
+    ///
+    /// Call this after adding/removing instance configurations.
+    /// This will mark the session to resend the instances registry on next message.
+    pub fn refresh_llm_instances(&self) {
+        self.is_first_message.store(false, Ordering::SeqCst);
     }
 
-    /// Get cached instances registry
-    pub fn get_instances_registry(&self) -> &str {
-        &self.cached_instances_registry
+    /// Get current skills registry as JSON string
+    pub fn get_skills_registry(&self) -> String {
+        Self::generate_skills_registry()
+    }
+
+    /// Get current instances registry as JSON string
+    pub fn get_instances_registry(&self) -> String {
+        Self::generate_instances_registry()
+    }
+
+    /// Get welcome message with current registries
+    pub fn get_welcome_message(&self) -> String {
+        let skills = self.get_skills_registry();
+        let instances = self.get_instances_registry();
+        Self::generate_welcome_message(&skills, &instances)
     }
 
     /// Handle natural language input from user using configured workflow mode
@@ -302,7 +309,6 @@ impl Hippox {
     /// * `input` - Natural language input from the user
     /// * `session_id` - Optional session ID for conversation history
     ///                  (uses "default" if None)
-    /// * `is_first_message` - Whether this is the first message (skip registry in prompt)
     ///
     /// # Returns
     /// The response string after processing
@@ -322,23 +328,26 @@ impl Hippox {
         if is_first {
             self.is_first_message.store(true, Ordering::SeqCst);
         }
+        // Get current registries
+        let skills_registry = self.get_skills_registry();
+        let instances_registry = self.get_instances_registry();
         // Pass cached registries to executor
         executor
             .execute(
                 &self.scheduler,
                 &self.memory,
-                &self.skills_dir,
                 input,
                 session_id,
-                &self.cached_skills_registry,
-                &self.cached_instances_registry,
+                &skills_registry,
+                &instances_registry,
                 is_first,
             )
             .await
     }
+
     /// Handle multiple natural language inputs in parallel
     pub async fn handle_natural_language_batch(
-        &mut self,
+        &self,
         inputs: Vec<(String, Option<String>, Option<Arc<dyn WorkflowCallback>>)>,
     ) -> Vec<String> {
         if inputs.is_empty() {
@@ -351,7 +360,7 @@ impl Hippox {
         );
         let mut handles = Vec::new();
         for (input, session_id, callback) in inputs {
-            let mut self_clone = self.clone();
+            let self_clone = self.clone();
             let handle = tokio::spawn(async move {
                 self_clone
                     .handle_natural_language(&input, session_id.as_deref(), callback)
@@ -369,70 +378,77 @@ impl Hippox {
         results
     }
 
-    /// Handle SKILL.md file execution
+    /// Execute a SKILL.md workflow file
+    ///
+    /// # Arguments
+    /// * `skill_md_path` - Path to the SKILL.md file
+    ///   Format: The path should point directly to the SKILL.md file.
+    ///   Example: "./skills/web-search/SKILL.md" or "/path/to/skills/my-skill/SKILL.md"
+    /// * `params` - Optional parameters to substitute in the SKILL.md content
+    ///   Placeholders in SKILL.md should use `{{parameter_name}}` format
+    /// * `callback` - Optional callback for workflow execution progress
+    ///
+    /// # Returns
+    /// The execution result as a string
+    ///
+    /// # SKILL.md File Format
+    /// ```markdown
+    /// ---
+    /// name: my-skill
+    /// description: What this skill does
+    /// version: 1.0.0
+    /// ---
+    ///
+    /// # Instructions
+    /// Your workflow instructions here. Use {{param_name}} for variable substitution.
+    /// ```
     pub async fn handle_skill_md(
         &self,
-        skill_name: &str,
+        skill_md_path: &str,
         params: Option<HashMap<String, Value>>,
         callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let skill_file =
-            match SkillLoader::load_by_name(self.skills_dir.to_str().unwrap_or("."), skill_name) {
-                Ok(Some(file)) => file,
-                Ok(None) => {
-                    return format!("{}: {}", t!("error.skill_not_found"), skill_name);
-                }
-                Err(e) => {
-                    return format!("{}: {}", t!("error.load_skill_failed"), e);
-                }
-            };
+        let skill_file = match SkillLoader::load_from_path(skill_md_path) {
+            Ok(Some(file)) => file,
+            Ok(None) => {
+                return format!("{}: {}", t!("error.skill_not_found"), skill_md_path);
+            }
+            Err(e) => {
+                return format!("{}: {}", t!("error.load_skill_failed"), e);
+            }
+        };
         info!(
             "Executing SKILL.md: {} with workflow mode: {}",
-            skill_name, self.workflow_mode
+            skill_file.name, self.workflow_mode
         );
-        let mut instructions = skill_file.instructions;
-        if let Some(params) = &params {
-            for (key, value) in params {
-                let placeholder = format!("{{{{{}}}}}", key);
-                let replacement = match value {
-                    Value::String(s) => s.clone(),
-                    Value::Number(n) => n.to_string(),
-                    Value::Bool(b) => b.to_string(),
-                    _ => value.to_string(),
-                };
-                instructions = instructions.replace(&placeholder, &replacement);
-            }
-        }
-        // Use cached registries
-        let enhanced_input = format!(
-            "{}\n\n## Available Atomic Skills\n{}\n\n## Available Instances\n{}\n\n## Task\nExecute the workflow step by step according to the instructions above.",
-            instructions, self.cached_skills_registry, self.cached_instances_registry
-        );
-        let session_id = format!("skill_md_{}", skill_name);
+        let skills_registry = self.get_skills_registry();
+        let instances_registry = self.get_instances_registry();
+
         let mut executor = self.workflow_executor.clone();
         if let Some(cb) = callback {
             executor = executor.with_callback(cb);
         }
-        // is first message
         let is_first = !self.is_first_message.load(Ordering::SeqCst);
         if is_first {
             self.is_first_message.store(true, Ordering::SeqCst);
         }
         executor
-            .execute(
+            .execute_skill_md(
                 &self.scheduler,
                 &self.memory,
-                &self.skills_dir,
-                &enhanced_input,
-                &session_id,
-                &self.cached_skills_registry,
-                &self.cached_instances_registry,
+                &skill_file,
+                params.as_ref(),
+                &skills_registry,
+                &instances_registry,
                 is_first,
             )
             .await
     }
 
-    /// Handle multiple SKILL.md files execution in parallel
+    /// Execute multiple SKILL.md files in parallel
+    ///
+    /// # Arguments
+    /// * `tasks` - Vector of tuples (skill_md_path, params, callback)
     pub async fn handle_skill_md_batch(
         &self,
         tasks: Vec<(
@@ -450,11 +466,11 @@ impl Hippox {
             self.workflow_mode
         );
         let mut handles = Vec::new();
-        for (skill_name, params, callback) in tasks {
-            let mut self_clone = self.clone();
+        for (skill_md_path, params, callback) in tasks {
+            let self_clone = self.clone();
             let handle = tokio::spawn(async move {
                 self_clone
-                    .handle_skill_md(&skill_name, params, callback)
+                    .handle_skill_md(&skill_md_path, params, callback)
                     .await
             });
             handles.push(handle);
@@ -512,9 +528,12 @@ impl Hippox {
         result
     }
 
-    /// List all available SKILL.md files in the skills directory
-    pub fn list_skill_md_files(&self) -> String {
-        match SkillLoader::load_all(self.skills_dir.to_str().unwrap_or(".")) {
+    /// List all available SKILL.md files in a directory
+    ///
+    /// # Arguments
+    /// * `skills_dir` - Directory containing skill subdirectories with SKILL.md files
+    pub fn list_skill_md_files(&self, skills_dir: &str) -> String {
+        match SkillLoader::load_all(skills_dir) {
             Ok(skills) => {
                 if skills.is_empty() {
                     return t!("skill.no_skill_md_available").to_string();
@@ -543,9 +562,12 @@ impl Hippox {
         crate::executors::registry::list_skills()
     }
 
-    /// Get all SKILL.md file names
-    pub fn get_skill_md_names(&self) -> Vec<String> {
-        match SkillLoader::load_all(self.skills_dir.to_str().unwrap_or(".")) {
+    /// Get all SKILL.md file names from a directory
+    ///
+    /// # Arguments
+    /// * `skills_dir` - Directory containing skill subdirectories with SKILL.md files
+    pub fn get_skill_md_names(&self, skills_dir: &str) -> Vec<String> {
+        match SkillLoader::load_all(skills_dir) {
             Ok(skills) => skills.into_iter().map(|s| s.name).collect(),
             Err(_) => Vec::new(),
         }
@@ -554,11 +576,6 @@ impl Hippox {
     /// Check if there are any atomic skills available
     pub fn has_atomic_skills(&self) -> bool {
         !crate::executors::registry::list_skills().is_empty()
-    }
-
-    /// Get the skills directory path
-    pub fn skills_directory(&self) -> &PathBuf {
-        &self.skills_dir
     }
 
     /// Get the executor
@@ -588,47 +605,11 @@ impl Hippox {
     pub fn get_config(&self) -> HippoxConfig {
         crate::config::get_config()
     }
-
-    /// Reload registries (call after config changes)
-    pub fn reload_registries(&mut self) {
-        self.cached_skills_registry = Self::generate_skills_registry();
-        self.cached_instances_registry = Self::generate_instances_registry();
-        self.cached_welcome_message = Self::generate_welcome_message(
-            &self.cached_skills_registry,
-            &self.cached_instances_registry,
-        );
-        info!("Registries reloaded successfully");
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
-
-    fn create_test_skill_md(dir: &tempfile::TempDir, skill_name: &str, description: &str) {
-        let skill_dir = dir.path().join(skill_name);
-        std::fs::create_dir_all(&skill_dir).unwrap();
-        let skill_md = skill_dir.join("SKILL.md");
-        let content = format!(
-            r#"---
-name: {}
-description: {}
-version: 1.0.0
-author: Test Author
----
-
-# {} Skill
-
-This is a test workflow for {}.
-
-## Instructions
-Process the request and return a result.
-"#,
-            skill_name, description, skill_name, description
-        );
-        std::fs::write(skill_md, content).unwrap();
-    }
 
     #[test]
     fn test_generate_skills_registry() {
@@ -649,20 +630,21 @@ Process the request and return a result.
         use langhub::types::ModelProvider;
         use std::collections::HashMap;
         use std::io::{self, Write};
+
         let api_key = "";
         let provider = ModelProvider::DeepSeek;
-        let skills_dir = "./skills";
         let config_json = r#"{
-        "lang": "en"
-    }"#;
+            "lang": "en"
+        }"#;
+
         let hippox = Hippox::new(
-            skills_dir,
             provider,
             Some(api_key.to_string()),
             None,
             ConfigInitMethod::ParamsJsonStr(config_json.to_string()),
         )
         .await;
+
         let r = hippox
             .unwrap()
             .handle_natural_language(
