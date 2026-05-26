@@ -88,26 +88,21 @@ impl Hippox {
             "Initializing Hippox core with workflow mode: {}",
             workflow_mode
         );
-
         // init config
         match config_method {
             ConfigInitMethod::TomlFile(path) => init_config_from_toml_file(&path)?,
             ConfigInitMethod::JsonFile(path) => init_config_from_json_file(&path)?,
             ConfigInitMethod::ParamsJsonStr(json) => init_config_from_params_json_str(&json)?,
         }
-
         // set i18n
         let config = get_config();
         i18n::set_language(&config.lang);
-
         // init llm
         let llm = LLMClient::new_with_key(provider, api_key, extra_keys)?;
-
         // init llm scheduler
         let scheduler = SkillScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
-
         Ok(Self {
             scheduler,
             executor,
@@ -143,7 +138,6 @@ impl Hippox {
     fn generate_instances_registry() -> String {
         let config = get_config();
         let mut instances = serde_json::Map::new();
-
         // PostgreSQL instances
         let pg_instances: Vec<serde_json::Value> = config
             .postgresql_instances
@@ -160,7 +154,6 @@ impl Hippox {
         if !pg_instances.is_empty() {
             instances.insert("postgresql".to_string(), json!(pg_instances));
         }
-
         // MySQL instances
         let mysql_instances: Vec<serde_json::Value> = config
             .mysql_instances
@@ -177,7 +170,6 @@ impl Hippox {
         if !mysql_instances.is_empty() {
             instances.insert("mysql".to_string(), json!(mysql_instances));
         }
-
         // Redis instances
         let redis_instances: Vec<serde_json::Value> = config
             .redis_instances
@@ -194,7 +186,6 @@ impl Hippox {
         if !redis_instances.is_empty() {
             instances.insert("redis".to_string(), json!(redis_instances));
         }
-
         // SQLite instances
         let sqlite_instances: Vec<serde_json::Value> = config
             .sqlite_instances
@@ -211,7 +202,6 @@ impl Hippox {
         if !sqlite_instances.is_empty() {
             instances.insert("sqlite".to_string(), json!(sqlite_instances));
         }
-
         // Docker instances
         let docker_instances: Vec<serde_json::Value> = config
             .docker_instances
@@ -228,7 +218,6 @@ impl Hippox {
         if !docker_instances.is_empty() {
             instances.insert("docker".to_string(), json!(docker_instances));
         }
-
         // Kubernetes instances
         let k8s_instances: Vec<serde_json::Value> = config
             .k8s_instances
@@ -246,7 +235,6 @@ impl Hippox {
         if !k8s_instances.is_empty() {
             instances.insert("kubernetes".to_string(), json!(k8s_instances));
         }
-
         serde_json::to_string_pretty(&instances).unwrap_or_else(|_| "{}".to_string())
     }
 
@@ -630,13 +618,11 @@ mod tests {
         use langhub::types::ModelProvider;
         use std::collections::HashMap;
         use std::io::{self, Write};
-
         let api_key = "";
         let provider = ModelProvider::DeepSeek;
         let config_json = r#"{
             "lang": "en"
         }"#;
-
         let hippox = Hippox::new(
             provider,
             Some(api_key.to_string()),
