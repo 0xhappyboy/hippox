@@ -678,7 +678,6 @@ impl WorkflowExecutor {
         &self,
         scheduler: &SkillScheduler,
         input: &str,
-        session_id: &str,
         skills_registry: &str,
         instances_registry: &str,
         is_first_message: bool,
@@ -688,7 +687,6 @@ impl WorkflowExecutor {
                 self.execute_react(
                     scheduler,
                     input,
-                    session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -699,7 +697,6 @@ impl WorkflowExecutor {
                 self.execute_batch(
                     scheduler,
                     input,
-                    session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -710,7 +707,6 @@ impl WorkflowExecutor {
                 self.execute_chain(
                     scheduler,
                     input,
-                    session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -721,7 +717,6 @@ impl WorkflowExecutor {
                 self.execute_plan_and_execute(
                     scheduler,
                     input,
-                    session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -765,7 +760,6 @@ impl WorkflowExecutor {
                 self.execute_react(
                     scheduler,
                     &enhanced_input,
-                    &session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -776,7 +770,6 @@ impl WorkflowExecutor {
                 self.execute_batch(
                     scheduler,
                     &enhanced_input,
-                    &session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -787,7 +780,6 @@ impl WorkflowExecutor {
                 self.execute_chain(
                     scheduler,
                     &enhanced_input,
-                    &session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -798,7 +790,6 @@ impl WorkflowExecutor {
                 self.execute_plan_and_execute(
                     scheduler,
                     &enhanced_input,
-                    &session_id,
                     skills_registry,
                     instances_registry,
                     is_first_message,
@@ -813,7 +804,6 @@ impl WorkflowExecutor {
         &self,
         scheduler: &SkillScheduler,
         input: &str,
-        session_id: &str,
         skills_registry: &str,
         instances_registry: &str,
         is_first_message: bool,
@@ -833,38 +823,22 @@ impl WorkflowExecutor {
         let mut iteration = 0;
         while iteration < self.max_iterations {
             iteration += 1;
-            // Build observation from previous step results
-            let observation = if step_results.is_empty() {
-                String::new()
-            } else {
-                let last_result = step_results.last().unwrap();
-                format!(
-                    "\n## Observation\nSkill '{}' executed.\nStatus: {:?}\nOutput: {}\n",
-                    last_result.skill, last_result.status, last_result.output
-                )
-            };
             // Build prompt with observations
             let system_prompt = Self::build_react_prompt(skills_registry, instances_registry);
             let user_prompt = if step_results.is_empty() {
-                // First iteration: no observation yet
                 format!(
-                    "{}\n\n## {}\n{}\n\n## {}\n\n## {}\n",
-                    system_prompt,
-                    t!("prompt.original_request"),
-                    input_trimmed,
-                    t!("prompt.conversation_history"),
-                    t!("prompt.your_response")
+                    "{}\n\n## User Request\n{}\n\n## Your Response\n",
+                    system_prompt, input_trimmed
                 )
             } else {
-                // Subsequent iterations: include observation
+                let observation = step_results
+                    .iter()
+                    .map(|r| format!("Step {}: {:?} → {}", r.skill, r.status, r.output))
+                    .collect::<Vec<_>>()
+                    .join("\n");
                 format!(
-                    "{}\n\n## {}\n{}\n\n## {}\n{}\n\n## {}\n",
-                    system_prompt,
-                    t!("prompt.original_request"),
-                    input_trimmed,
-                    t!("prompt.conversation_history"),
-                    observation,
-                    t!("prompt.your_response")
+                    "{}\n\n## User Request\n{}\n\n## Previous Steps\n{}\n\n## Your Response\n",
+                    system_prompt, input_trimmed, observation
                 )
             };
             let llm_response = match scheduler.get_llm().generate(&user_prompt).await {
@@ -1005,7 +979,6 @@ You can respond in one of three ways:
         &self,
         scheduler: &SkillScheduler,
         input: &str,
-        session_id: &str,
         skills_registry: &str,
         instances_registry: &str,
         is_first_message: bool,
@@ -1067,7 +1040,6 @@ Respond with ONLY the JSON.
         &self,
         scheduler: &SkillScheduler,
         input: &str,
-        session_id: &str,
         skills_registry: &str,
         instances_registry: &str,
         is_first_message: bool,
@@ -1184,7 +1156,6 @@ Respond with ONLY the JSON.
         &self,
         scheduler: &SkillScheduler,
         input: &str,
-        session_id: &str,
         skills_registry: &str,
         instances_registry: &str,
         is_first_message: bool,
