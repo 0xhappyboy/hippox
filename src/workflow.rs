@@ -7,7 +7,6 @@
 //! - Chain: Simple sequential execution with variable passing
 
 use crate::executors::{Executor, SkillCall};
-use crate::memory::ConversationMemory;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use async_trait::async_trait;
@@ -678,7 +677,6 @@ impl WorkflowExecutor {
     pub async fn execute(
         &self,
         scheduler: &SkillScheduler,
-        memory: &ConversationMemory,
         input: &str,
         session_id: &str,
         skills_registry: &str,
@@ -689,7 +687,6 @@ impl WorkflowExecutor {
             WorkflowMode::ReAct => {
                 self.execute_react(
                     scheduler,
-                    memory,
                     input,
                     session_id,
                     skills_registry,
@@ -738,7 +735,6 @@ impl WorkflowExecutor {
     pub async fn execute_skill_md(
         &self,
         scheduler: &SkillScheduler,
-        memory: &ConversationMemory,
         skill_file: &crate::skill_loader::SkillFile,
         params: Option<&HashMap<String, Value>>,
         skills_registry: &str,
@@ -768,7 +764,6 @@ impl WorkflowExecutor {
             WorkflowMode::ReAct => {
                 self.execute_react(
                     scheduler,
-                    memory,
                     &enhanced_input,
                     &session_id,
                     skills_registry,
@@ -817,7 +812,6 @@ impl WorkflowExecutor {
     async fn execute_react(
         &self,
         scheduler: &SkillScheduler,
-        memory: &ConversationMemory,
         input: &str,
         session_id: &str,
         skills_registry: &str,
@@ -826,7 +820,6 @@ impl WorkflowExecutor {
     ) -> String {
         let input_trimmed = input.trim();
         if input_trimmed == "clear" {
-            memory.clear_session(session_id);
             return t!("app.conversation_cleared").to_string();
         }
         if input_trimmed == "exit" || input_trimmed == "quit" {
@@ -835,7 +828,6 @@ impl WorkflowExecutor {
         if input_trimmed.is_empty() {
             return String::new();
         }
-        let history = memory.get_history(session_id);
         let mut step_results: Vec<StepResult> = Vec::new();
         let mut final_response = None;
         let mut iteration = 0;
@@ -856,23 +848,21 @@ impl WorkflowExecutor {
             let user_prompt = if step_results.is_empty() {
                 // First iteration: no observation yet
                 format!(
-                    "{}\n\n## {}\n{}\n\n## {}\n{}\n\n## {}\n",
+                    "{}\n\n## {}\n{}\n\n## {}\n\n## {}\n",
                     system_prompt,
                     t!("prompt.original_request"),
                     input_trimmed,
                     t!("prompt.conversation_history"),
-                    history,
                     t!("prompt.your_response")
                 )
             } else {
                 // Subsequent iterations: include observation
                 format!(
-                    "{}\n\n## {}\n{}\n\n## {}\n{}\n\n{}\n\n## {}\n",
+                    "{}\n\n## {}\n{}\n\n## {}\n{}\n\n## {}\n",
                     system_prompt,
                     t!("prompt.original_request"),
                     input_trimmed,
                     t!("prompt.conversation_history"),
-                    history,
                     observation,
                     t!("prompt.your_response")
                 )
@@ -963,7 +953,6 @@ impl WorkflowExecutor {
                 cb.on_workflow_complete(&final_response).await;
             }
         }
-        memory.add_exchange(session_id, input, &final_response);
         final_response
     }
 
@@ -1760,7 +1749,6 @@ mod test_react_workflow {
     async fn test_react_mode_with_single_skill() {
         register_react_mock_skills();
         let executor = WorkflowExecutor::new(WorkflowMode::ReAct);
-        let memory = ConversationMemory::new();
         let skills_dir = PathBuf::from(".");
         assert_eq!(executor.get_mode(), WorkflowMode::ReAct);
     }
@@ -1838,11 +1826,7 @@ mod test_react_workflow {
 
     #[tokio::test]
     async fn test_react_mode_clear_command() {
-        let memory = ConversationMemory::new();
         let session_id = "test_session";
-        // Add some conversation
-        memory.add_exchange(session_id, "Hello", "Hi there!");
-        assert!(!memory.get_history(session_id).is_empty());
         let executor = WorkflowExecutor::new(WorkflowMode::ReAct);
         let skills_dir = PathBuf::from(".");
         let input = "clear";

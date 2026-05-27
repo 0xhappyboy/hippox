@@ -2369,3 +2369,7 @@ pub fn get_sqlite_instance_by_id(id: &str) -> Option<SQLiteConfig> {
     let global = HIPPOX_CORE_CONFIG.read().unwrap();
     global.get_sqlite_instance(id).cloned()
 }
+
+pub fn get_hippox_core_config() -> HippoxConfig {
+    HIPPOX_CORE_CONFIG.read().unwrap().clone()
+}

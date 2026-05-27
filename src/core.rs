@@ -2,7 +2,6 @@ use crate::config::{
     init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file,
 };
 use crate::executors::Executor;
-use crate::memory::ConversationMemory;
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::workflow::{WorkflowCallback, WorkflowExecutor, WorkflowMode};
@@ -52,7 +51,6 @@ pub struct WelcomeMessage {
 pub struct Hippox {
     scheduler: SkillScheduler,
     executor: Executor,
-    memory: ConversationMemory,
     workflow_mode: WorkflowMode,
     workflow_executor: WorkflowExecutor,
     is_first_message: Arc<AtomicBool>,
@@ -106,7 +104,6 @@ impl Hippox {
         Ok(Self {
             scheduler,
             executor,
-            memory: ConversationMemory::new(),
             workflow_mode,
             workflow_executor,
             is_first_message: Arc::new(AtomicBool::new(false)),
@@ -323,7 +320,6 @@ impl Hippox {
         executor
             .execute(
                 &self.scheduler,
-                &self.memory,
                 input,
                 session_id,
                 &skills_registry,
@@ -423,7 +419,6 @@ impl Hippox {
         executor
             .execute_skill_md(
                 &self.scheduler,
-                &self.memory,
                 &skill_file,
                 params.as_ref(),
                 &skills_registry,
@@ -471,16 +466,6 @@ impl Hippox {
             }
         }
         results
-    }
-
-    /// Clear conversation history for a session
-    pub fn clear_conversation(&self, session_id: &str) {
-        self.memory.clear_session(session_id);
-    }
-
-    /// Clear all conversation histories
-    pub fn clear_all_conversations(&self) {
-        self.memory.clear_all();
     }
 
     /// List all available atomic skills
