@@ -303,7 +303,6 @@ impl Hippox {
         session_id: Option<&str>,
         callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let session_id = session_id.unwrap_or("default");
         let mut executor = self.workflow_executor.clone();
         if let Some(cb) = callback {
             executor = executor.with_callback(cb);
@@ -321,7 +320,6 @@ impl Hippox {
             .execute(
                 &self.scheduler,
                 input,
-                session_id,
                 &skills_registry,
                 &instances_registry,
                 is_first,
