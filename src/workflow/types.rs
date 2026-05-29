@@ -1,0 +1,265 @@
+//! Type definitions for workflow execution
+
+use crate::executors::SkillCall;
+use async_trait::async_trait;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+
+/// Workflow execution mode enumeration
+///
+/// Defines the strategy for processing user requests and executing skills.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkflowMode {
+    /// ReAct mode: Think → Act → Observe loop
+    ///
+    /// Each skill execution is followed by LLM decision for next step.
+    /// Best for: Open-ended tasks, dynamic decision making, error recovery
+    /// LLM calls: 1 per skill + 1 for final response
+    ReAct,
+
+    /// Batch mode: Execute multiple independent skills in parallel
+    ///
+    /// Skills must have no dependencies on each other's results.
+    /// Best for: Independent operations, bulk processing
+    /// LLM calls: 1 (generates batch plan)
+    Batch,
+
+    /// Chain mode: Sequential execution with variable passing
+    ///
+    /// Each skill's output can be passed as input to the next skill.
+    /// Best for: Linear pipelines, data transformation chains
+    /// LLM calls: 1 (generates chain)
+    Chain,
+
+    /// Plan-and-Execute mode: One-time planning with full workflow
+    ///
+    /// Supports conditionals, variable references, and error handling.
+    /// Best for: Complex workflows, conditional logic, deterministic tasks
+    /// LLM calls: 1 (generates plan) + optional for dynamic decisions
+    PlanAndExecute,
+}
+
+impl Default for WorkflowMode {
+    fn default() -> Self {
+        WorkflowMode::ReAct
+    }
+}
+
+impl std::fmt::Display for WorkflowMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WorkflowMode::ReAct => write!(f, "ReAct"),
+            WorkflowMode::Batch => write!(f, "Batch"),
+            WorkflowMode::Chain => write!(f, "Chain"),
+            WorkflowMode::PlanAndExecute => write!(f, "PlanAndExecute"),
+        }
+    }
+}
+
+/// Workflow execution callback trait
+///
+/// Implement this trait to receive real-time updates about workflow execution.
+/// This is useful for UI updates, logging, or progress reporting.
+#[async_trait]
+pub trait WorkflowCallback: Send + Sync + Debug {
+    /// Called when a step (skill execution) starts
+    async fn on_step_start(&self, step_name: &str, step_index: usize);
+    /// Called when a step completes successfully
+    async fn on_step_success(&self, step_name: &str, step_index: usize, output: &str);
+    /// Called when a step fails
+    async fn on_step_failure(&self, step_name: &str, step_index: usize, error: &str);
+    /// Called when the entire workflow completes successfully
+    async fn on_workflow_complete(&self, final_output: &str);
+    /// Called when the workflow fails
+    async fn on_workflow_failed(&self, error: &str);
+}
+
+/// Context variable for workflow execution
+#[derive(Debug, Clone)]
+pub struct Workflow {
+    /// Variable store for passing data between steps
+    pub variables: HashMap<String, Value>,
+    /// Step results for debugging
+    pub step_results: Vec<WorkflowStepResult>,
+}
+
+impl Workflow {
+    pub fn new() -> Self {
+        Self {
+            variables: HashMap::new(),
+            step_results: Vec::new(),
+        }
+    }
+
+    pub fn set_variable(&mut self, name: &str, value: Value) {
+        self.variables.insert(name.to_string(), value);
+    }
+
+    pub fn get_variable(&self, name: &str) -> Option<&Value> {
+        self.variables.get(name)
+    }
+
+    pub fn add_step_result(&mut self, result: WorkflowStepResult) {
+        self.step_results.push(result);
+    }
+
+    pub fn get_step_results(&self) -> &[WorkflowStepResult] {
+        &self.step_results
+    }
+}
+
+impl Default for Workflow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Result of a single workflow step
+#[derive(Debug, Clone)]
+pub struct WorkflowStepResult {
+    pub step_id: String,
+    pub skill: String,
+    pub input: HashMap<String, Value>,
+    pub output: String,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+/// Workflow step definition for Plan-and-Execute mode
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct WorkflowStep {
+    /// Unique identifier for this step (for variable referencing)
+    pub id: String,
+    /// Skill to execute
+    pub action: String,
+    /// Parameters with potential variable references
+    pub parameters: HashMap<String, ValueRef>,
+    /// Condition for execution (optional)
+    #[serde(default)]
+    pub condition: Option<Condition>,
+    /// Variable name to store output (optional)
+    #[serde(default)]
+    pub output_as: Option<String>,
+    /// Error handler (optional)
+    #[serde(default)]
+    pub on_error: Option<ErrorHandler>,
+}
+
+/// Variable reference that can be a literal or reference to previous output
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(untagged)]
+pub enum ValueRef {
+    /// Literal JSON value
+    Literal(Value),
+    /// Reference to a variable: {"$ref": "variable_name"}
+    Reference(Reference),
+    /// Expression (future extension)
+    Expression(Expression),
+}
+
+/// Reference to a variable or step output
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Reference {
+    #[serde(rename = "$ref")]
+    pub path: String,
+}
+
+/// Expression for dynamic evaluation (placeholder for future)
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Expression {
+    #[serde(rename = "$expr")]
+    pub expr: String,
+}
+
+/// Conditional execution predicate
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Condition {
+    /// Operation: eq, ne, gt, lt, contains, etc.
+    pub op: String,
+    /// Left operand
+    pub left: ValueRef,
+    /// Right operand
+    pub right: ValueRef,
+}
+
+/// Error handling strategy
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct ErrorHandler {
+    /// Action: fail, skip, retry, fallback
+    pub action: String,
+    /// Fallback value or step
+    #[serde(default)]
+    pub fallback: Option<ValueRef>,
+    /// Maximum retries
+    #[serde(default)]
+    pub max_retries: Option<u32>,
+}
+
+/// Complete workflow plan
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct WorkflowPlan {
+    pub name: Option<String>,
+    pub steps: Vec<WorkflowStep>,
+    #[serde(default)]
+    pub parameters: HashMap<String, Value>,
+}
+
+/// Response from LLM for Plan-and-Execute mode
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct PlanInstruction {
+    pub mode: String,
+    pub plan: Option<WorkflowPlan>,
+    pub message: Option<String>,
+}
+
+/// Execution status for a workflow step
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutionStatus {
+    Success,
+    Failure,
+}
+
+/// Step result for multi-step execution
+#[derive(Debug, Clone)]
+pub struct StepResult {
+    pub skill: String,
+    pub parameters: HashMap<String, Value>,
+    pub output: String,
+    pub status: ExecutionStatus,
+}
+
+impl StepResult {
+    pub fn to_string(&self) -> String {
+        let status_str = match self.status {
+            ExecutionStatus::Success => "SUCCESS",
+            ExecutionStatus::Failure => "FAILURE",
+        };
+        format!(
+            "{} Executed skill '{}' with parameters {:?}\nResult: {}",
+            status_str, self.skill, self.parameters, self.output
+        )
+    }
+}
+
+/// Internal instruction enum for ReAct mode parsing
+#[derive(Debug)]
+pub enum ReactInstruction {
+    Done(String),
+    Single(SkillCall),
+    Batch(Vec<SkillCall>),
+}
+
+/// Chain plan definition
+#[derive(Debug)]
+pub struct ChainPlan {
+    pub steps: Vec<ChainStepDef>,
+}
+
+#[derive(Debug)]
+pub struct ChainStepDef {
+    pub action: String,
+    pub parameters: HashMap<String, Value>,
+    pub output_as: Option<String>,
+}
