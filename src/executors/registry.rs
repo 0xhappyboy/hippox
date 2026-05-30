@@ -822,6 +822,126 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "blockchain_solana_wallet".to_string(),
         Arc::new(SolanaWalletSkill) as Arc<dyn Skill>,
     );
+    // JSON Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "json_read".to_string(),
+        Arc::new(super::skills::document::JsonReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "json_write".to_string(),
+        Arc::new(super::skills::document::JsonWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "json_validate".to_string(),
+        Arc::new(super::skills::document::JsonValidateSkill) as Arc<dyn Skill>,
+    );
+
+    // YAML Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "yaml_read".to_string(),
+        Arc::new(super::skills::document::YamlReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "yaml_write".to_string(),
+        Arc::new(super::skills::document::YamlWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "yaml_validate".to_string(),
+        Arc::new(super::skills::document::YamlValidateSkill) as Arc<dyn Skill>,
+    );
+
+    // TOML Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "toml_read".to_string(),
+        Arc::new(super::skills::document::TomlReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "toml_write".to_string(),
+        Arc::new(super::skills::document::TomlWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "toml_validate".to_string(),
+        Arc::new(super::skills::document::TomlValidateSkill) as Arc<dyn Skill>,
+    );
+
+    // Text/Plain Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "text_read".to_string(),
+        Arc::new(super::skills::document::TextReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "text_write".to_string(),
+        Arc::new(super::skills::document::TextWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "text_search".to_string(),
+        Arc::new(super::skills::document::TextSearchSkill) as Arc<dyn Skill>,
+    );
+
+    // HTML Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "html_read".to_string(),
+        Arc::new(super::skills::document::HtmlReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "html_write".to_string(),
+        Arc::new(super::skills::document::HtmlWriteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "html_validate".to_string(),
+        Arc::new(super::skills::document::HtmlValidateSkill) as Arc<dyn Skill>,
+    );
+
+    // PPTX Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "pptx_read".to_string(),
+        Arc::new(super::skills::document::PptxReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "pptx_info".to_string(),
+        Arc::new(super::skills::document::PptxInfoSkill) as Arc<dyn Skill>,
+    );
+
+    // DOCX Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "docx_read".to_string(),
+        Arc::new(super::skills::document::DocxReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "docx_info".to_string(),
+        Arc::new(super::skills::document::DocxInfoSkill) as Arc<dyn Skill>,
+    );
+
+    // OpenDocument Skills
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "ods_read".to_string(),
+        Arc::new(super::skills::document::OdsReadSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "document", feature = "all"))]
+    registry.insert(
+        "odt_read".to_string(),
+        Arc::new(super::skills::document::OdtReadSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 
