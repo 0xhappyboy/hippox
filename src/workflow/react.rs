@@ -9,7 +9,9 @@ use std::collections::HashMap;
 
 use super::batch::execute_batch_plan;
 use super::core::WorkflowExecutor;
+use super::prompt;
 use super::types::*;
+use super::utils::format_step_results;
 
 /// Parse ReAct response from LLM
 pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
@@ -45,7 +47,6 @@ pub async fn execute_react(
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-    is_first_message: bool,
 ) -> String {
     let input_trimmed = input.trim();
     if input_trimmed == "clear" {
@@ -61,11 +62,12 @@ pub async fn execute_react(
     let mut final_response = None;
     let mut iteration = 0;
     let mut messages: Vec<ChatMessage> = Vec::new();
-    let system_prompt = WorkflowExecutor::build_react_prompt(skills_registry, instances_registry);
+    let system_prompt = prompt::build_react_prompt(skills_registry, instances_registry);
     messages.push(ChatMessage::system(&system_prompt));
     messages.push(ChatMessage::user(input_trimmed));
     while iteration < executor.max_iterations {
         iteration += 1;
+        // Clone messages for the call (required by the API)
         let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
             Ok(resp) => resp,
             Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
@@ -134,7 +136,7 @@ pub async fn execute_react(
                     "Batch execution completed. Results:\n{}",
                     batch_output
                 )));
-                let summary = format_step_results(executor, &step_results);
+                let summary = format_step_results(&step_results);
                 final_response = Some(summary);
                 break;
             }
@@ -147,7 +149,7 @@ pub async fn execute_react(
         if step_results.is_empty() {
             t!("skill.no_actions_executed").to_string()
         } else {
-            format_step_results(executor, &step_results)
+            format_step_results(&step_results)
         }
     });
     if let Some(cb) = executor.get_callback() {
@@ -164,33 +166,4 @@ pub async fn execute_react(
         }
     }
     final_response
-}
-
-/// Format step results
-fn format_step_results(executor: &WorkflowExecutor, results: &[StepResult]) -> String {
-    if results.is_empty() {
-        return t!("skill.no_steps_executed").to_string();
-    }
-    if results.len() == 1 {
-        return results[0].output.clone();
-    }
-    let success_count = results
-        .iter()
-        .filter(|r| r.status == ExecutionStatus::Success)
-        .count();
-    let failure_count = results.len() - success_count;
-    let mut output = format!(
-        "{} (SUCCESS {} / FAILURE {}):\n\n",
-        t!("skill.executed_steps", results.len()),
-        success_count,
-        failure_count
-    );
-    for (i, result) in results.iter().enumerate() {
-        let marker = match result.status {
-            ExecutionStatus::Success => "SUCCESS",
-            ExecutionStatus::Failure => "FAILURE",
-        };
-        output.push_str(&format!("{} {}: {}\n", marker, i + 1, result.output));
-    }
-    output
 }

@@ -3,12 +3,12 @@
 use super::batch::execute_batch;
 use super::chain::execute_chain;
 use super::plan_and_execute::execute_plan_and_execute;
+use super::prompt;
 use super::react::execute_react;
 use super::types::*;
 use crate::executors::Executor;
 use crate::skill_scheduler::SkillScheduler;
 use std::sync::Arc;
-use tracing::info;
 
 /// Workflow executor that handles different execution modes
 #[derive(Debug, Clone)]
@@ -58,41 +58,16 @@ impl WorkflowExecutor {
         input: &str,
         skills_registry: &str,
         instances_registry: &str,
-        is_first_message: bool,
     ) -> String {
         match self.mode {
             WorkflowMode::ReAct => {
-                execute_react(
-                    self,
-                    scheduler,
-                    input,
-                    skills_registry,
-                    instances_registry,
-                    is_first_message,
-                )
-                .await
+                execute_react(self, scheduler, input, skills_registry, instances_registry).await
             }
             WorkflowMode::Batch => {
-                execute_batch(
-                    self,
-                    scheduler,
-                    input,
-                    skills_registry,
-                    instances_registry,
-                    is_first_message,
-                )
-                .await
+                execute_batch(self, scheduler, input, skills_registry, instances_registry).await
             }
             WorkflowMode::Chain => {
-                execute_chain(
-                    self,
-                    scheduler,
-                    input,
-                    skills_registry,
-                    instances_registry,
-                    is_first_message,
-                )
-                .await
+                execute_chain(self, scheduler, input, skills_registry, instances_registry).await
             }
             WorkflowMode::PlanAndExecute => {
                 execute_plan_and_execute(
@@ -101,7 +76,6 @@ impl WorkflowExecutor {
                     input,
                     skills_registry,
                     instances_registry,
-                    is_first_message,
                 )
                 .await
             }
@@ -116,7 +90,6 @@ impl WorkflowExecutor {
         params: Option<&std::collections::HashMap<String, serde_json::Value>>,
         skills_registry: &str,
         instances_registry: &str,
-        is_first_message: bool,
     ) -> String {
         let mut instructions = skill_file.instructions.clone();
         // Substitute parameters
@@ -144,7 +117,6 @@ impl WorkflowExecutor {
                     &enhanced_input,
                     skills_registry,
                     instances_registry,
-                    is_first_message,
                 )
                 .await
             }
@@ -155,7 +127,6 @@ impl WorkflowExecutor {
                     &enhanced_input,
                     skills_registry,
                     instances_registry,
-                    is_first_message,
                 )
                 .await
             }
@@ -166,7 +137,6 @@ impl WorkflowExecutor {
                     &enhanced_input,
                     skills_registry,
                     instances_registry,
-                    is_first_message,
                 )
                 .await
             }
@@ -177,55 +147,15 @@ impl WorkflowExecutor {
                     &enhanced_input,
                     skills_registry,
                     instances_registry,
-                    is_first_message,
                 )
                 .await
             }
         }
     }
 
-    /// Build ReAct prompt with pre-built registries
+    /// Build ReAct prompt with pre-built registries (delegated to prompt module)
     pub fn build_react_prompt(skills_registry: &str, instances_registry: &str) -> String {
-        format!(
-            r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
-
-## Available Atomic Skills (JSON Registry)
-{}
-
-## Available Instances (Configured Services)
-{}
-
-## Response Format
-
-You can respond in one of three ways:
-
-### 1. Execute a single skill
-{{"action": "skill_name", "parameters": {{"param1": "value1"}}}}
-
-### 2. Execute multiple skills in sequence (no dependencies)
-{{
-  "mode": "batch",
-  "steps": [
-    {{"action": "skill1", "parameters": {{}}}},
-    {{"action": "skill2", "parameters": {{}}}}
-  ]
-}}
-
-### 3. Finish and return final answer
-{{"action": "done", "message": "Your final answer here"}}
-
-## Rules
-
-- If the task requires conditional logic (e.g., "if rain then send email"), use mode "single" and execute one skill at a time
-- After each skill execution, you will receive the result and can decide the next step
-- Use "batch" mode only when skills have no dependencies on each other's results
-- Use "done" when you have completed the task or no skill is needed
-- When calling database skills, choose the appropriate instance_id from the Available Instances list based on user's intent
-
-## Previous Execution Results (if any)
-"#,
-            skills_registry, instances_registry
-        )
+        prompt::build_react_prompt(skills_registry, instances_registry)
     }
 
     /// Extract JSON from text (helper method)

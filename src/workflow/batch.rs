@@ -9,8 +9,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::core::WorkflowExecutor;
+use super::prompt;
 use super::react::parse_react_response;
 use super::types::*;
+use super::utils::format_step_results;
 
 /// Execute batch plan
 pub async fn execute_batch_plan(
@@ -72,50 +74,17 @@ pub async fn execute_batch(
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-    is_first_message: bool,
 ) -> String {
-    let batch_prompt = format!(
-        r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
-
-## Available Atomic Skills (JSON Registry)
-{}
-
-## Available Instances
-{}
-
-## Task
-Execute multiple skills in batch mode. Skills should have NO dependencies on each other.
-
-## Response Format
-{{
-  "mode": "batch",
-  "steps": [
-    {{"action": "skill1", "parameters": {{}}}},
-    {{"action": "skill2", "parameters": {{}}}}
-  ]
-}}
-
-If no skills are needed, respond with:
-{{"action": "done", "message": "Your answer"}}
-
-## User Input
-{}
-
-Respond with ONLY the JSON.
-"#,
-        skills_registry, instances_registry, input
-    );
+    let batch_prompt = prompt::build_batch_prompt(skills_registry, instances_registry, input);
 
     let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
         Ok(resp) => resp,
         Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
     };
-
     let instruction = match parse_react_response(&llm_response) {
         Ok(instr) => instr,
         Err(_) => return llm_response,
     };
-
     match instruction {
         ReactInstruction::Done(message) => message,
         ReactInstruction::Batch(steps) => {
@@ -124,33 +93,4 @@ Respond with ONLY the JSON.
         }
         ReactInstruction::Single(_) => t!("error.batch_mode_invalid").to_string(),
     }
-}
-
-/// Format step results
-fn format_step_results(results: &[StepResult]) -> String {
-    if results.is_empty() {
-        return t!("skill.no_steps_executed").to_string();
-    }
-    if results.len() == 1 {
-        return results[0].output.clone();
-    }
-    let success_count = results
-        .iter()
-        .filter(|r| r.status == ExecutionStatus::Success)
-        .count();
-    let failure_count = results.len() - success_count;
-    let mut output = format!(
-        "{} (SUCCESS {} / FAILURE {}):\n\n",
-        t!("skill.executed_steps", results.len()),
-        success_count,
-        failure_count
-    );
-    for (i, result) in results.iter().enumerate() {
-        let marker = match result.status {
-            ExecutionStatus::Success => "SUCCESS",
-            ExecutionStatus::Failure => "FAILURE",
-        };
-        output.push_str(&format!("{} {}: {}\n", marker, i + 1, result.output));
-    }
-    output
 }

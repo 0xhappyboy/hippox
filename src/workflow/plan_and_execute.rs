@@ -8,7 +8,9 @@ use std::collections::HashMap;
 use tracing::info;
 
 use super::core::WorkflowExecutor;
+use super::prompt;
 use super::types::*;
+use super::utils::VARIABLE_REGEX;
 
 /// Parse plan response from LLM
 pub fn parse_plan_response(response: &str) -> anyhow::Result<PlanInstruction> {
@@ -35,35 +37,12 @@ fn resolve_value_ref(value_ref: &ValueRef, context: &Workflow) -> Value {
     }
 }
 
-/// Resolve variables
-fn resolve_variables(value: &Value, context: &HashMap<String, Value>) -> Value {
-    if let Some(s) = value.as_str() {
-        if s.starts_with("{{") && s.ends_with("}}") {
-            let var_name = &s[2..s.len() - 2];
-            if let Some(val) = context.get(var_name) {
-                return val.clone();
-            }
-        }
-        if let Ok(json_val) = serde_json::from_str::<Value>(s) {
-            if let Some(ref_obj) = json_val.as_object() {
-                if let Some(var_name) = ref_obj.get("$ref").and_then(|v| v.as_str()) {
-                    if let Some(val) = context.get(var_name) {
-                        return val.clone();
-                    }
-                }
-            }
-        }
-    }
-    value.clone()
-}
-
-/// Resolve variables deep
+/// Resolve variables deep with cached regex
 fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
     if let Some(s) = value.as_str() {
         if s.contains("{{") && s.contains("}}") {
             let mut result = s.to_string();
-            let re = regex::Regex::new(r"\{\{([^}]+)\}\}").unwrap();
-            for cap in re.captures_iter(s) {
+            for cap in VARIABLE_REGEX.captures_iter(s) {
                 let var_name = &cap[1];
                 if let Some(val) = context.get(var_name) {
                     let replacement = if let Some(num) = val.as_f64() {
@@ -273,56 +252,16 @@ pub async fn execute_plan_and_execute(
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-    is_first_message: bool,
 ) -> String {
-    let plan_prompt = format!(
-        r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
-
-## Available Atomic Skills (JSON Registry)
-{}
-
-## Available Instances
-{}
-
-## Task
-Create a complete execution plan that handles dependencies and conditions.
-
-## IMPORTANT: Response Format
-You MUST return a JSON object with exactly this structure:
-
-{{"mode": "plan", "plan": {{"steps": [
-  {{"id": "step1", "action": "skill_name", "parameters": {{"param": "value"}}, "output_as": "result1"}},
-  {{"id": "step2", "action": "skill_name", "parameters": {{"input": "{{{{result1}}}}"}}, "condition": {{"op": "contains", "left": "{{{{result1}}}}", "right": "error"}}}}
-]}}}}
-
-## Condition Operators
-- eq: equal
-- ne: not equal
-- gt: greater than
-- lt: less than
-- contains: string contains
-
-## User Input
-{}
-
-If no skills are needed:
-{{"mode": "done", "message": "Your answer"}}
-
-Respond with ONLY the JSON. No markdown, no extra text.
-"#,
-        skills_registry, instances_registry, input
-    );
-
+    let plan_prompt = prompt::build_plan_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
         Ok(resp) => resp,
         Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
     };
-
     let instruction = match parse_plan_response(&llm_response) {
         Ok(instr) => instr,
         Err(e) => return format!("Failed to parse plan: {}", e),
     };
-
     match instruction {
         PlanInstruction {
             mode,

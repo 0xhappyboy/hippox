@@ -307,11 +307,6 @@ impl Hippox {
         if let Some(cb) = callback {
             executor = executor.with_callback(cb);
         }
-        // is first message
-        let is_first = !self.is_first_message.load(Ordering::SeqCst);
-        if is_first {
-            self.is_first_message.store(true, Ordering::SeqCst);
-        }
         // Get current registries
         let skills_registry = self.get_skills_registry();
         let instances_registry = self.get_instances_registry();
@@ -322,7 +317,6 @@ impl Hippox {
                 input,
                 &skills_registry,
                 &instances_registry,
-                is_first,
             )
             .await
     }
@@ -410,10 +404,6 @@ impl Hippox {
         if let Some(cb) = callback {
             executor = executor.with_callback(cb);
         }
-        let is_first = !self.is_first_message.load(Ordering::SeqCst);
-        if is_first {
-            self.is_first_message.store(true, Ordering::SeqCst);
-        }
         executor
             .execute_skill_md(
                 &self.scheduler,
@@ -421,7 +411,6 @@ impl Hippox {
                 params.as_ref(),
                 &skills_registry,
                 &instances_registry,
-                is_first,
             )
             .await
     }

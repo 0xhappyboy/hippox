@@ -7,8 +7,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::types::*;
 use super::core::WorkflowExecutor;
+use super::prompt;
+use super::types::*;
+use super::utils::{VARIABLE_REGEX, format_step_results};
 
 /// Parse chain response from LLM
 pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
@@ -45,13 +47,12 @@ pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
     Ok(ChainPlan { steps })
 }
 
-/// Resolve variables deep
+/// Resolve variables deep with cached regex
 fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
     if let Some(s) = value.as_str() {
         if s.contains("{{") && s.contains("}}") {
             let mut result = s.to_string();
-            let re = regex::Regex::new(r"\{\{([^}]+)\}\}").unwrap();
-            for cap in re.captures_iter(s) {
+            for cap in VARIABLE_REGEX.captures_iter(s) {
                 let var_name = &cap[1];
                 if let Some(val) = context.get(var_name) {
                     let replacement = if let Some(num) = val.as_f64() {
@@ -95,35 +96,6 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
     value.clone()
 }
 
-/// Format step results
-fn format_step_results(results: &[StepResult]) -> String {
-    if results.is_empty() {
-        return t!("skill.no_steps_executed").to_string();
-    }
-    if results.len() == 1 {
-        return results[0].output.clone();
-    }
-    let success_count = results
-        .iter()
-        .filter(|r| r.status == ExecutionStatus::Success)
-        .count();
-    let failure_count = results.len() - success_count;
-    let mut output = format!(
-        "{} (SUCCESS {} / FAILURE {}):\n\n",
-        t!("skill.executed_steps", results.len()),
-        success_count,
-        failure_count
-    );
-    for (i, result) in results.iter().enumerate() {
-        let marker = match result.status {
-            ExecutionStatus::Success => "SUCCESS",
-            ExecutionStatus::Failure => "FAILURE",
-        };
-        output.push_str(&format!("{} {}: {}\n", marker, i + 1, result.output));
-    }
-    output
-}
-
 /// Execute chain mode workflow
 pub async fn execute_chain(
     executor: &WorkflowExecutor,
@@ -131,51 +103,19 @@ pub async fn execute_chain(
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-    is_first_message: bool,
 ) -> String {
-    let chain_prompt = format!(
-        r#"You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.
-
-## CRITICAL: Variable Reference Format
-When referencing a previous output, use this EXACT format:
-{{{{variable_name}}}}
-
-Example: if output_as is "step1", reference as {{{{step1}}}}
-
-## Available Atomic Skills
-{}
-
-## Available Instances
-{}
-
-## Response Format
-{{"mode": "chain", "steps": [
-  {{"action": "calculator", "parameters": {{"expression": "5 * 3"}}, "output_as": "result1"}},
-  {{"action": "calculator", "parameters": {{"expression": "{{{{result1}}}} + 10"}}, "output_as": "result2"}}
-]}}
-
-## User Input
-{}
-
-Respond with ONLY the JSON.
-"#,
-        skills_registry, instances_registry, input
-    );
-
+    let chain_prompt = prompt::build_chain_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
         Ok(resp) => resp,
         Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
     };
-
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
         Err(e) => return format!("Failed to parse chain: {}", e),
     };
-
     let mut context = HashMap::new();
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
-
     for (idx, step) in chain.steps.iter().enumerate() {
         let step_name = step.action.clone();
         if let Some(cb) = executor.get_callback() {
