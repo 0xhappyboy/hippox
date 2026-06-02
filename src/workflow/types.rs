@@ -170,6 +170,10 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         total_duration_ms: u64,
         total_steps: usize,
     );
+
+    async fn on_workflow_resumed(&self, task_id: &str, total_duration_ms: u64, total_steps: usize) {
+        let _ = (task_id, total_duration_ms, total_steps);
+    }
 }
 
 pub fn truncate_output(output: &str, max_len: usize) -> String {

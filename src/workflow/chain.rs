@@ -157,6 +157,35 @@ pub async fn execute_chain(
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
 
+    // Check for checkpoint to resume from
+    let mut checkpoint_restored = false;
+    let mut restored_context: HashMap<String, Value> = HashMap::new();
+    let mut restored_results: Vec<StepResult> = Vec::new();
+    let mut last_completed_idx = 0;
+
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
+                if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
+                {
+                    restored_context = checkpoint.variables;
+                    restored_results = checkpoint.completed_results;
+                    last_completed_idx = checkpoint.last_completed_step;
+                    checkpoint_restored = true;
+                    // Notify that workflow is resumed
+                    if let Some(cb) = executor.get_callback() {
+                        cb.on_workflow_resumed(
+                            tid,
+                            overall_start.elapsed().as_millis() as u64,
+                            restored_results.len(),
+                        )
+                        .await;
+                    }
+                }
+            }
+        }
+    }
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -221,11 +250,18 @@ pub async fn execute_chain(
             };
         }
     };
-    let mut context = HashMap::new();
-    context.insert("user_input".to_string(), Value::String(input.to_string()));
-    let mut results = Vec::new();
 
-    for (idx, step) in chain.steps.iter().enumerate() {
+    let mut context = if checkpoint_restored {
+        restored_context
+    } else {
+        let mut new_context = HashMap::new();
+        new_context.insert("user_input".to_string(), Value::String(input.to_string()));
+        new_context
+    };
+    let mut results = restored_results;
+
+    let start_idx = last_completed_idx;
+    for (idx, step) in chain.steps.iter().enumerate().skip(start_idx) {
         let step_name = step.action.clone();
         let step_start = Instant::now();
 

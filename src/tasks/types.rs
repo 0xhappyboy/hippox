@@ -415,18 +415,21 @@ impl TaskPool {
 
     pub(crate) fn enqueue_task(&mut self, task_id: &str) {
         if let Some(task) = self.tasks.get(task_id) {
-            let priority = task.priority;
-            let insert_pos = self
-                .pending_queue
-                .iter()
-                .position(|id| {
-                    self.tasks
-                        .get(id)
-                        .map(|t| t.priority < priority)
-                        .unwrap_or(false)
-                })
-                .unwrap_or(self.pending_queue.len());
-            self.pending_queue.insert(insert_pos, task_id.to_string());
+            // Allow both Pending and Paused tasks to be enqueued
+            if task.status == TaskStatus::Pending || task.status == TaskStatus::Paused {
+                let priority = task.priority;
+                let insert_pos = self
+                    .pending_queue
+                    .iter()
+                    .position(|id| {
+                        self.tasks
+                            .get(id)
+                            .map(|t| t.priority < priority)
+                            .unwrap_or(false)
+                    })
+                    .unwrap_or(self.pending_queue.len());
+                self.pending_queue.insert(insert_pos, task_id.to_string());
+            }
         }
     }
 
@@ -436,7 +439,14 @@ impl TaskPool {
         }
         while let Some(task_id) = self.pending_queue.pop_front() {
             if let Some(task) = self.tasks.get(&task_id) {
-                if task.status == TaskStatus::Pending {
+                // Allow both Pending and Paused tasks to be executed
+                if task.status == TaskStatus::Pending || task.status == TaskStatus::Paused {
+                    // When resuming a paused task, change its status back to Running
+                    if task.status == TaskStatus::Paused {
+                        if let Some(task_mut) = self.tasks.get_mut(&task_id) {
+                            task_mut.status = TaskStatus::Running;
+                        }
+                    }
                     self.running_tasks.push(task_id.clone());
                     return Some(task_id);
                 }
@@ -545,7 +555,6 @@ impl TaskPool {
     pub fn resume_task(&mut self, task_id: &str) -> bool {
         if let Some(task) = self.tasks.get(task_id) {
             if task.status == TaskStatus::Paused {
-                // Re-queue the task
                 self.enqueue_task(task_id);
                 TASK_NOTIFIER.notify_one();
                 return true;

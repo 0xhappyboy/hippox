@@ -118,6 +118,34 @@ pub async fn execute_react(
     messages.push(ChatMessage::user(input_trimmed));
     let task_id = executor.get_task_id().map(|s| s.to_string());
 
+    // Check for checkpoint to resume from
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
+                if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
+                {
+                    step_results = checkpoint.completed_results;
+                    // Restore messages from completed results
+                    for result in &step_results {
+                        messages.push(ChatMessage::user(&format!(
+                            "Skill '{}' executed. Result: {}",
+                            result.skill, result.output
+                        )));
+                    }
+                    // Notify that workflow is resumed
+                    if let Some(cb) = executor.get_callback() {
+                        cb.on_workflow_resumed(
+                            tid,
+                            overall_start.elapsed().as_millis() as u64,
+                            step_results.len(),
+                        )
+                        .await;
+                    }
+                }
+            }
+        }
+    }
+
     while iteration < executor.max_iterations {
         iteration += 1;
 

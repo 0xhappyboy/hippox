@@ -55,8 +55,20 @@ pub async fn pause_task(task_id: &str) -> bool {
 
 /// Resume a paused task
 pub async fn resume_task(task_id: &str) -> bool {
-    let mut pool = TASK_POOL.write().await;
-    pool.resume_task(task_id)
+    let result = {
+        let mut pool = TASK_POOL.write().await;
+        pool.resume_task(task_id)
+    };
+    if result {
+        // Send task_resumed event
+        let pool = TASK_POOL.read().await;
+        if let Some(task) = pool.get_task(task_id) {
+            if let Some(callback) = &task.callback {
+                callback.on_workflow_resumed(task_id, 0, 0).await;
+            }
+        }
+    }
+    result
 }
 
 /// Retry a failed task

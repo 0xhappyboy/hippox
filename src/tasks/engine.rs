@@ -37,25 +37,25 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
             pool.next_task()
         };
         if let Some(task_id) = task_id {
-            // Check if task is still valid to run (not cancelled or paused)
+            // Check if task is still valid to run
             {
                 let pool = task_pool.read().await;
                 if let Some(task) = pool.get_task(&task_id) {
-                    if task.status != TaskStatus::Pending {
-                        // Task is not pending (cancelled/paused/completed)
-                        // For paused tasks, just skip and keep them in the pool
-                        // For completed/failed/cancelled tasks, mark as complete
-                        if task.status == TaskStatus::Cancelled
-                            || task.status == TaskStatus::Completed
-                            || task.status == TaskStatus::Failed
-                            || task.status == TaskStatus::Timeout
-                        {
-                            let mut pool = task_pool.write().await;
-                            pool.complete_task(&task_id);
-                        }
-                        // For Paused tasks, do nothing - just skip and keep them
+                    // Skip only Paused tasks (not ready to run)
+                    if task.status == TaskStatus::Paused {
                         continue;
                     }
+                    // Terminal states - clean up
+                    if task.status == TaskStatus::Cancelled
+                        || task.status == TaskStatus::Completed
+                        || task.status == TaskStatus::Failed
+                        || task.status == TaskStatus::Timeout
+                    {
+                        let mut pool = task_pool.write().await;
+                        pool.complete_task(&task_id);
+                        continue;
+                    }
+                    // For Running and Pending, continue to execute
                 } else {
                     let mut pool = task_pool.write().await;
                     pool.complete_task(&task_id);

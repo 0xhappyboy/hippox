@@ -148,6 +148,32 @@ pub async fn execute_batch(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
+
+    // Check for checkpoint to resume from
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
+                if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
+                {
+                    // Notify that workflow is resumed
+                    if let Some(cb) = executor.get_callback() {
+                        cb.on_workflow_resumed(
+                            tid,
+                            overall_start.elapsed().as_millis() as u64,
+                            checkpoint.completed_results.len(),
+                        )
+                        .await;
+                    }
+                    if !checkpoint.completed_results.is_empty() {
+                        return WorkflowExecutionResult::Completed(format_step_results(
+                            &checkpoint.completed_results,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
