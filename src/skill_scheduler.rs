@@ -15,6 +15,7 @@ use langhub::LLMClient;
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt;
 
 /// Skill execution scheduler
 ///
@@ -26,6 +27,14 @@ use std::collections::HashMap;
 pub struct SkillScheduler {
     /// Language model client for LLM interactions
     llm: LLMClient,
+}
+
+impl fmt::Debug for SkillScheduler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SkillScheduler")
+            .field("llm", &"<LLMClient>")
+            .finish()
+    }
 }
 
 impl SkillScheduler {

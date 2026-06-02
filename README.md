@@ -37,6 +37,83 @@ A skill-driven AI runtime with autonomous decision-making that automatically loa
 
 <img src="./assets/architecture/skill_load_and_schedul_en.png" width="100%">
 
+## Task Pool
+
+### State Machine
+
+```
+Pending ──► Running ──► Completed
+    │           │
+    │           ├──► Paused ──► Running (resume)
+    │           │
+    │           └──► Cancelled
+    │
+    └──► Cancelled
+              │
+              └──► Failed ──► Pending (retry)
+```
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Hippox Instance                          │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                       TaskPool                             │  │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐                   │  │
+│  │  │Task A   │  │Task B   │  │Task C   │                   │  │
+│  │  │Pending  │  │Running  │  │Pending  │                   │  │
+│  │  └────┬────┘  └────┬────┘  └────┬────┘                   │  │
+│  │       └────────────┼────────────┘                         │  │
+│  │                    ▼                                      │  │
+│  │         ┌─────────────────────┐                          │  │
+│  │         │  Priority Queue     │                          │  │
+│  │         │  [Task A, Task C]   │                          │  │
+│  │         └──────────┬──────────┘                          │  │
+│  │                    │                                      │  │
+│  │                    ▼                                      │  │
+│  │         ┌─────────────────────┐                          │  │
+│  │         │  Execution Engine   │  (max: 5 workers)       │  │
+│  │         │  ┌────┐ ┌────┐ ┌────┐                         │  │
+│  │         │  │ W1 │ │ W2 │ │ W3 │                         │  │
+│  │         │  └──┬─┘ └──┬─┘ └──┬─┘                         │  │
+│  │         │     └──────┼──────┘                           │  │
+│  │         │           ▼                                   │  │
+│  │         │  ┌─────────────────┐                          │  │
+│  │         │  │ ExecutableTask  │                          │  │
+│  │         │  │   .execute()    │                          │  │
+│  │         │  └─────────────────┘                          │  │
+│  │         └─────────────────────┘                          │  │
+│  │                    ▲                                      │  │
+│  │         ┌──────────┴──────────┐                          │  │
+│  │         │  Notifier (wakeup)  │                          │  │
+│  │         └─────────────────────┘                          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │              ExecutableTask Implementations               │  │
+│  │  ┌───────────────────┐    ┌───────────────────┐          │  │
+│  │  │NaturalLanguageTask│    │   SkillMdTask     │          │  │
+│  │  │ • input           │    │ • path            │          │  │
+│  │  │ • workflow_exec   │    │ • params          │          │  │
+│  │  │ • scheduler       │    │ • workflow_exec   │          │  │
+│  │  │ • skill_registry  │    │ • scheduler       │          │  │
+│  │  │ • inst_registry   │    │ • skill_registry  │          │  │
+│  │  └───────────────────┘    └───────────────────┘          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         External APIs                           │
+├─────────────────────────────────────────────────────────────────┤
+│  handle_natural_language()  → task_id  (non-blocking)          │
+│  handle_skill_md()          → task_id  (non-blocking)          │
+│  get_task_status() / cancel() / pause() / resume() / retry()   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ## Architectural Layering
 
 ```

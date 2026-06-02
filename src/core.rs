@@ -4,6 +4,7 @@ use crate::config::{
 use crate::executors::Executor;
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
+use crate::tasks::{self, ExecutableTask, StepCallback, TaskPool, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutor, WorkflowMode};
 use crate::{HippoxConfig, i18n};
 use crate::{get_config, t};
@@ -11,9 +12,11 @@ use langhub::LLMClient;
 use langhub::types::ModelProvider;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::Mutex;
 use tracing::info;
 
 const STARTUP_BANNER: &str = r#"
@@ -41,6 +44,130 @@ pub struct WelcomeMessage {
     pub version: String,
 }
 
+/// Task for natural language processing
+#[derive(Debug)]
+pub(crate) struct NaturalLanguageTask {
+    input: String,
+    workflow_executor: WorkflowExecutor,
+    scheduler: SkillScheduler,
+    skills_registry: String,
+    instances_registry: String,
+}
+
+impl NaturalLanguageTask {
+    pub(crate) fn new(
+        input: String,
+        workflow_executor: WorkflowExecutor,
+        scheduler: SkillScheduler,
+        skills_registry: String,
+        instances_registry: String,
+    ) -> Self {
+        Self {
+            input,
+            workflow_executor,
+            scheduler,
+            skills_registry,
+            instances_registry,
+        }
+    }
+}
+
+impl ExecutableTask for NaturalLanguageTask {
+    fn execute(
+        &self,
+        step_callback: StepCallback,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        let input = self.input.clone();
+        let workflow_executor = self.workflow_executor.clone();
+        let scheduler = self.scheduler.clone();
+        let skills_registry = self.skills_registry.clone();
+        let instances_registry = self.instances_registry.clone();
+
+        Box::pin(async move {
+            step_callback.on_step_start("natural_language", 0).await;
+            let result = workflow_executor
+                .execute(&scheduler, &input, &skills_registry, &instances_registry)
+                .await;
+            step_callback.on_workflow_complete(&result).await;
+        })
+    }
+}
+
+/// Task for SKILL.md file execution
+#[derive(Debug)]
+pub(crate) struct SkillMdTask {
+    path: String,
+    params: Option<HashMap<String, Value>>,
+    workflow_executor: WorkflowExecutor,
+    scheduler: SkillScheduler,
+    skills_registry: String,
+    instances_registry: String,
+}
+
+impl SkillMdTask {
+    pub(crate) fn new(
+        path: String,
+        params: Option<HashMap<String, Value>>,
+        workflow_executor: WorkflowExecutor,
+        scheduler: SkillScheduler,
+        skills_registry: String,
+        instances_registry: String,
+    ) -> Self {
+        Self {
+            path,
+            params,
+            workflow_executor,
+            scheduler,
+            skills_registry,
+            instances_registry,
+        }
+    }
+}
+
+impl ExecutableTask for SkillMdTask {
+    fn execute(
+        &self,
+        step_callback: StepCallback,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        let path = self.path.clone();
+        let params = self.params.clone();
+        let workflow_executor = self.workflow_executor.clone();
+        let scheduler = self.scheduler.clone();
+        let skills_registry = self.skills_registry.clone();
+        let instances_registry = self.instances_registry.clone();
+
+        Box::pin(async move {
+            step_callback.on_step_start("skill_md", 0).await;
+
+            let skill_file = match SkillLoader::load_from_path(&path) {
+                Ok(Some(file)) => file,
+                Ok(None) => {
+                    let error_msg = format!("{}: {}", t!("error.skill_not_found"), path);
+                    step_callback.on_workflow_failed(&error_msg).await;
+                    return;
+                }
+                Err(e) => {
+                    let error_msg = format!("{}: {}", t!("error.load_skill_failed"), e);
+                    step_callback.on_workflow_failed(&error_msg).await;
+                    return;
+                }
+            };
+
+            let result = workflow_executor
+                .execute_skill_md(
+                    &scheduler,
+                    &skill_file,
+                    params.as_ref(),
+                    &skills_registry,
+                    &instances_registry,
+                )
+                .await;
+
+            step_callback.on_workflow_complete(&result).await;
+        })
+    }
+}
+
 /// Core engine for Hippox
 ///
 /// This is the main entry point for the Hippox engine. It handles:
@@ -54,6 +181,7 @@ pub struct Hippox {
     workflow_mode: WorkflowMode,
     workflow_executor: WorkflowExecutor,
     is_first_message: Arc<AtomicBool>,
+    task_pool: Arc<Mutex<TaskPool>>,
 }
 
 impl Hippox {
@@ -101,12 +229,20 @@ impl Hippox {
         let scheduler = SkillScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
+        // Create task pool for this instance
+        let task_pool = Arc::new(Mutex::new(TaskPool::new()));
+        // Start the execution engine
+        {
+            let mut pool = task_pool.lock().await;
+            pool.start_engine(task_pool.clone());
+        }
         Ok(Self {
             scheduler,
             executor,
             workflow_mode,
             workflow_executor,
             is_first_message: Arc::new(AtomicBool::new(false)),
+            task_pool,
         })
     }
 
@@ -285,141 +421,121 @@ impl Hippox {
         Self::generate_welcome_message(&skills, &instances)
     }
 
-    /// Handle natural language input from user using configured workflow mode
+    /// Submit a natural language task and return task ID immediately
     ///
-    /// This function processes user natural language input using the workflow
-    /// mode specified during initialization.
+    /// This function creates a task, adds it to the task pool, and returns the task ID.
+    /// The actual execution happens asynchronously in the background.
     ///
     /// # Arguments
     /// * `input` - Natural language input from the user
-    /// * `session_id` - Optional session ID for conversation history
-    ///                  (uses "default" if None)
+    /// * `_session_id` - Optional session ID (unused in core, for compatibility)
+    /// * `_callback` - Optional callback for workflow execution progress
     ///
     /// # Returns
-    /// The response string after processing
-    pub async fn handle_natural_language(
+    /// The task ID as a string
+    pub fn handle_natural_language(
         &self,
         input: &str,
-        session_id: Option<&str>,
-        callback: Option<Arc<dyn WorkflowCallback>>,
+        _session_id: Option<&str>,
+        _callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let mut executor = self.workflow_executor.clone();
-        if let Some(cb) = callback {
-            executor = executor.with_callback(cb);
-        }
-        // Get current registries
         let skills_registry = self.get_skills_registry();
         let instances_registry = self.get_instances_registry();
-        // Pass cached registries to executor
-        executor
-            .execute(
-                &self.scheduler,
-                input,
-                &skills_registry,
-                &instances_registry,
+
+        let executable = Arc::new(NaturalLanguageTask::new(
+            input.to_string(),
+            self.workflow_executor.clone(),
+            self.scheduler.clone(),
+            skills_registry,
+            instances_registry,
+        ));
+
+        let task_id = futures::executor::block_on(async {
+            let mut pool = self.task_pool.lock().await;
+            pool.create_task_with_executable(
+                "natural_language".to_string(),
+                input.to_string(),
+                executable,
             )
-            .await
+        });
+
+        info!(
+            "Created natural language task: {} with input: {}",
+            task_id, input
+        );
+        task_id
     }
 
-    /// Handle multiple natural language inputs in parallel
-    pub async fn handle_natural_language_batch(
+    /// Submit multiple natural language tasks in batch and return task IDs immediately
+    ///
+    /// # Arguments
+    /// * `inputs` - Vector of tuples (input, session_id, callback)
+    ///
+    /// # Returns
+    /// Vector of task IDs in the same order as inputs
+    pub fn handle_natural_language_batch(
         &self,
         inputs: Vec<(String, Option<String>, Option<Arc<dyn WorkflowCallback>>)>,
     ) -> Vec<String> {
-        if inputs.is_empty() {
-            return Vec::new();
-        }
-        info!(
-            "Processing {} natural language inputs in parallel with mode {:?}",
-            inputs.len(),
-            self.workflow_mode
-        );
-        let mut handles = Vec::new();
-        for (input, session_id, callback) in inputs {
-            let self_clone = self.clone();
-            let handle = tokio::spawn(async move {
-                self_clone
-                    .handle_natural_language(&input, session_id.as_deref(), callback)
-                    .await
-            });
-            handles.push(handle);
-        }
-        let mut results = Vec::with_capacity(handles.len());
-        for handle in handles {
-            match handle.await {
-                Ok(result) => results.push(result),
-                Err(e) => results.push(format!("{}: {}", t!("error.task_panic"), e)),
-            }
-        }
-        results
+        inputs
+            .into_iter()
+            .map(|(input, session_id, callback)| {
+                self.handle_natural_language(&input, session_id.as_deref(), callback)
+            })
+            .collect()
     }
 
-    /// Execute a SKILL.md workflow file
+    /// Submit a SKILL.md workflow task and return task ID immediately
     ///
     /// # Arguments
     /// * `skill_md_path` - Path to the SKILL.md file
-    ///   Format: The path should point directly to the SKILL.md file.
-    ///   Example: "./skills/web-search/SKILL.md" or "/path/to/skills/my-skill/SKILL.md"
     /// * `params` - Optional parameters to substitute in the SKILL.md content
-    ///   Placeholders in SKILL.md should use `{{parameter_name}}` format
-    /// * `callback` - Optional callback for workflow execution progress
+    /// * `_callback` - Optional callback for workflow execution progress
     ///
     /// # Returns
-    /// The execution result as a string
-    ///
-    /// # SKILL.md File Format
-    /// ```markdown
-    /// ---
-    /// name: my-skill
-    /// description: What this skill does
-    /// version: 1.0.0
-    /// ---
-    ///
-    /// # Instructions
-    /// Your workflow instructions here. Use {{param_name}} for variable substitution.
-    /// ```
-    pub async fn handle_skill_md(
+    /// The task ID as a string
+    pub fn handle_skill_md(
         &self,
         skill_md_path: &str,
         params: Option<HashMap<String, Value>>,
-        callback: Option<Arc<dyn WorkflowCallback>>,
+        _callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let skill_file = match SkillLoader::load_from_path(skill_md_path) {
-            Ok(Some(file)) => file,
-            Ok(None) => {
-                return format!("{}: {}", t!("error.skill_not_found"), skill_md_path);
-            }
-            Err(e) => {
-                return format!("{}: {}", t!("error.load_skill_failed"), e);
-            }
-        };
-        info!(
-            "Executing SKILL.md: {} with workflow mode: {}",
-            skill_file.name, self.workflow_mode
-        );
         let skills_registry = self.get_skills_registry();
         let instances_registry = self.get_instances_registry();
 
-        let mut executor = self.workflow_executor.clone();
-        if let Some(cb) = callback {
-            executor = executor.with_callback(cb);
-        }
-        executor
-            .execute_skill_md(
-                &self.scheduler,
-                &skill_file,
-                params.as_ref(),
-                &skills_registry,
-                &instances_registry,
+        let executable = Arc::new(SkillMdTask::new(
+            skill_md_path.to_string(),
+            params,
+            self.workflow_executor.clone(),
+            self.scheduler.clone(),
+            skills_registry,
+            instances_registry,
+        ));
+
+        let task_id = futures::executor::block_on(async {
+            let mut pool = self.task_pool.lock().await;
+            pool.create_task_with_executable(
+                "skill_md".to_string(),
+                skill_md_path.to_string(),
+                executable,
             )
-            .await
+        });
+
+        info!(
+            "Created SKILL.md task: {} for path: {}",
+            task_id, skill_md_path
+        );
+        task_id
     }
 
-    /// Execute multiple SKILL.md files in parallel
+    /// Submit multiple SKILL.md tasks in batch and return task IDs immediately
     ///
     /// # Arguments
     /// * `tasks` - Vector of tuples (skill_md_path, params, callback)
-    pub async fn handle_skill_md_batch(
+    ///
+    /// # Returns
+    /// Vector of task IDs in the same order as inputs
+    pub fn handle_skill_md_batch(
         &self,
         tasks: Vec<(
             String,
@@ -427,32 +543,58 @@ impl Hippox {
             Option<Arc<dyn WorkflowCallback>>,
         )>,
     ) -> Vec<String> {
-        if tasks.is_empty() {
-            return Vec::new();
-        }
-        info!(
-            "Executing {} SKILL.md files in parallel with workflow mode: {:?}",
-            tasks.len(),
-            self.workflow_mode
-        );
-        let mut handles = Vec::new();
-        for (skill_md_path, params, callback) in tasks {
-            let self_clone = self.clone();
-            let handle = tokio::spawn(async move {
-                self_clone
-                    .handle_skill_md(&skill_md_path, params, callback)
-                    .await
-            });
-            handles.push(handle);
-        }
-        let mut results = Vec::with_capacity(handles.len());
-        for handle in handles {
-            match handle.await {
-                Ok(result) => results.push(result),
-                Err(e) => results.push(format!("{}: {}", t!("error.task_panic"), e)),
-            }
-        }
-        results
+        tasks
+            .into_iter()
+            .map(|(path, params, callback)| self.handle_skill_md(&path, params, callback))
+            .collect()
+    }
+
+    /// Get task status by ID
+    pub fn get_task_status(&self, task_id: &str) -> Option<TaskStatus> {
+        futures::executor::block_on(async {
+            let pool = self.task_pool.lock().await;
+            pool.get_task(task_id).map(|t| t.status)
+        })
+    }
+
+    /// Get task by ID
+    pub fn get_task(&self, task_id: &str) -> Option<tasks::Task> {
+        futures::executor::block_on(async {
+            let pool = self.task_pool.lock().await;
+            pool.get_task(task_id)
+        })
+    }
+
+    /// Cancel a running or pending task
+    pub fn cancel_task(&self, task_id: &str) -> bool {
+        futures::executor::block_on(async {
+            let mut pool = self.task_pool.lock().await;
+            pool.cancel_task(task_id)
+        })
+    }
+
+    /// Pause a running task
+    pub fn pause_task(&self, task_id: &str) -> bool {
+        futures::executor::block_on(async {
+            let mut pool = self.task_pool.lock().await;
+            pool.pause_task(task_id)
+        })
+    }
+
+    /// Resume a paused task
+    pub fn resume_task(&self, task_id: &str) -> bool {
+        futures::executor::block_on(async {
+            let mut pool = self.task_pool.lock().await;
+            pool.resume_task(task_id)
+        })
+    }
+
+    /// Retry a failed task
+    pub fn retry_task(&self, task_id: &str) -> bool {
+        futures::executor::block_on(async {
+            let mut pool = self.task_pool.lock().await;
+            pool.retry_task(task_id)
+        })
     }
 
     /// List all available atomic skills
@@ -583,34 +725,5 @@ mod tests {
         let registry = Hippox::generate_instances_registry();
         // Registry should be valid JSON even if empty
         assert!(serde_json::from_str::<Value>(&registry).is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_hippox_real_conversation() {
-        use langhub::types::ModelProvider;
-        use std::collections::HashMap;
-        use std::io::{self, Write};
-        let api_key = "";
-        let provider = ModelProvider::DeepSeek;
-        let config_json = r#"{
-            "lang": "en"
-        }"#;
-        let hippox = Hippox::new(
-            provider,
-            Some(api_key.to_string()),
-            None,
-            ConfigInitMethod::ParamsJsonStr(config_json.to_string()),
-        )
-        .await;
-
-        let r = hippox
-            .unwrap()
-            .handle_natural_language(
-                "Tell me what skills I have and what my profile is.",
-                None,
-                None,
-            )
-            .await;
-        println!("{}", r);
     }
 }

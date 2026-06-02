@@ -5,6 +5,7 @@ mod executors;
 mod i18n;
 mod skill_loader;
 mod skill_scheduler;
+mod tasks;
 mod workflow;
 
 pub use crate::config::*;
@@ -13,5 +14,6 @@ pub use crate::core::Hippox;
 pub use crate::executors::registry;
 pub use crate::skill_loader::*;
 pub use crate::skill_scheduler::*;
+pub use crate::tasks::*;
 pub use crate::workflow::*;
 pub use langhub::types::ModelProvider;
