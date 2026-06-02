@@ -4,7 +4,7 @@ use crate::config::{
 use crate::executors::Executor;
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
-use crate::tasks::{self, ExecutableTask, StepCallback, TaskPool, TaskStatus};
+use crate::tasks::{self, ExecutableTask, StepCallback, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutor, WorkflowMode};
 use crate::{HippoxConfig, i18n};
 use crate::{get_config, t};
@@ -16,7 +16,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::sync::Mutex;
 use tracing::info;
 
 const STARTUP_BANNER: &str = r#"
@@ -90,6 +89,14 @@ impl ExecutableTask for NaturalLanguageTask {
                 .await;
             step_callback.on_workflow_complete(&result).await;
         })
+    }
+
+    fn task_type(&self) -> &str {
+        "natural_language"
+    }
+
+    fn input(&self) -> &str {
+        &self.input
     }
 }
 
@@ -166,6 +173,14 @@ impl ExecutableTask for SkillMdTask {
             step_callback.on_workflow_complete(&result).await;
         })
     }
+
+    fn task_type(&self) -> &str {
+        "skill_md"
+    }
+
+    fn input(&self) -> &str {
+        &self.path
+    }
 }
 
 /// Core engine for Hippox
@@ -181,7 +196,6 @@ pub struct Hippox {
     workflow_mode: WorkflowMode,
     workflow_executor: WorkflowExecutor,
     is_first_message: Arc<AtomicBool>,
-    task_pool: Arc<Mutex<TaskPool>>,
 }
 
 impl Hippox {
@@ -229,20 +243,13 @@ impl Hippox {
         let scheduler = SkillScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
-        // Create task pool for this instance
-        let task_pool = Arc::new(Mutex::new(TaskPool::new()));
-        // Start the execution engine
-        {
-            let mut pool = task_pool.lock().await;
-            pool.start_engine(task_pool.clone());
-        }
+
         Ok(Self {
             scheduler,
             executor,
             workflow_mode,
             workflow_executor,
             is_first_message: Arc::new(AtomicBool::new(false)),
-            task_pool,
         })
     }
 
@@ -423,7 +430,7 @@ impl Hippox {
 
     /// Submit a natural language task and return task ID immediately
     ///
-    /// This function creates a task, adds it to the task pool, and returns the task ID.
+    /// This function creates a task, adds it to the global task pool, and returns the task ID.
     /// The actual execution happens asynchronously in the background.
     ///
     /// # Arguments
@@ -450,14 +457,11 @@ impl Hippox {
             instances_registry,
         ));
 
-        let task_id = futures::executor::block_on(async {
-            let mut pool = self.task_pool.lock().await;
-            pool.create_task_with_executable(
-                "natural_language".to_string(),
-                input.to_string(),
-                executable,
-            )
-        });
+        let task_id = futures::executor::block_on(tasks::create_task_with_executable(
+            "natural_language".to_string(),
+            input.to_string(),
+            executable,
+        ));
 
         info!(
             "Created natural language task: {} with input: {}",
@@ -512,14 +516,11 @@ impl Hippox {
             instances_registry,
         ));
 
-        let task_id = futures::executor::block_on(async {
-            let mut pool = self.task_pool.lock().await;
-            pool.create_task_with_executable(
-                "skill_md".to_string(),
-                skill_md_path.to_string(),
-                executable,
-            )
-        });
+        let task_id = futures::executor::block_on(tasks::create_task_with_executable(
+            "skill_md".to_string(),
+            skill_md_path.to_string(),
+            executable,
+        ));
 
         info!(
             "Created SKILL.md task: {} for path: {}",
@@ -551,50 +552,32 @@ impl Hippox {
 
     /// Get task status by ID
     pub fn get_task_status(&self, task_id: &str) -> Option<TaskStatus> {
-        futures::executor::block_on(async {
-            let pool = self.task_pool.lock().await;
-            pool.get_task(task_id).map(|t| t.status)
-        })
+        futures::executor::block_on(tasks::get_task_status(task_id))
     }
 
     /// Get task by ID
     pub fn get_task(&self, task_id: &str) -> Option<tasks::Task> {
-        futures::executor::block_on(async {
-            let pool = self.task_pool.lock().await;
-            pool.get_task(task_id)
-        })
+        futures::executor::block_on(tasks::get_task(task_id))
     }
 
     /// Cancel a running or pending task
     pub fn cancel_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(async {
-            let mut pool = self.task_pool.lock().await;
-            pool.cancel_task(task_id)
-        })
+        futures::executor::block_on(tasks::cancel_task(task_id))
     }
 
     /// Pause a running task
     pub fn pause_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(async {
-            let mut pool = self.task_pool.lock().await;
-            pool.pause_task(task_id)
-        })
+        futures::executor::block_on(tasks::pause_task(task_id))
     }
 
     /// Resume a paused task
     pub fn resume_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(async {
-            let mut pool = self.task_pool.lock().await;
-            pool.resume_task(task_id)
-        })
+        futures::executor::block_on(tasks::resume_task(task_id))
     }
 
     /// Retry a failed task
     pub fn retry_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(async {
-            let mut pool = self.task_pool.lock().await;
-            pool.retry_task(task_id)
-        })
+        futures::executor::block_on(tasks::retry_task(task_id))
     }
 
     /// List all available atomic skills
