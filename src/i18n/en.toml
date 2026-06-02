@@ -34,6 +34,8 @@ load_skill_failed = "Failed to load skill"
 list_skills_failed = "Failed to list skills"
 skill_not_found = "Skill not found"
 batch_mode_invalid = "Invalid response: expected batch mode"
+task_cancelled = "Task has been cancelled"
+task_paused = "Task has been paused"
 
 [prompt]
 select_skill = """

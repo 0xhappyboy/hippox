@@ -6,6 +6,7 @@ use crate::t;
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
 
 use super::batch::execute_batch_plan;
@@ -41,6 +42,52 @@ pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> 
     anyhow::bail!("Unable to parse LLM response: {}", response)
 }
 
+/// Check task status and handle interruption
+async fn check_task_interruption(
+    task_id: Option<&str>,
+    callback: &Option<Arc<dyn WorkflowCallback>>,
+    step_index: usize,
+    step_name: &str,
+    checkpoint: Option<String>,
+) -> Result<(), (String, bool)> {
+    if let Some(tid) = task_id {
+        if let Some(cb) = callback {
+            if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+                if state_updater.is_cancelled().await {
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "cancelled".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_cancelled(tid, 0, step_index).await;
+                    return Err(("Task cancelled".to_string(), true));
+                }
+                if state_updater.is_paused().await {
+                    // Save checkpoint before pausing
+                    if let Some(ref checkpoint_data) = checkpoint {
+                        state_updater.save_checkpoint(checkpoint_data).await;
+                    }
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "paused".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
+                        .await;
+                    return Err(("Task paused".to_string(), false));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Execute ReAct mode workflow
 pub async fn execute_react(
     executor: &WorkflowExecutor,
@@ -71,6 +118,48 @@ pub async fn execute_react(
 
     while iteration < executor.max_iterations {
         iteration += 1;
+
+        // Check task status before each LLM call
+        if let Some(ref tid) = task_id {
+            if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+                if state_updater.is_cancelled().await {
+                    if let Some(cb) = executor.get_callback() {
+                        cb.on_workflow_cancelled(
+                            tid,
+                            overall_start.elapsed().as_millis() as u64,
+                            step_results.len(),
+                        )
+                        .await;
+                    }
+                    return t!("error.task_cancelled").to_string();
+                }
+                if state_updater.is_paused().await {
+                    if let Some(cb) = executor.get_callback() {
+                        // Save checkpoint with current state
+                        let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
+                            last_completed_step: step_results.len(),
+                            variables: HashMap::new(),
+                            completed_results: step_results.clone(),
+                            mode: WorkflowMode::ReAct,
+                            metadata: HashMap::new(),
+                        })
+                        .ok();
+                        if let Some(ref checkpoint_data) = checkpoint {
+                            state_updater.save_checkpoint(checkpoint_data).await;
+                        }
+                        cb.on_workflow_paused(
+                            tid,
+                            checkpoint.as_deref(),
+                            overall_start.elapsed().as_millis() as u64,
+                            step_results.len(),
+                        )
+                        .await;
+                    }
+                    return t!("error.task_paused").to_string();
+                }
+            }
+        }
+
         let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
             Ok(resp) => resp,
             Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
@@ -89,6 +178,23 @@ pub async fn execute_react(
                 let step_index = step_results.len();
                 let step_name = call.action.clone();
                 let step_start = Instant::now();
+
+                // Check interruption before step execution
+                if let Err((msg, is_cancelled)) = check_task_interruption(
+                    task_id.as_deref(),
+                    executor.get_callback(),
+                    step_index,
+                    &step_name,
+                    None,
+                )
+                .await
+                {
+                    if is_cancelled {
+                        return msg;
+                    } else {
+                        return msg;
+                    }
+                }
 
                 // Step start with parameters
                 if let Some(cb) = executor.get_callback() {
@@ -146,6 +252,26 @@ pub async fn execute_react(
                 }
             }
             ReactInstruction::Batch(steps) => {
+                let step_index = step_results.len();
+                let step_name = format!("batch_{}_steps", steps.len());
+
+                // Check interruption before batch execution
+                if let Err((msg, is_cancelled)) = check_task_interruption(
+                    task_id.as_deref(),
+                    executor.get_callback(),
+                    step_index,
+                    &step_name,
+                    None,
+                )
+                .await
+                {
+                    if is_cancelled {
+                        return msg;
+                    } else {
+                        return msg;
+                    }
+                }
+
                 let results = execute_batch_plan(executor, &steps).await;
                 let mut batch_output = String::new();
                 for (i, result) in results.iter().enumerate() {

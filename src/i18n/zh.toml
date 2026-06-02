@@ -34,6 +34,8 @@ load_skill_failed = "加载技能失败"
 list_skills_failed = "列出技能失败"
 skill_not_found = "未找到技能"
 batch_mode_invalid = "无效的响应：期望批处理模式"
+task_cancelled = "任务已被取消"
+task_paused = "任务已暂停"
 
 [prompt]
 select_skill = """

@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::thread;
 use tokio::sync::RwLock;
 
-use super::types::{TaskPool, TASK_NOTIFIER};
 use super::executor::TaskStateUpdater;
+use super::types::{TASK_NOTIFIER, TaskPool, TaskStatus};
 
 pub fn start_execution_engine(pool: Arc<RwLock<TaskPool>>) {
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
@@ -37,6 +37,23 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
             pool.next_task()
         };
         if let Some(task_id) = task_id {
+            // Check if task is still valid to run (not cancelled or paused)
+            {
+                let pool = task_pool.read().await;
+                if let Some(task) = pool.get_task(&task_id) {
+                    if task.status != TaskStatus::Pending {
+                        // Task is not pending (maybe cancelled/paused/completed), skip
+                        let mut pool = task_pool.write().await;
+                        pool.complete_task(&task_id);
+                        continue;
+                    }
+                } else {
+                    let mut pool = task_pool.write().await;
+                    pool.complete_task(&task_id);
+                    continue;
+                }
+            }
+
             // Get the executable task and its callback
             let (executable, callback) = {
                 let pool = task_pool.read().await;

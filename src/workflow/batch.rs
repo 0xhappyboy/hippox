@@ -15,7 +15,7 @@ use super::react::parse_react_response;
 use super::types::*;
 use super::utils::format_step_results;
 
-/// Execute batch plan
+/// Execute batch plan with interruption support
 pub async fn execute_batch_plan(
     executor: &WorkflowExecutor,
     steps: &[SkillCall],
@@ -26,6 +26,35 @@ pub async fn execute_batch_plan(
     let callback = executor.get_callback().clone();
     let executor_clone = executor.get_executor().clone();
     let task_id = executor.get_task_id().map(|s| s.to_string());
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = &callback {
+                    cb.on_workflow_cancelled(tid, 0, 0).await;
+                }
+                return Vec::new();
+            }
+            if state_updater.is_paused().await {
+                if let Some(cb) = &callback {
+                    // Save checkpoint before pausing
+                    let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
+                        last_completed_step: 0,
+                        variables: HashMap::new(),
+                        completed_results: vec![],
+                        mode: WorkflowMode::Batch,
+                        metadata: HashMap::new(),
+                    })
+                    .ok();
+                    if let Some(ref checkpoint_data) = checkpoint {
+                        state_updater.save_checkpoint(checkpoint_data).await;
+                    }
+                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, 0)
+                        .await;
+                }
+                return Vec::new();
+            }
+        }
+    }
     let futures = steps.iter().enumerate().map(|(idx, step)| {
         let step = step.clone();
         let executor = executor_clone.clone();
@@ -34,7 +63,36 @@ pub async fn execute_batch_plan(
         tokio::spawn(async move {
             let step_name = step.action.clone();
             let step_start = Instant::now();
-
+            if let Some(ref tid) = task_id {
+                if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+                    if state_updater.is_cancelled().await {
+                        if let Some(cb) = &callback {
+                            let info = StepInterruptionInfo {
+                                interrupted: true,
+                                reason: "cancelled".to_string(),
+                                step_index: idx,
+                                step_name: step_name.clone(),
+                                checkpoint: None,
+                            };
+                            cb.on_step_interrupted(tid, &info).await;
+                        }
+                        return None;
+                    }
+                    if state_updater.is_paused().await {
+                        if let Some(cb) = &callback {
+                            let info = StepInterruptionInfo {
+                                interrupted: true,
+                                reason: "paused".to_string(),
+                                step_index: idx,
+                                step_name: step_name.clone(),
+                                checkpoint: None,
+                            };
+                            cb.on_step_interrupted(tid, &info).await;
+                        }
+                        return None;
+                    }
+                }
+            }
             if let Some(cb) = &callback {
                 if let Some(ref tid) = task_id {
                     cb.on_step_start(tid, &step_name, idx, Some(&step.parameters))
@@ -92,8 +150,24 @@ pub async fn execute_batch(
     instances_registry: &str,
 ) -> String {
     let overall_start = Instant::now();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_cancelled(tid, 0, 0).await;
+                }
+                return t!("error.task_cancelled").to_string();
+            }
+            if state_updater.is_paused().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_paused(tid, None, 0, 0).await;
+                }
+                return t!("error.task_paused").to_string();
+            }
+        }
+    }
     let batch_prompt = prompt::build_batch_prompt(skills_registry, instances_registry, input);
-
     let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
         Ok(resp) => resp,
         Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
@@ -102,6 +176,42 @@ pub async fn execute_batch(
         Ok(instr) => instr,
         Err(_) => return llm_response,
     };
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
+                        .await;
+                }
+                return t!("error.task_cancelled").to_string();
+            }
+            if state_updater.is_paused().await {
+                if let Some(cb) = executor.get_callback() {
+                    // Save checkpoint before pausing
+                    let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
+                        last_completed_step: 0,
+                        variables: HashMap::new(),
+                        completed_results: vec![],
+                        mode: WorkflowMode::Batch,
+                        metadata: HashMap::new(),
+                    })
+                    .ok();
+                    if let Some(ref checkpoint_data) = checkpoint {
+                        state_updater.save_checkpoint(checkpoint_data).await;
+                    }
+                    cb.on_workflow_paused(
+                        tid,
+                        checkpoint.as_deref(),
+                        overall_start.elapsed().as_millis() as u64,
+                        0,
+                    )
+                    .await;
+                }
+                return t!("error.task_paused").to_string();
+            }
+        }
+    }
+
     let (result, total_steps) = match &instruction {
         ReactInstruction::Done(message) => (message.clone(), 0),
         ReactInstruction::Batch(steps) => {
@@ -111,7 +221,6 @@ pub async fn execute_batch(
         ReactInstruction::Single(_) => (t!("error.batch_mode_invalid").to_string(), 0),
     };
     let total_duration = overall_start.elapsed().as_millis() as u64;
-    let task_id = executor.get_task_id().map(|s| s.to_string());
     if let Some(cb) = executor.get_callback() {
         if let Some(ref tid) = task_id {
             cb.on_workflow_complete(tid, &result, total_duration, total_steps)

@@ -6,8 +6,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use super::types::{TASK_POOL, TaskPool, TaskStatus};
 use crate::workflow::WorkflowCallback;
-use super::types::{TaskPool, TASK_POOL};
 
 /// Task trait - each task must implement this to be executable
 pub trait ExecutableTask: Send + Sync + Debug {
@@ -39,6 +39,56 @@ impl TaskStateUpdater {
 
     pub fn task_id(&self) -> &str {
         &self.task_id
+    }
+
+    /// Check if the task has been cancelled
+    pub async fn is_cancelled(&self) -> bool {
+        let pool = self.task_pool.read().await;
+        if let Some(task) = pool.get_task(&self.task_id) {
+            return task.status == TaskStatus::Cancelled;
+        }
+        false
+    }
+
+    /// Check if the task has been paused
+    pub async fn is_paused(&self) -> bool {
+        let pool = self.task_pool.read().await;
+        if let Some(task) = pool.get_task(&self.task_id) {
+            return task.status == TaskStatus::Paused;
+        }
+        false
+    }
+
+    /// Check if the task is still running (not cancelled or paused)
+    pub async fn is_running(&self) -> bool {
+        let pool = self.task_pool.read().await;
+        if let Some(task) = pool.get_task(&self.task_id) {
+            return task.status == TaskStatus::Running;
+        }
+        false
+    }
+
+    /// Get current task status
+    pub async fn get_status(&self) -> Option<TaskStatus> {
+        let pool = self.task_pool.read().await;
+        pool.get_task(&self.task_id).map(|t| t.status)
+    }
+
+    /// Save checkpoint data for resume
+    pub async fn save_checkpoint(&self, checkpoint_data: &str) -> bool {
+        let mut pool = self.task_pool.write().await;
+        if let Some(task) = pool.get_task_mut(&self.task_id) {
+            task.resume_data = Some(checkpoint_data.to_string());
+            return true;
+        }
+        false
+    }
+
+    /// Get checkpoint data for resume
+    pub async fn get_checkpoint(&self) -> Option<String> {
+        let pool = self.task_pool.read().await;
+        pool.get_task(&self.task_id)
+            .and_then(|t| t.resume_data.clone())
     }
 
     /// Update step start in internal state

@@ -5,6 +5,7 @@ use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
 
@@ -120,12 +121,61 @@ fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
     }
 }
 
+/// Check task status for plan step
+async fn check_step_interruption(
+    task_id: Option<&str>,
+    callback: &Option<Arc<dyn WorkflowCallback>>,
+    step_id: &str,
+    step_name: &str,
+    step_index: usize,
+    checkpoint: Option<String>,
+) -> Result<bool, String> {
+    if let Some(tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = callback {
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "cancelled".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_cancelled(tid, 0, step_index).await;
+                }
+                return Err(t!("error.task_cancelled").to_string());
+            }
+            if state_updater.is_paused().await {
+                if let Some(ref checkpoint_data) = checkpoint {
+                    state_updater.save_checkpoint(checkpoint_data).await;
+                }
+                if let Some(cb) = callback {
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "paused".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
+                        .await;
+                }
+                return Err(t!("error.task_paused").to_string());
+            }
+        }
+    }
+    Ok(true)
+}
+
 /// Execute step with retry
 async fn execute_step_with_retry(
     executor: &WorkflowExecutor,
     skill_name: &str,
     parameters: HashMap<String, Value>,
     step: &WorkflowStep,
+    step_index: usize,
 ) -> anyhow::Result<String> {
     let max_retries = step
         .on_error
@@ -160,6 +210,7 @@ async fn execute_step_with_retry(
 async fn execute_workflow_plan(
     executor: &WorkflowExecutor,
     plan: &WorkflowPlan,
+    task_id: Option<&str>,
 ) -> anyhow::Result<(String, usize, usize)> {
     let mut context = Workflow::new();
     for (key, value) in &plan.parameters {
@@ -168,8 +219,30 @@ async fn execute_workflow_plan(
     let mut string_context = HashMap::new();
     let mut success_count = 0;
     let mut failed_count = 0;
+    for (idx, step) in plan.steps.iter().enumerate() {
+        // Check interruption before each step
+        let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
+            last_completed_step: idx,
+            variables: context.variables.clone(),
+            completed_results: vec![], // Plan mode uses different result type
+            mode: WorkflowMode::PlanAndExecute,
+            metadata: HashMap::new(),
+        })
+        .ok();
+        match check_step_interruption(
+            task_id,
+            executor.get_callback(),
+            &step.id,
+            &step.action,
+            idx,
+            checkpoint.clone(),
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(msg) => anyhow::bail!(msg),
+        }
 
-    for step in &plan.steps {
         if let Some(condition) = &step.condition {
             if !evaluate_condition(condition, &context) {
                 info!("Step {} condition not met, skipping", step.id);
@@ -184,7 +257,8 @@ async fn execute_workflow_plan(
             resolved_params.insert(key.clone(), final_resolved);
         }
 
-        let result = execute_step_with_retry(executor, &step.action, resolved_params, step).await;
+        let result =
+            execute_step_with_retry(executor, &step.action, resolved_params, step, idx).await;
 
         match result {
             Ok(output) => {
@@ -266,16 +340,56 @@ pub async fn execute_plan_and_execute(
     instances_registry: &str,
 ) -> String {
     let overall_start = Instant::now();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
+
+    // Check task status before starting
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_cancelled(tid, 0, 0).await;
+                }
+                return t!("error.task_cancelled").to_string();
+            }
+            if state_updater.is_paused().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_paused(tid, None, 0, 0).await;
+                }
+                return t!("error.task_paused").to_string();
+            }
+        }
+    }
+
     let plan_prompt = prompt::build_plan_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
         Ok(resp) => resp,
         Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
     };
+
+    // Check task status after LLM response
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
+                        .await;
+                }
+                return t!("error.task_cancelled").to_string();
+            }
+            if state_updater.is_paused().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_paused(tid, None, overall_start.elapsed().as_millis() as u64, 0)
+                        .await;
+                }
+                return t!("error.task_paused").to_string();
+            }
+        }
+    }
+
     let instruction = match parse_plan_response(&llm_response) {
         Ok(instr) => instr,
         Err(e) => return format!("Failed to parse plan: {}", e),
     };
-    let task_id = executor.get_task_id().map(|s| s.to_string());
     match instruction {
         PlanInstruction {
             mode,
@@ -296,7 +410,7 @@ pub async fn execute_plan_and_execute(
             }
 
             if let Some(plan) = plan {
-                match execute_workflow_plan(executor, &plan).await {
+                match execute_workflow_plan(executor, &plan, task_id.as_deref()).await {
                     Ok((result, success_count, failed_count)) => {
                         let total_duration = overall_start.elapsed().as_millis() as u64;
                         let total_steps = success_count + failed_count;

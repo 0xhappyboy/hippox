@@ -97,6 +97,53 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
     value.clone()
 }
 
+/// Check task status for chain step
+async fn check_step_interruption(
+    task_id: Option<&str>,
+    callback: &Option<Arc<dyn WorkflowCallback>>,
+    step_index: usize,
+    step_name: &str,
+    checkpoint: Option<String>,
+) -> Result<bool, String> {
+    if let Some(tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = callback {
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "cancelled".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_cancelled(tid, 0, step_index).await;
+                }
+                return Err(t!("error.task_cancelled").to_string());
+            }
+            if state_updater.is_paused().await {
+                if let Some(ref checkpoint_data) = checkpoint {
+                    state_updater.save_checkpoint(checkpoint_data).await;
+                }
+                if let Some(cb) = callback {
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "paused".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
+                        .await;
+                }
+                return Err(t!("error.task_paused").to_string());
+            }
+        }
+    }
+    Ok(true)
+}
+
 /// Execute chain mode workflow
 pub async fn execute_chain(
     executor: &WorkflowExecutor,
@@ -106,11 +153,52 @@ pub async fn execute_chain(
     instances_registry: &str,
 ) -> String {
     let overall_start = Instant::now();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
+
+    // Check task status before starting
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_cancelled(tid, 0, 0).await;
+                }
+                return t!("error.task_cancelled").to_string();
+            }
+            if state_updater.is_paused().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_paused(tid, None, 0, 0).await;
+                }
+                return t!("error.task_paused").to_string();
+            }
+        }
+    }
+
     let chain_prompt = prompt::build_chain_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
         Ok(resp) => resp,
         Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
     };
+
+    // Check task status after LLM response
+    if let Some(ref tid) = task_id {
+        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+            if state_updater.is_cancelled().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
+                        .await;
+                }
+                return t!("error.task_cancelled").to_string();
+            }
+            if state_updater.is_paused().await {
+                if let Some(cb) = executor.get_callback() {
+                    cb.on_workflow_paused(tid, None, overall_start.elapsed().as_millis() as u64, 0)
+                        .await;
+                }
+                return t!("error.task_paused").to_string();
+            }
+        }
+    }
+
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
         Err(e) => return format!("Failed to parse chain: {}", e),
@@ -118,11 +206,34 @@ pub async fn execute_chain(
     let mut context = HashMap::new();
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
-    let task_id = executor.get_task_id().map(|s| s.to_string());
 
     for (idx, step) in chain.steps.iter().enumerate() {
         let step_name = step.action.clone();
         let step_start = Instant::now();
+
+        // Save checkpoint before each step
+        let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
+            last_completed_step: idx,
+            variables: context.clone(),
+            completed_results: results.clone(),
+            mode: WorkflowMode::Chain,
+            metadata: HashMap::new(),
+        })
+        .ok();
+
+        // Check interruption before step execution
+        match check_step_interruption(
+            task_id.as_deref(),
+            executor.get_callback(),
+            idx,
+            &step_name,
+            checkpoint.clone(),
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(msg) => return msg,
+        }
 
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
@@ -191,10 +302,8 @@ pub async fn execute_chain(
             }
         }
     }
-
     let final_output = format_step_results(&results);
     let total_duration = overall_start.elapsed().as_millis() as u64;
-
     if let Some(cb) = executor.get_callback() {
         if let Some(ref tid) = task_id {
             let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
@@ -207,6 +316,5 @@ pub async fn execute_chain(
             }
         }
     }
-
     final_output
 }
