@@ -13,11 +13,14 @@ use crate::core::registry::{generate_instances_registry, generate_skills_registr
 use crate::core::tasks::{NaturalLanguageTask, SkillMdTask};
 use crate::core::welcome::generate_welcome_message;
 use crate::executors::Executor;
-use crate::{ConfigInitMethod, HippoxConfig, get_config, i18n, init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file, t};
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
-use crate::workflow::{WorkflowCallback, WorkflowExecutor, WorkflowMode};
+use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
+use crate::{
+    ConfigInitMethod, HippoxConfig, get_config, i18n, init_config_from_json_file,
+    init_config_from_params_json_str, init_config_from_toml_file, t,
+};
 
 /// Core engine for Hippox
 ///
@@ -249,14 +252,21 @@ impl Hippox {
         }
         let skills_registry = self.get_skills_registry();
         let instances_registry = self.get_instances_registry();
-        executor
+        let result = executor
             .execute(
                 &self.scheduler,
                 input,
                 &skills_registry,
                 &instances_registry,
             )
-            .await
+            .await;
+
+        match result {
+            WorkflowExecutionResult::Completed(output) => output,
+            WorkflowExecutionResult::Paused { partial_output, .. } => partial_output,
+            WorkflowExecutionResult::Cancelled { .. } => t!("error.task_cancelled").to_string(),
+            WorkflowExecutionResult::Failed { error, .. } => error,
+        }
     }
 
     /// Execute multiple natural language tasks directly without task pool.
@@ -298,7 +308,7 @@ impl Hippox {
         if let Some(cb) = callback {
             executor = executor.with_callback(cb);
         }
-        executor
+        let result = executor
             .execute_skill_md(
                 &self.scheduler,
                 &skill_file,
@@ -306,7 +316,14 @@ impl Hippox {
                 &skills_registry,
                 &instances_registry,
             )
-            .await
+            .await;
+
+        match result {
+            WorkflowExecutionResult::Completed(output) => output,
+            WorkflowExecutionResult::Paused { partial_output, .. } => partial_output,
+            WorkflowExecutionResult::Cancelled { .. } => t!("error.task_cancelled").to_string(),
+            WorkflowExecutionResult::Failed { error, .. } => error,
+        }
     }
 
     /// Execute multiple SKILL.md tasks directly without task pool.

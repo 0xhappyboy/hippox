@@ -13,7 +13,6 @@ use super::prompt;
 use super::types::*;
 use super::utils::{VARIABLE_REGEX, format_step_results};
 
-/// Parse chain response from LLM
 pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
     let json_str = WorkflowExecutor::extract_json(response);
     let value: Value = serde_json::from_str(&json_str)?;
@@ -48,7 +47,6 @@ pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
     Ok(ChainPlan { steps })
 }
 
-/// Resolve variables deep with cached regex
 fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
     if let Some(s) = value.as_str() {
         if s.contains("{{") && s.contains("}}") {
@@ -97,14 +95,13 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
     value.clone()
 }
 
-/// Check task status for chain step
 async fn check_step_interruption(
     task_id: Option<&str>,
     callback: &Option<Arc<dyn WorkflowCallback>>,
     step_index: usize,
     step_name: &str,
     checkpoint: Option<String>,
-) -> Result<bool, String> {
+) -> Result<(), WorkflowExecutionResult> {
     if let Some(tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -119,7 +116,9 @@ async fn check_step_interruption(
                     cb.on_step_interrupted(tid, &info).await;
                     cb.on_workflow_cancelled(tid, 0, step_index).await;
                 }
-                return Err(t!("error.task_cancelled").to_string());
+                return Err(WorkflowExecutionResult::Cancelled {
+                    completed_steps: step_index,
+                });
             }
             if state_updater.is_paused().await {
                 if let Some(ref checkpoint_data) = checkpoint {
@@ -137,38 +136,44 @@ async fn check_step_interruption(
                     cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
                         .await;
                 }
-                return Err(t!("error.task_paused").to_string());
+                return Err(WorkflowExecutionResult::Paused {
+                    checkpoint: checkpoint.clone(),
+                    completed_steps: step_index,
+                    partial_output: String::new(),
+                });
             }
         }
     }
-    Ok(true)
+    Ok(())
 }
 
-/// Execute chain mode workflow
 pub async fn execute_chain(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-) -> String {
+) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
 
-    // Check task status before starting
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_cancelled(tid, 0, 0).await;
                 }
-                return t!("error.task_cancelled").to_string();
+                return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_paused(tid, None, 0, 0).await;
                 }
-                return t!("error.task_paused").to_string();
+                return WorkflowExecutionResult::Paused {
+                    checkpoint: None,
+                    completed_steps: 0,
+                    partial_output: String::new(),
+                };
             }
         }
     }
@@ -176,10 +181,14 @@ pub async fn execute_chain(
     let chain_prompt = prompt::build_chain_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
         Ok(resp) => resp,
-        Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("{}: {}", t!("error.llm_error"), e),
+                completed_steps: 0,
+            };
+        }
     };
 
-    // Check task status after LLM response
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -187,21 +196,30 @@ pub async fn execute_chain(
                     cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
-                return t!("error.task_cancelled").to_string();
+                return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_paused(tid, None, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
-                return t!("error.task_paused").to_string();
+                return WorkflowExecutionResult::Paused {
+                    checkpoint: None,
+                    completed_steps: 0,
+                    partial_output: String::new(),
+                };
             }
         }
     }
 
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
-        Err(e) => return format!("Failed to parse chain: {}", e),
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("Failed to parse chain: {}", e),
+                completed_steps: 0,
+            };
+        }
     };
     let mut context = HashMap::new();
     context.insert("user_input".to_string(), Value::String(input.to_string()));
@@ -211,7 +229,6 @@ pub async fn execute_chain(
         let step_name = step.action.clone();
         let step_start = Instant::now();
 
-        // Save checkpoint before each step
         let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
             last_completed_step: idx,
             variables: context.clone(),
@@ -221,8 +238,7 @@ pub async fn execute_chain(
         })
         .ok();
 
-        // Check interruption before step execution
-        match check_step_interruption(
+        if let Err(result) = check_step_interruption(
             task_id.as_deref(),
             executor.get_callback(),
             idx,
@@ -231,8 +247,7 @@ pub async fn execute_chain(
         )
         .await
         {
-            Ok(_) => {}
-            Err(msg) => return msg,
+            return result;
         }
 
         let mut resolved_params = HashMap::new();
@@ -298,7 +313,10 @@ pub async fn execute_chain(
                             .await;
                     }
                 }
-                return format!("Skill '{}' failed: {}", step.action, error_msg);
+                return WorkflowExecutionResult::Failed {
+                    error: format!("Skill '{}' failed: {}", step.action, error_msg),
+                    completed_steps: results.len(),
+                };
             }
         }
     }
@@ -316,5 +334,5 @@ pub async fn execute_chain(
             }
         }
     }
-    final_output
+    WorkflowExecutionResult::Completed(final_output)
 }

@@ -42,9 +42,18 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
                 let pool = task_pool.read().await;
                 if let Some(task) = pool.get_task(&task_id) {
                     if task.status != TaskStatus::Pending {
-                        // Task is not pending (maybe cancelled/paused/completed), skip
-                        let mut pool = task_pool.write().await;
-                        pool.complete_task(&task_id);
+                        // Task is not pending (cancelled/paused/completed)
+                        // For paused tasks, just skip and keep them in the pool
+                        // For completed/failed/cancelled tasks, mark as complete
+                        if task.status == TaskStatus::Cancelled
+                            || task.status == TaskStatus::Completed
+                            || task.status == TaskStatus::Failed
+                            || task.status == TaskStatus::Timeout
+                        {
+                            let mut pool = task_pool.write().await;
+                            pool.complete_task(&task_id);
+                        }
+                        // For Paused tasks, do nothing - just skip and keep them
                         continue;
                     }
                 } else {
@@ -53,7 +62,6 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
                     continue;
                 }
             }
-
             // Get the executable task and its callback
             let (executable, callback) = {
                 let pool = task_pool.read().await;

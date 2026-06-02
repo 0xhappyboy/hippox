@@ -12,9 +12,8 @@ use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use crate::tasks::{ExecutableTask, TaskStateUpdater};
-use crate::workflow::{WorkflowCallback, WorkflowExecutor};
+use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor};
 
-/// Task for natural language processing
 #[derive(Debug)]
 pub(crate) struct NaturalLanguageTask {
     input: String,
@@ -66,10 +65,31 @@ impl ExecutableTask for NaturalLanguageTask {
                 .await;
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;
-            state_updater.update_workflow_complete(&result).await;
-            if let Some(ref cb) = callback {
-                cb.on_workflow_complete(&task_id, &result, total_duration, total_steps)
-                    .await;
+
+            match result {
+                WorkflowExecutionResult::Completed(output) => {
+                    state_updater.update_workflow_complete(&output).await;
+                    if let Some(ref cb) = callback {
+                        cb.on_workflow_complete(&task_id, &output, total_duration, total_steps)
+                            .await;
+                    }
+                }
+                WorkflowExecutionResult::Paused { partial_output, .. } => {
+                    info!("Task {} was paused", task_id);
+                    if !partial_output.is_empty() {
+                        // Optionally save partial output
+                    }
+                }
+                WorkflowExecutionResult::Cancelled { .. } => {
+                    info!("Task {} was cancelled", task_id);
+                }
+                WorkflowExecutionResult::Failed { error, .. } => {
+                    state_updater.update_workflow_failed(&error).await;
+                    if let Some(ref cb) = callback {
+                        cb.on_workflow_failed(&task_id, &error, total_duration, total_steps)
+                            .await;
+                    }
+                }
             }
         })
     }
@@ -83,7 +103,6 @@ impl ExecutableTask for NaturalLanguageTask {
     }
 }
 
-/// Task for SKILL.md file execution
 #[derive(Debug)]
 pub(crate) struct SkillMdTask {
     path: String,
@@ -168,10 +187,31 @@ impl ExecutableTask for SkillMdTask {
                 .await;
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;
-            state_updater.update_workflow_complete(&result).await;
-            if let Some(ref cb) = callback {
-                cb.on_workflow_complete(&task_id, &result, total_duration, total_steps)
-                    .await;
+
+            match result {
+                WorkflowExecutionResult::Completed(output) => {
+                    state_updater.update_workflow_complete(&output).await;
+                    if let Some(ref cb) = callback {
+                        cb.on_workflow_complete(&task_id, &output, total_duration, total_steps)
+                            .await;
+                    }
+                }
+                WorkflowExecutionResult::Paused { partial_output, .. } => {
+                    info!("SKILL.md task {} was paused", task_id);
+                    if !partial_output.is_empty() {
+                        // Optionally save partial output
+                    }
+                }
+                WorkflowExecutionResult::Cancelled { .. } => {
+                    info!("SKILL.md task {} was cancelled", task_id);
+                }
+                WorkflowExecutionResult::Failed { error, .. } => {
+                    state_updater.update_workflow_failed(&error).await;
+                    if let Some(ref cb) = callback {
+                        cb.on_workflow_failed(&task_id, &error, total_duration, total_steps)
+                            .await;
+                    }
+                }
             }
         })
     }

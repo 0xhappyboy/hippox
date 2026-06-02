@@ -59,29 +59,59 @@ impl std::fmt::Display for WorkflowMode {
     }
 }
 
+/// Workflow execution result
+#[derive(Debug, Clone)]
+pub enum WorkflowExecutionResult {
+    Completed(String),
+    Paused {
+        checkpoint: Option<String>,
+        completed_steps: usize,
+        partial_output: String,
+    },
+    Cancelled {
+        completed_steps: usize,
+    },
+    Failed {
+        error: String,
+        completed_steps: usize,
+    },
+}
+
+impl WorkflowExecutionResult {
+    pub fn is_completed(&self) -> bool {
+        matches!(self, WorkflowExecutionResult::Completed(_))
+    }
+
+    pub fn is_paused(&self) -> bool {
+        matches!(self, WorkflowExecutionResult::Paused { .. })
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        matches!(self, WorkflowExecutionResult::Cancelled { .. })
+    }
+
+    pub fn final_output(&self) -> Option<&str> {
+        match self {
+            WorkflowExecutionResult::Completed(output) => Some(output),
+            WorkflowExecutionResult::Paused { partial_output, .. } => Some(partial_output),
+            _ => None,
+        }
+    }
+}
+
 /// Step interruption info for callback
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepInterruptionInfo {
-    /// Whether the step was interrupted
     pub interrupted: bool,
-    /// Reason for interruption: "cancelled" or "paused"
     pub reason: String,
-    /// Current step index when interrupted
     pub step_index: usize,
-    /// Step name when interrupted
     pub step_name: String,
-    /// Checkpoint data if available
     pub checkpoint: Option<String>,
 }
 
 /// Workflow execution callback trait
-///
-/// Implement this trait to receive real-time updates about workflow execution.
-/// This is useful for UI updates, logging, or progress reporting.
 #[async_trait]
 pub trait WorkflowCallback: Send + Sync + Debug {
-    /// Called when a step (skill execution) starts
-    /// - parameters: The parameters passed to the skill
     async fn on_step_start(
         &self,
         task_id: &str,
@@ -90,9 +120,6 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         parameters: Option<&HashMap<String, Value>>,
     );
 
-    /// Called when a step completes successfully
-    /// - output: The output from the skill execution
-    /// - duration_ms: How long the step took to execute
     async fn on_step_success(
         &self,
         task_id: &str,
@@ -102,9 +129,6 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         duration_ms: u64,
     );
 
-    /// Called when a step fails
-    /// - error: The error message
-    /// - duration_ms: How long the step took before failing
     async fn on_step_failure(
         &self,
         task_id: &str,
@@ -114,14 +138,8 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         duration_ms: u64,
     );
 
-    /// Called when a step is interrupted (cancelled or paused)
-    /// - info: Interruption information including reason and checkpoint
     async fn on_step_interrupted(&self, task_id: &str, info: &StepInterruptionInfo);
 
-    /// Called when the entire workflow completes successfully
-    /// - final_output: The final result of the workflow
-    /// - total_duration_ms: Total time from start to completion
-    /// - total_steps: Total number of steps executed
     async fn on_workflow_complete(
         &self,
         task_id: &str,
@@ -130,10 +148,6 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         total_steps: usize,
     );
 
-    /// Called when the workflow fails
-    /// - error: The error message
-    /// - total_duration_ms: Total time from start to failure
-    /// - total_steps: Number of steps executed before failure
     async fn on_workflow_failed(
         &self,
         task_id: &str,
@@ -142,9 +156,6 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         total_steps: usize,
     );
 
-    /// Called when the workflow is cancelled
-    /// - total_duration_ms: Total time from start to cancellation
-    /// - total_steps: Number of steps executed before cancellation
     async fn on_workflow_cancelled(
         &self,
         task_id: &str,
@@ -152,10 +163,6 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         total_steps: usize,
     );
 
-    /// Called when the workflow is paused
-    /// - checkpoint: The saved checkpoint data for resume
-    /// - total_duration_ms: Total time from start to pause
-    /// - total_steps: Number of steps executed before pause
     async fn on_workflow_paused(
         &self,
         task_id: &str,
@@ -165,7 +172,6 @@ pub trait WorkflowCallback: Send + Sync + Debug {
     );
 }
 
-/// Helper function to truncate output for display
 pub fn truncate_output(output: &str, max_len: usize) -> String {
     if output.len() <= max_len {
         output.to_string()
@@ -174,12 +180,9 @@ pub fn truncate_output(output: &str, max_len: usize) -> String {
     }
 }
 
-/// Context variable for workflow execution
 #[derive(Debug, Clone)]
 pub struct Workflow {
-    /// Variable store for passing data between steps
     pub variables: HashMap<String, Value>,
-    /// Step results for debugging
     pub step_results: Vec<WorkflowStepResult>,
 }
 
@@ -214,7 +217,6 @@ impl Default for Workflow {
     }
 }
 
-/// Result of a single workflow step
 #[derive(Debug, Clone)]
 pub struct WorkflowStepResult {
     pub step_id: String,
@@ -225,77 +227,55 @@ pub struct WorkflowStepResult {
     pub error: Option<String>,
 }
 
-/// Workflow step definition for Plan-and-Execute mode
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct WorkflowStep {
-    /// Unique identifier for this step (for variable referencing)
     pub id: String,
-    /// Skill to execute
     pub action: String,
-    /// Parameters with potential variable references
     pub parameters: HashMap<String, ValueRef>,
-    /// Condition for execution (optional)
     #[serde(default)]
     pub condition: Option<Condition>,
-    /// Variable name to store output (optional)
     #[serde(default)]
     pub output_as: Option<String>,
-    /// Error handler (optional)
     #[serde(default)]
     pub on_error: Option<ErrorHandler>,
 }
 
-/// Variable reference that can be a literal or reference to previous output
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(untagged)]
 pub enum ValueRef {
-    /// Literal JSON value
     Literal(Value),
-    /// Reference to a variable: {"$ref": "variable_name"}
     Reference(Reference),
-    /// Expression (future extension)
     Expression(Expression),
 }
 
-/// Reference to a variable or step output
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Reference {
     #[serde(rename = "$ref")]
     pub path: String,
 }
 
-/// Expression for dynamic evaluation (placeholder for future)
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Expression {
     #[serde(rename = "$expr")]
     pub expr: String,
 }
 
-/// Conditional execution predicate
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Condition {
-    /// Operation: eq, ne, gt, lt, contains, etc.
     pub op: String,
-    /// Left operand
     pub left: ValueRef,
-    /// Right operand
     pub right: ValueRef,
 }
 
-/// Error handling strategy
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct ErrorHandler {
-    /// Action: fail, skip, retry, fallback
     pub action: String,
-    /// Fallback value or step
     #[serde(default)]
     pub fallback: Option<ValueRef>,
-    /// Maximum retries
     #[serde(default)]
     pub max_retries: Option<u32>,
 }
 
-/// Complete workflow plan
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct WorkflowPlan {
     pub name: Option<String>,
@@ -304,7 +284,6 @@ pub struct WorkflowPlan {
     pub parameters: HashMap<String, Value>,
 }
 
-/// Response from LLM for Plan-and-Execute mode
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct PlanInstruction {
     pub mode: String,
@@ -312,14 +291,12 @@ pub struct PlanInstruction {
     pub message: Option<String>,
 }
 
-/// Execution status for a workflow step
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionStatus {
     Success,
     Failure,
 }
 
-/// Step result for multi-step execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepResult {
     pub skill: String,
@@ -341,22 +318,15 @@ impl StepResult {
     }
 }
 
-/// Checkpoint data for workflow resume
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowCheckpoint {
-    /// Last completed step index
     pub last_completed_step: usize,
-    /// Variables context
     pub variables: HashMap<String, Value>,
-    /// Step results completed so far
     pub completed_results: Vec<StepResult>,
-    /// Current workflow mode
     pub mode: WorkflowMode,
-    /// Additional metadata
     pub metadata: HashMap<String, String>,
 }
 
-/// Internal instruction enum for ReAct mode parsing
 #[derive(Debug)]
 pub enum ReactInstruction {
     Done(String),
@@ -364,7 +334,6 @@ pub enum ReactInstruction {
     Batch(Vec<SkillCall>),
 }
 
-/// Chain plan definition
 #[derive(Debug)]
 pub struct ChainPlan {
     pub steps: Vec<ChainStepDef>,

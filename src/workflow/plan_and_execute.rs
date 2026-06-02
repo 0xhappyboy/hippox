@@ -14,14 +14,12 @@ use super::prompt;
 use super::types::*;
 use super::utils::VARIABLE_REGEX;
 
-/// Parse plan response from LLM
 pub fn parse_plan_response(response: &str) -> anyhow::Result<PlanInstruction> {
     let json_str = WorkflowExecutor::extract_json(response);
     let instruction: PlanInstruction = serde_json::from_str(&json_str)?;
     Ok(instruction)
 }
 
-/// Resolve value reference
 fn resolve_value_ref(value_ref: &ValueRef, context: &Workflow) -> Value {
     match value_ref {
         ValueRef::Literal(value) => value.clone(),
@@ -39,7 +37,6 @@ fn resolve_value_ref(value_ref: &ValueRef, context: &Workflow) -> Value {
     }
 }
 
-/// Resolve variables deep with cached regex
 fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
     if let Some(s) = value.as_str() {
         if s.contains("{{") && s.contains("}}") {
@@ -88,7 +85,6 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
     value.clone()
 }
 
-/// Evaluate condition
 fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
     let left = resolve_value_ref(&condition.left, context);
     let right = resolve_value_ref(&condition.right, context);
@@ -121,7 +117,6 @@ fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
     }
 }
 
-/// Check task status for plan step
 async fn check_step_interruption(
     task_id: Option<&str>,
     callback: &Option<Arc<dyn WorkflowCallback>>,
@@ -129,7 +124,7 @@ async fn check_step_interruption(
     step_name: &str,
     step_index: usize,
     checkpoint: Option<String>,
-) -> Result<bool, String> {
+) -> Result<(), WorkflowExecutionResult> {
     if let Some(tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -144,7 +139,9 @@ async fn check_step_interruption(
                     cb.on_step_interrupted(tid, &info).await;
                     cb.on_workflow_cancelled(tid, 0, step_index).await;
                 }
-                return Err(t!("error.task_cancelled").to_string());
+                return Err(WorkflowExecutionResult::Cancelled {
+                    completed_steps: step_index,
+                });
             }
             if state_updater.is_paused().await {
                 if let Some(ref checkpoint_data) = checkpoint {
@@ -162,14 +159,17 @@ async fn check_step_interruption(
                     cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
                         .await;
                 }
-                return Err(t!("error.task_paused").to_string());
+                return Err(WorkflowExecutionResult::Paused {
+                    checkpoint: checkpoint.clone(),
+                    completed_steps: step_index,
+                    partial_output: String::new(),
+                });
             }
         }
     }
-    Ok(true)
+    Ok(())
 }
 
-/// Execute step with retry
 async fn execute_step_with_retry(
     executor: &WorkflowExecutor,
     skill_name: &str,
@@ -206,7 +206,6 @@ async fn execute_step_with_retry(
     ))
 }
 
-/// Execute workflow plan
 async fn execute_workflow_plan(
     executor: &WorkflowExecutor,
     plan: &WorkflowPlan,
@@ -220,11 +219,10 @@ async fn execute_workflow_plan(
     let mut success_count = 0;
     let mut failed_count = 0;
     for (idx, step) in plan.steps.iter().enumerate() {
-        // Check interruption before each step
         let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
             last_completed_step: idx,
             variables: context.variables.clone(),
-            completed_results: vec![], // Plan mode uses different result type
+            completed_results: vec![],
             mode: WorkflowMode::PlanAndExecute,
             metadata: HashMap::new(),
         })
@@ -240,7 +238,9 @@ async fn execute_workflow_plan(
         .await
         {
             Ok(_) => {}
-            Err(msg) => anyhow::bail!(msg),
+            Err(result) => {
+                return Err(anyhow::anyhow!("{:?}", result));
+            }
         }
 
         if let Some(condition) = &step.condition {
@@ -322,7 +322,6 @@ async fn execute_workflow_plan(
     Ok((final_output, success_count, failed_count))
 }
 
-/// Value ref to value
 fn value_ref_to_value(value_ref: &ValueRef) -> Value {
     match value_ref {
         ValueRef::Literal(value) => value.clone(),
@@ -331,31 +330,33 @@ fn value_ref_to_value(value_ref: &ValueRef) -> Value {
     }
 }
 
-/// Execute plan-and-execute mode workflow
 pub async fn execute_plan_and_execute(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-) -> String {
+) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
 
-    // Check task status before starting
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_cancelled(tid, 0, 0).await;
                 }
-                return t!("error.task_cancelled").to_string();
+                return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_paused(tid, None, 0, 0).await;
                 }
-                return t!("error.task_paused").to_string();
+                return WorkflowExecutionResult::Paused {
+                    checkpoint: None,
+                    completed_steps: 0,
+                    partial_output: String::new(),
+                };
             }
         }
     }
@@ -363,10 +364,14 @@ pub async fn execute_plan_and_execute(
     let plan_prompt = prompt::build_plan_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
         Ok(resp) => resp,
-        Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("{}: {}", t!("error.llm_error"), e),
+                completed_steps: 0,
+            };
+        }
     };
 
-    // Check task status after LLM response
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -374,21 +379,30 @@ pub async fn execute_plan_and_execute(
                     cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
-                return t!("error.task_cancelled").to_string();
+                return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_paused(tid, None, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
-                return t!("error.task_paused").to_string();
+                return WorkflowExecutionResult::Paused {
+                    checkpoint: None,
+                    completed_steps: 0,
+                    partial_output: String::new(),
+                };
             }
         }
     }
 
     let instruction = match parse_plan_response(&llm_response) {
         Ok(instr) => instr,
-        Err(e) => return format!("Failed to parse plan: {}", e),
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("Failed to parse plan: {}", e),
+                completed_steps: 0,
+            };
+        }
     };
     match instruction {
         PlanInstruction {
@@ -406,7 +420,7 @@ pub async fn execute_plan_and_execute(
                             .await;
                     }
                 }
-                return final_msg;
+                return WorkflowExecutionResult::Completed(final_msg);
             }
 
             if let Some(plan) = plan {
@@ -435,7 +449,7 @@ pub async fn execute_plan_and_execute(
                                 }
                             }
                         }
-                        result
+                        WorkflowExecutionResult::Completed(result)
                     }
                     Err(e) => {
                         let total_duration = overall_start.elapsed().as_millis() as u64;
@@ -446,11 +460,14 @@ pub async fn execute_plan_and_execute(
                                     .await;
                             }
                         }
-                        format!("Workflow failed: {}", error_msg)
+                        WorkflowExecutionResult::Failed {
+                            error: format!("Workflow failed: {}", error_msg),
+                            completed_steps: 0,
+                        }
                     }
                 }
             } else {
-                t!("skill.no_actions_executed").to_string()
+                WorkflowExecutionResult::Completed(t!("skill.no_actions_executed").to_string())
             }
         }
     }

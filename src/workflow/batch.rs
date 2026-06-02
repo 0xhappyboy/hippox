@@ -15,7 +15,6 @@ use super::react::parse_react_response;
 use super::types::*;
 use super::utils::format_step_results;
 
-/// Execute batch plan with interruption support
 pub async fn execute_batch_plan(
     executor: &WorkflowExecutor,
     steps: &[SkillCall],
@@ -36,7 +35,6 @@ pub async fn execute_batch_plan(
             }
             if state_updater.is_paused().await {
                 if let Some(cb) = &callback {
-                    // Save checkpoint before pausing
                     let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
                         last_completed_step: 0,
                         variables: HashMap::new(),
@@ -141,14 +139,13 @@ pub async fn execute_batch_plan(
         .collect()
 }
 
-/// Execute batch mode workflow
 pub async fn execute_batch(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-) -> String {
+) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
     if let Some(ref tid) = task_id {
@@ -157,24 +154,35 @@ pub async fn execute_batch(
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_cancelled(tid, 0, 0).await;
                 }
-                return t!("error.task_cancelled").to_string();
+                return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
                 if let Some(cb) = executor.get_callback() {
                     cb.on_workflow_paused(tid, None, 0, 0).await;
                 }
-                return t!("error.task_paused").to_string();
+                return WorkflowExecutionResult::Paused {
+                    checkpoint: None,
+                    completed_steps: 0,
+                    partial_output: String::new(),
+                };
             }
         }
     }
     let batch_prompt = prompt::build_batch_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
         Ok(resp) => resp,
-        Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("{}: {}", t!("error.llm_error"), e),
+                completed_steps: 0,
+            };
+        }
     };
     let instruction = match parse_react_response(&llm_response) {
         Ok(instr) => instr,
-        Err(_) => return llm_response,
+        Err(_) => {
+            return WorkflowExecutionResult::Completed(llm_response);
+        }
     };
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -183,11 +191,10 @@ pub async fn execute_batch(
                     cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
-                return t!("error.task_cancelled").to_string();
+                return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
                 if let Some(cb) = executor.get_callback() {
-                    // Save checkpoint before pausing
                     let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
                         last_completed_step: 0,
                         variables: HashMap::new(),
@@ -207,7 +214,11 @@ pub async fn execute_batch(
                     )
                     .await;
                 }
-                return t!("error.task_paused").to_string();
+                return WorkflowExecutionResult::Paused {
+                    checkpoint: None,
+                    completed_steps: 0,
+                    partial_output: String::new(),
+                };
             }
         }
     }
@@ -227,5 +238,5 @@ pub async fn execute_batch(
                 .await;
         }
     }
-    result
+    WorkflowExecutionResult::Completed(result)
 }

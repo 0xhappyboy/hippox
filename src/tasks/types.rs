@@ -491,9 +491,17 @@ impl TaskPool {
                     true
                 }
                 TaskStatus::Paused => {
-                    task.paused();
-                    self.complete_task(task_id);
-                    true
+                    // Allow pausing both Running and Pending tasks
+                    if (task.status == TaskStatus::Running || task.status == TaskStatus::Pending)
+                        && task.interruptible
+                    {
+                        task.status = TaskStatus::Paused;
+                        // Remove from running and pending queues but DO NOT call complete_task
+                        self.running_tasks.retain(|id| id != task_id);
+                        self.pending_queue.retain(|id| id != task_id);
+                        return true;
+                    }
+                    false
                 }
                 _ => true,
             }
@@ -537,6 +545,7 @@ impl TaskPool {
     pub fn resume_task(&mut self, task_id: &str) -> bool {
         if let Some(task) = self.tasks.get(task_id) {
             if task.status == TaskStatus::Paused {
+                // Re-queue the task
                 self.enqueue_task(task_id);
                 TASK_NOTIFIER.notify_one();
                 return true;

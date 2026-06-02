@@ -15,7 +15,6 @@ use super::prompt;
 use super::types::*;
 use super::utils::format_step_results;
 
-/// Parse ReAct response from LLM
 pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
     let json_str = WorkflowExecutor::extract_json(response);
     let value: Value = serde_json::from_str(&json_str)?;
@@ -42,14 +41,13 @@ pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> 
     anyhow::bail!("Unable to parse LLM response: {}", response)
 }
 
-/// Check task status and handle interruption
 async fn check_task_interruption(
     task_id: Option<&str>,
     callback: &Option<Arc<dyn WorkflowCallback>>,
     step_index: usize,
     step_name: &str,
     checkpoint: Option<String>,
-) -> Result<(), (String, bool)> {
+) -> Result<(), WorkflowExecutionResult> {
     if let Some(tid) = task_id {
         if let Some(cb) = callback {
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -63,10 +61,11 @@ async fn check_task_interruption(
                     };
                     cb.on_step_interrupted(tid, &info).await;
                     cb.on_workflow_cancelled(tid, 0, step_index).await;
-                    return Err(("Task cancelled".to_string(), true));
+                    return Err(WorkflowExecutionResult::Cancelled {
+                        completed_steps: step_index,
+                    });
                 }
                 if state_updater.is_paused().await {
-                    // Save checkpoint before pausing
                     if let Some(ref checkpoint_data) = checkpoint {
                         state_updater.save_checkpoint(checkpoint_data).await;
                     }
@@ -80,7 +79,11 @@ async fn check_task_interruption(
                     cb.on_step_interrupted(tid, &info).await;
                     cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
                         .await;
-                    return Err(("Task paused".to_string(), false));
+                    return Err(WorkflowExecutionResult::Paused {
+                        checkpoint: checkpoint.clone(),
+                        completed_steps: step_index,
+                        partial_output: String::new(),
+                    });
                 }
             }
         }
@@ -88,24 +91,23 @@ async fn check_task_interruption(
     Ok(())
 }
 
-/// Execute ReAct mode workflow
 pub async fn execute_react(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
     skills_registry: &str,
     instances_registry: &str,
-) -> String {
+) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let input_trimmed = input.trim();
     if input_trimmed == "clear" {
-        return t!("app.conversation_cleared").to_string();
+        return WorkflowExecutionResult::Completed(t!("app.conversation_cleared").to_string());
     }
     if input_trimmed == "exit" || input_trimmed == "quit" {
-        return "goodbye".to_string();
+        return WorkflowExecutionResult::Completed("goodbye".to_string());
     }
     if input_trimmed.is_empty() {
-        return String::new();
+        return WorkflowExecutionResult::Completed(String::new());
     }
     let mut step_results: Vec<StepResult> = Vec::new();
     let mut final_response = None;
@@ -119,7 +121,6 @@ pub async fn execute_react(
     while iteration < executor.max_iterations {
         iteration += 1;
 
-        // Check task status before each LLM call
         if let Some(ref tid) = task_id {
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
                 if state_updater.is_cancelled().await {
@@ -131,11 +132,12 @@ pub async fn execute_react(
                         )
                         .await;
                     }
-                    return t!("error.task_cancelled").to_string();
+                    return WorkflowExecutionResult::Cancelled {
+                        completed_steps: step_results.len(),
+                    };
                 }
                 if state_updater.is_paused().await {
                     if let Some(cb) = executor.get_callback() {
-                        // Save checkpoint with current state
                         let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
                             last_completed_step: step_results.len(),
                             variables: HashMap::new(),
@@ -155,19 +157,30 @@ pub async fn execute_react(
                         )
                         .await;
                     }
-                    return t!("error.task_paused").to_string();
+                    return WorkflowExecutionResult::Paused {
+                        checkpoint: None,
+                        completed_steps: step_results.len(),
+                        partial_output: format_step_results(&step_results),
+                    };
                 }
             }
         }
 
         let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
             Ok(resp) => resp,
-            Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
+            Err(e) => {
+                return WorkflowExecutionResult::Failed {
+                    error: format!("{}: {}", t!("error.llm_error"), e),
+                    completed_steps: step_results.len(),
+                };
+            }
         };
         messages.push(ChatMessage::assistant(&llm_response));
         let instruction = match parse_react_response(&llm_response) {
             Ok(instr) => instr,
-            Err(_) => return llm_response,
+            Err(_) => {
+                return WorkflowExecutionResult::Completed(llm_response);
+            }
         };
         match instruction {
             ReactInstruction::Done(message) => {
@@ -179,8 +192,7 @@ pub async fn execute_react(
                 let step_name = call.action.clone();
                 let step_start = Instant::now();
 
-                // Check interruption before step execution
-                if let Err((msg, is_cancelled)) = check_task_interruption(
+                if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_callback(),
                     step_index,
@@ -189,14 +201,9 @@ pub async fn execute_react(
                 )
                 .await
                 {
-                    if is_cancelled {
-                        return msg;
-                    } else {
-                        return msg;
-                    }
+                    return result;
                 }
 
-                // Step start with parameters
                 if let Some(cb) = executor.get_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
@@ -255,8 +262,7 @@ pub async fn execute_react(
                 let step_index = step_results.len();
                 let step_name = format!("batch_{}_steps", steps.len());
 
-                // Check interruption before batch execution
-                if let Err((msg, is_cancelled)) = check_task_interruption(
+                if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_callback(),
                     step_index,
@@ -265,11 +271,7 @@ pub async fn execute_react(
                 )
                 .await
                 {
-                    if is_cancelled {
-                        return msg;
-                    } else {
-                        return msg;
-                    }
+                    return result;
                 }
 
                 let results = execute_batch_plan(executor, &steps).await;
@@ -320,5 +322,5 @@ pub async fn execute_react(
         }
     }
 
-    final_response
+    WorkflowExecutionResult::Completed(final_response)
 }

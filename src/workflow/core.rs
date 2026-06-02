@@ -10,7 +10,6 @@ use crate::executors::Executor;
 use crate::skill_scheduler::SkillScheduler;
 use std::sync::Arc;
 
-/// Workflow executor that handles different execution modes
 #[derive(Debug, Clone)]
 pub(crate) struct WorkflowExecutor {
     pub(crate) mode: WorkflowMode,
@@ -62,14 +61,13 @@ impl WorkflowExecutor {
         &self.callback
     }
 
-    /// Execute workflow with pre-built registries (optimized version)
     pub async fn execute(
         &self,
         scheduler: &SkillScheduler,
         input: &str,
         skills_registry: &str,
         instances_registry: &str,
-    ) -> String {
+    ) -> WorkflowExecutionResult {
         match self.mode {
             WorkflowMode::ReAct => {
                 execute_react(self, scheduler, input, skills_registry, instances_registry).await
@@ -93,7 +91,6 @@ impl WorkflowExecutor {
         }
     }
 
-    /// Execute a SKILL.md workflow file
     pub async fn execute_skill_md(
         &self,
         scheduler: &SkillScheduler,
@@ -101,9 +98,8 @@ impl WorkflowExecutor {
         params: Option<&std::collections::HashMap<String, serde_json::Value>>,
         skills_registry: &str,
         instances_registry: &str,
-    ) -> String {
+    ) -> WorkflowExecutionResult {
         let mut instructions = skill_file.instructions.clone();
-        // Substitute parameters
         if let Some(params) = params {
             for (key, value) in params {
                 let placeholder = format!("{{{{{}}}}}", key);
@@ -164,12 +160,10 @@ impl WorkflowExecutor {
         }
     }
 
-    /// Build ReAct prompt with pre-built registries (delegated to prompt module)
     pub fn build_react_prompt(skills_registry: &str, instances_registry: &str) -> String {
         prompt::build_react_prompt(skills_registry, instances_registry)
     }
 
-    /// Extract JSON from text (helper method)
     pub fn extract_json(text: &str) -> String {
         if let Some(start) = text.find("```json") {
             let after_start = &text[start + 7..];
