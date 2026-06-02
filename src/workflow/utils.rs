@@ -1,16 +1,38 @@
 //! Shared utility functions for workflow execution
 
-use crate::t;
 use super::types::{ExecutionStatus, StepResult};
+use crate::t;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 /// Shared regex for variable resolution
-pub static VARIABLE_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\{\{([^}]+)\}\}").unwrap()
-});
+pub static VARIABLE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\{([^}]+)\}\}").unwrap());
+
+/// Maximum length for output summary (200 characters)
+pub const OUTPUT_SUMMARY_MAX_LEN: usize = 200;
+
+/// Get output summary (truncated for display)
+///
+/// # Arguments
+/// * `output` - The full output string
+///
+/// # Returns
+/// Truncated string if longer than OUTPUT_SUMMARY_MAX_LEN, otherwise the original string
+pub fn get_output_summary(output: &str) -> String {
+    if output.len() <= OUTPUT_SUMMARY_MAX_LEN {
+        output.to_string()
+    } else {
+        format!("{}...", &output[..OUTPUT_SUMMARY_MAX_LEN])
+    }
+}
 
 /// Format step results for output
+///
+/// # Arguments
+/// * `results` - Vector of StepResult
+///
+/// # Returns
+/// Formatted string with step execution summary
 pub fn format_step_results(results: &[StepResult]) -> String {
     if results.is_empty() {
         return t!("skill.no_steps_executed").to_string();
@@ -37,4 +59,44 @@ pub fn format_step_results(results: &[StepResult]) -> String {
         output.push_str(&format!("{} {}: {}\n", marker, i + 1, result.output));
     }
     output
+}
+
+/// Format duration in milliseconds to human-readable string
+///
+/// # Arguments
+/// * `ms` - Duration in milliseconds
+///
+/// # Returns
+/// Formatted string like "1.23s", "456ms", or "<1ms"
+pub fn format_duration(ms: u64) -> String {
+    if ms >= 1000 {
+        format!("{:.2}s", ms as f64 / 1000.0)
+    } else if ms > 0 {
+        format!("{}ms", ms)
+    } else {
+        "<1ms".to_string()
+    }
+}
+
+/// Format parameters for display (JSON string with limited length)
+///
+/// # Arguments
+/// * `params` - Optional parameters map
+///
+/// # Returns
+/// Formatted JSON string or "{}" if None
+pub fn format_parameters(
+    params: Option<&std::collections::HashMap<String, serde_json::Value>>,
+) -> String {
+    match params {
+        Some(p) if !p.is_empty() => {
+            let json_str = serde_json::to_string(p).unwrap_or_else(|_| "{}".to_string());
+            if json_str.len() > 100 {
+                format!("{}...", &json_str[..100])
+            } else {
+                json_str
+            }
+        }
+        _ => "{}".to_string(),
+    }
 }

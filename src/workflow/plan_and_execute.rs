@@ -5,6 +5,7 @@ use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::time::Instant;
 use tracing::info;
 
 use super::core::WorkflowExecutor;
@@ -159,12 +160,15 @@ async fn execute_step_with_retry(
 async fn execute_workflow_plan(
     executor: &WorkflowExecutor,
     plan: &WorkflowPlan,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<(String, usize, usize)> {
     let mut context = Workflow::new();
     for (key, value) in &plan.parameters {
         context.set_variable(key, value.clone());
     }
     let mut string_context = HashMap::new();
+    let mut success_count = 0;
+    let mut failed_count = 0;
+
     for step in &plan.steps {
         if let Some(condition) = &step.condition {
             if !evaluate_condition(condition, &context) {
@@ -172,13 +176,16 @@ async fn execute_workflow_plan(
                 continue;
             }
         }
+
         let mut resolved_params = HashMap::new();
         for (key, value_ref) in &step.parameters {
             let resolved = resolve_value_ref(value_ref, &context);
             let final_resolved = resolve_variables_deep(&resolved, &string_context);
             resolved_params.insert(key.clone(), final_resolved);
         }
+
         let result = execute_step_with_retry(executor, &step.action, resolved_params, step).await;
+
         match result {
             Ok(output) => {
                 if let Some(output_as) = &step.output_as {
@@ -197,6 +204,7 @@ async fn execute_workflow_plan(
                     success: true,
                     error: None,
                 });
+                success_count += 1;
             }
             Err(e) => {
                 if let Some(error_handler) = &step.on_error {
@@ -214,6 +222,7 @@ async fn execute_workflow_plan(
                                 success: false,
                                 error: Some(e.to_string()),
                             });
+                            failed_count += 1;
                             continue;
                         }
                         "fail" => {
@@ -229,11 +238,14 @@ async fn execute_workflow_plan(
             }
         }
     }
-    if let Some(last_result) = context.get_step_results().last() {
-        Ok(last_result.output.clone())
+
+    let final_output = if let Some(last_result) = context.get_step_results().last() {
+        last_result.output.clone()
     } else {
-        Ok(t!("skill.no_steps_executed").to_string())
-    }
+        t!("skill.no_steps_executed").to_string()
+    };
+
+    Ok((final_output, success_count, failed_count))
 }
 
 /// Value ref to value
@@ -253,6 +265,7 @@ pub async fn execute_plan_and_execute(
     skills_registry: &str,
     instances_registry: &str,
 ) -> String {
+    let overall_start = Instant::now();
     let plan_prompt = prompt::build_plan_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
         Ok(resp) => resp,
@@ -270,19 +283,56 @@ pub async fn execute_plan_and_execute(
             message,
         } => {
             if mode == "done" {
-                return message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
+                let total_duration = overall_start.elapsed().as_millis() as u64;
+                let final_msg =
+                    message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
+                if let Some(cb) = executor.get_callback() {
+                    if let Some(ref tid) = task_id {
+                        cb.on_workflow_complete(tid, &final_msg, total_duration, 0)
+                            .await;
+                    }
+                }
+                return final_msg;
             }
 
             if let Some(plan) = plan {
                 match execute_workflow_plan(executor, &plan).await {
-                    Ok(result) => result,
-                    Err(e) => {
+                    Ok((result, success_count, failed_count)) => {
+                        let total_duration = overall_start.elapsed().as_millis() as u64;
+                        let total_steps = success_count + failed_count;
                         if let Some(cb) = executor.get_callback() {
                             if let Some(ref tid) = task_id {
-                                cb.on_workflow_failed(tid, &e.to_string()).await;
+                                if failed_count > 0 {
+                                    cb.on_workflow_failed(
+                                        tid,
+                                        &result,
+                                        total_duration,
+                                        total_steps,
+                                    )
+                                    .await;
+                                } else {
+                                    cb.on_workflow_complete(
+                                        tid,
+                                        &result,
+                                        total_duration,
+                                        total_steps,
+                                    )
+                                    .await;
+                                }
                             }
                         }
-                        format!("Workflow failed: {}", e)
+                        result
+                    }
+                    Err(e) => {
+                        let total_duration = overall_start.elapsed().as_millis() as u64;
+                        let error_msg = e.to_string();
+                        if let Some(cb) = executor.get_callback() {
+                            if let Some(ref tid) = task_id {
+                                cb.on_workflow_failed(tid, &error_msg, total_duration, 0)
+                                    .await;
+                            }
+                        }
+                        format!("Workflow failed: {}", error_msg)
                     }
                 }
             } else {

@@ -6,6 +6,7 @@ use crate::t;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use super::core::WorkflowExecutor;
 use super::prompt;
@@ -104,6 +105,7 @@ pub async fn execute_chain(
     skills_registry: &str,
     instances_registry: &str,
 ) -> String {
+    let overall_start = Instant::now();
     let chain_prompt = prompt::build_chain_prompt(skills_registry, instances_registry, input);
     let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
         Ok(resp) => resp,
@@ -117,27 +119,36 @@ pub async fn execute_chain(
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
     let task_id = executor.get_task_id().map(|s| s.to_string());
+
     for (idx, step) in chain.steps.iter().enumerate() {
         let step_name = step.action.clone();
-        if let Some(cb) = executor.get_callback() {
-            if let Some(ref tid) = task_id {
-                cb.on_step_start(tid, &step_name, idx).await;
-            }
-        }
+        let step_start = Instant::now();
+
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
             let resolved = resolve_variables_deep(value, &context);
             resolved_params.insert(key.clone(), resolved);
         }
+
+        if let Some(cb) = executor.get_callback() {
+            if let Some(ref tid) = task_id {
+                cb.on_step_start(tid, &step_name, idx, Some(&resolved_params))
+                    .await;
+            }
+        }
+
         let call = SkillCall {
             action: step.action.clone(),
             parameters: resolved_params,
         };
+
         match executor.get_executor().execute(&call).await {
             Ok(output) => {
+                let duration = step_start.elapsed().as_millis() as u64;
                 if let Some(cb) = executor.get_callback() {
                     if let Some(ref tid) = task_id {
-                        cb.on_step_success(tid, &step_name, idx, &output).await;
+                        cb.on_step_success(tid, &step_name, idx, &output, duration)
+                            .await;
                     }
                 }
                 if let Some(output_as) = &step.output_as {
@@ -155,10 +166,12 @@ pub async fn execute_chain(
                 });
             }
             Err(e) => {
+                let duration = step_start.elapsed().as_millis() as u64;
                 let error_msg = e.to_string();
                 if let Some(cb) = executor.get_callback() {
                     if let Some(ref tid) = task_id {
-                        cb.on_step_failure(tid, &step_name, idx, &error_msg).await;
+                        cb.on_step_failure(tid, &step_name, idx, &error_msg, duration)
+                            .await;
                     }
                 }
                 results.push(StepResult {
@@ -169,7 +182,9 @@ pub async fn execute_chain(
                 });
                 if let Some(cb) = executor.get_callback() {
                     if let Some(ref tid) = task_id {
-                        cb.on_workflow_failed(tid, &error_msg).await;
+                        let total_duration = overall_start.elapsed().as_millis() as u64;
+                        cb.on_workflow_failed(tid, &error_msg, total_duration, results.len())
+                            .await;
                     }
                 }
                 return format!("Skill '{}' failed: {}", step.action, error_msg);
@@ -178,15 +193,20 @@ pub async fn execute_chain(
     }
 
     let final_output = format_step_results(&results);
+    let total_duration = overall_start.elapsed().as_millis() as u64;
+
     if let Some(cb) = executor.get_callback() {
         if let Some(ref tid) = task_id {
             let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
             if has_failure {
-                cb.on_workflow_failed(tid, &final_output).await;
+                cb.on_workflow_failed(tid, &final_output, total_duration, results.len())
+                    .await;
             } else {
-                cb.on_workflow_complete(tid, &final_output).await;
+                cb.on_workflow_complete(tid, &final_output, total_duration, results.len())
+                    .await;
             }
         }
     }
+
     final_output
 }

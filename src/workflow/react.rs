@@ -6,6 +6,7 @@ use crate::t;
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::time::Instant;
 
 use super::batch::execute_batch_plan;
 use super::core::WorkflowExecutor;
@@ -48,6 +49,7 @@ pub async fn execute_react(
     skills_registry: &str,
     instances_registry: &str,
 ) -> String {
+    let overall_start = Instant::now();
     let input_trimmed = input.trim();
     if input_trimmed == "clear" {
         return t!("app.conversation_cleared").to_string();
@@ -66,6 +68,7 @@ pub async fn execute_react(
     messages.push(ChatMessage::system(&system_prompt));
     messages.push(ChatMessage::user(input_trimmed));
     let task_id = executor.get_task_id().map(|s| s.to_string());
+
     while iteration < executor.max_iterations {
         iteration += 1;
         let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
@@ -85,16 +88,22 @@ pub async fn execute_react(
             ReactInstruction::Single(call) => {
                 let step_index = step_results.len();
                 let step_name = call.action.clone();
+                let step_start = Instant::now();
+
+                // Step start with parameters
                 if let Some(cb) = executor.get_callback() {
                     if let Some(ref tid) = task_id {
-                        cb.on_step_start(tid, &step_name, step_index).await;
+                        cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
+                            .await;
                     }
                 }
+
                 match executor.get_executor().execute(&call).await {
                     Ok(output) => {
+                        let duration = step_start.elapsed().as_millis() as u64;
                         if let Some(cb) = executor.get_callback() {
                             if let Some(ref tid) = task_id {
-                                cb.on_step_success(tid, &step_name, step_index, &output)
+                                cb.on_step_success(tid, &step_name, step_index, &output, duration)
                                     .await;
                             }
                         }
@@ -110,11 +119,14 @@ pub async fn execute_react(
                         )));
                     }
                     Err(e) => {
+                        let duration = step_start.elapsed().as_millis() as u64;
                         let error_msg = e.to_string();
                         if let Some(cb) = executor.get_callback() {
                             if let Some(ref tid) = task_id {
-                                cb.on_step_failure(tid, &step_name, step_index, &error_msg)
-                                    .await;
+                                cb.on_step_failure(
+                                    tid, &step_name, step_index, &error_msg, duration,
+                                )
+                                .await;
                             }
                         }
                         step_results.push(StepResult {
@@ -150,9 +162,12 @@ pub async fn execute_react(
             }
         }
     }
+
     if iteration >= executor.max_iterations {
         final_response = Some(t!("error.max_iterations_reached").to_string());
     }
+
+    let total_duration = overall_start.elapsed().as_millis() as u64;
     let final_response = final_response.unwrap_or_else(|| {
         if step_results.is_empty() {
             t!("skill.no_actions_executed").to_string()
@@ -160,6 +175,7 @@ pub async fn execute_react(
             format_step_results(&step_results)
         }
     });
+
     if let Some(cb) = executor.get_callback() {
         if let Some(ref tid) = task_id {
             let has_failure = step_results
@@ -167,12 +183,16 @@ pub async fn execute_react(
                 .any(|r| r.status == ExecutionStatus::Failure)
                 || final_response.starts_with("Error:")
                 || final_response.contains("failed");
+            let total_steps = step_results.len();
             if has_failure {
-                cb.on_workflow_failed(tid, &final_response).await;
+                cb.on_workflow_failed(tid, &final_response, total_duration, total_steps)
+                    .await;
             } else {
-                cb.on_workflow_complete(tid, &final_response).await;
+                cb.on_workflow_complete(tid, &final_response, total_duration, total_steps)
+                    .await;
             }
         }
     }
+
     final_response
 }

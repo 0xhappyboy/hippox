@@ -65,21 +65,71 @@ impl std::fmt::Display for WorkflowMode {
 #[async_trait]
 pub trait WorkflowCallback: Send + Sync + Debug {
     /// Called when a step (skill execution) starts
-    async fn on_step_start(&self, task_id: &str, step_name: &str, step_index: usize);
+    /// - parameters: The parameters passed to the skill
+    async fn on_step_start(
+        &self,
+        task_id: &str,
+        step_name: &str,
+        step_index: usize,
+        parameters: Option<&HashMap<String, Value>>,
+    );
+
     /// Called when a step completes successfully
+    /// - output: The output from the skill execution
+    /// - duration_ms: How long the step took to execute
     async fn on_step_success(
         &self,
         task_id: &str,
         step_name: &str,
         step_index: usize,
         output: &str,
+        duration_ms: u64,
     );
+
     /// Called when a step fails
-    async fn on_step_failure(&self, task_id: &str, step_name: &str, step_index: usize, error: &str);
+    /// - error: The error message
+    /// - duration_ms: How long the step took before failing
+    async fn on_step_failure(
+        &self,
+        task_id: &str,
+        step_name: &str,
+        step_index: usize,
+        error: &str,
+        duration_ms: u64,
+    );
+
     /// Called when the entire workflow completes successfully
-    async fn on_workflow_complete(&self, task_id: &str, final_output: &str);
+    /// - final_output: The final result of the workflow
+    /// - total_duration_ms: Total time from start to completion
+    /// - total_steps: Total number of steps executed
+    async fn on_workflow_complete(
+        &self,
+        task_id: &str,
+        final_output: &str,
+        total_duration_ms: u64,
+        total_steps: usize,
+    );
+
     /// Called when the workflow fails
-    async fn on_workflow_failed(&self, task_id: &str, error: &str);
+    /// - error: The error message
+    /// - total_duration_ms: Total time from start to failure
+    /// - total_steps: Number of steps executed before failure
+    async fn on_workflow_failed(
+        &self,
+        task_id: &str,
+        error: &str,
+        total_duration_ms: u64,
+        total_steps: usize,
+    );
+}
+
+/// Helper function to truncate output for display
+pub fn truncate_output(output: &str, max_len: usize) -> String {
+    if output.len() <= max_len {
+        output.to_string()
+    } else {
+        format!("{}...", &output[..max_len])
+    }
 }
 
 /// Context variable for workflow execution

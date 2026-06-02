@@ -17,6 +17,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 use tracing::info;
 
 const STARTUP_BANNER: &str = r#"
@@ -84,11 +85,8 @@ impl ExecutableTask for NaturalLanguageTask {
         let skills_registry = self.skills_registry.clone();
         let instances_registry = self.instances_registry.clone();
         let task_id = state_updater.task_id().to_string();
+        let overall_start = Instant::now();
         Box::pin(async move {
-            state_updater.update_step_start("natural_language", 0).await;
-            if let Some(ref cb) = callback {
-                cb.on_step_start(&task_id, "natural_language", 0).await;
-            }
             let mut executor_with_callback = workflow_executor.clone();
             if let Some(ref cb) = callback {
                 executor_with_callback = executor_with_callback.with_callback(cb.clone());
@@ -97,9 +95,12 @@ impl ExecutableTask for NaturalLanguageTask {
             let result = executor_with_callback
                 .execute(&scheduler, &input, &skills_registry, &instances_registry)
                 .await;
+            let total_duration = overall_start.elapsed().as_millis() as u64;
+            let total_steps = 0;
             state_updater.update_workflow_complete(&result).await;
             if let Some(ref cb) = callback {
-                cb.on_workflow_complete(&task_id, &result).await;
+                cb.on_workflow_complete(&task_id, &result, total_duration, total_steps)
+                    .await;
             }
         })
     }
@@ -157,26 +158,27 @@ impl ExecutableTask for SkillMdTask {
         let skills_registry = self.skills_registry.clone();
         let instances_registry = self.instances_registry.clone();
         let task_id = state_updater.task_id().to_string();
+        let overall_start = Instant::now();
         Box::pin(async move {
-            state_updater.update_step_start("skill_md", 0).await;
-            if let Some(ref cb) = callback {
-                cb.on_step_start(&task_id, "skill_md", 0).await;
-            }
             let skill_file = match SkillLoader::load_from_path(&path) {
                 Ok(Some(file)) => file,
                 Ok(None) => {
                     let error_msg = format!("{}: {}", t!("error.skill_not_found"), path);
+                    let total_duration = overall_start.elapsed().as_millis() as u64;
                     state_updater.update_workflow_failed(&error_msg).await;
                     if let Some(ref cb) = callback {
-                        cb.on_workflow_failed(&task_id, &error_msg).await;
+                        cb.on_workflow_failed(&task_id, &error_msg, total_duration, 0)
+                            .await;
                     }
                     return;
                 }
                 Err(e) => {
                     let error_msg = format!("{}: {}", t!("error.load_skill_failed"), e);
+                    let total_duration = overall_start.elapsed().as_millis() as u64;
                     state_updater.update_workflow_failed(&error_msg).await;
                     if let Some(ref cb) = callback {
-                        cb.on_workflow_failed(&task_id, &error_msg).await;
+                        cb.on_workflow_failed(&task_id, &error_msg, total_duration, 0)
+                            .await;
                     }
                     return;
                 }
@@ -195,9 +197,12 @@ impl ExecutableTask for SkillMdTask {
                     &instances_registry,
                 )
                 .await;
+            let total_duration = overall_start.elapsed().as_millis() as u64;
+            let total_steps = 0;
             state_updater.update_workflow_complete(&result).await;
             if let Some(ref cb) = callback {
-                cb.on_workflow_complete(&task_id, &result).await;
+                cb.on_workflow_complete(&task_id, &result, total_duration, total_steps)
+                    .await;
             }
         })
     }
@@ -210,7 +215,6 @@ impl ExecutableTask for SkillMdTask {
         &self.path
     }
 }
-
 /// Core engine for Hippox
 ///
 /// This is the main entry point for the Hippox engine. It handles:
