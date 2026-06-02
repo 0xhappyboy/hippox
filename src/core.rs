@@ -2,6 +2,7 @@ use crate::config::{
     init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file,
 };
 use crate::executors::Executor;
+use crate::executors::skills::task;
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
@@ -85,14 +86,19 @@ impl ExecutableTask for NaturalLanguageTask {
         let task_id = state_updater.task_id().to_string();
         Box::pin(async move {
             state_updater.update_step_start("natural_language", 0).await;
-            if let Some(cb) = &callback {
+            if let Some(ref cb) = callback {
                 cb.on_step_start(&task_id, "natural_language", 0).await;
             }
-            let result = workflow_executor
+            let mut executor_with_callback = workflow_executor.clone();
+            if let Some(ref cb) = callback {
+                executor_with_callback = executor_with_callback.with_callback(cb.clone());
+            }
+            executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
+            let result = executor_with_callback
                 .execute(&scheduler, &input, &skills_registry, &instances_registry)
                 .await;
             state_updater.update_workflow_complete(&result).await;
-            if let Some(cb) = &callback {
+            if let Some(ref cb) = callback {
                 cb.on_workflow_complete(&task_id, &result).await;
             }
         })
@@ -153,7 +159,7 @@ impl ExecutableTask for SkillMdTask {
         let task_id = state_updater.task_id().to_string();
         Box::pin(async move {
             state_updater.update_step_start("skill_md", 0).await;
-            if let Some(cb) = &callback {
+            if let Some(ref cb) = callback {
                 cb.on_step_start(&task_id, "skill_md", 0).await;
             }
             let skill_file = match SkillLoader::load_from_path(&path) {
@@ -161,7 +167,7 @@ impl ExecutableTask for SkillMdTask {
                 Ok(None) => {
                     let error_msg = format!("{}: {}", t!("error.skill_not_found"), path);
                     state_updater.update_workflow_failed(&error_msg).await;
-                    if let Some(cb) = &callback {
+                    if let Some(ref cb) = callback {
                         cb.on_workflow_failed(&task_id, &error_msg).await;
                     }
                     return;
@@ -169,13 +175,18 @@ impl ExecutableTask for SkillMdTask {
                 Err(e) => {
                     let error_msg = format!("{}: {}", t!("error.load_skill_failed"), e);
                     state_updater.update_workflow_failed(&error_msg).await;
-                    if let Some(cb) = &callback {
+                    if let Some(ref cb) = callback {
                         cb.on_workflow_failed(&task_id, &error_msg).await;
                     }
                     return;
                 }
             };
-            let result = workflow_executor
+            let mut executor_with_callback = workflow_executor.clone();
+            if let Some(ref cb) = callback {
+                executor_with_callback = executor_with_callback.with_callback(cb.clone());
+            }
+            executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
+            let result = executor_with_callback
                 .execute_skill_md(
                     &scheduler,
                     &skill_file,
@@ -185,7 +196,7 @@ impl ExecutableTask for SkillMdTask {
                 )
                 .await;
             state_updater.update_workflow_complete(&result).await;
-            if let Some(cb) = &callback {
+            if let Some(ref cb) = callback {
                 cb.on_workflow_complete(&task_id, &result).await;
             }
         })

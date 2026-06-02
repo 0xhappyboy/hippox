@@ -62,7 +62,8 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
         }
         let task_id = {
             let mut pool = task_pool.write().await;
-            pool.next_task()
+            let result = pool.next_task();
+            result
         };
         if let Some(task_id) = task_id {
             // Get the executable task and its callback
@@ -247,7 +248,7 @@ impl Clone for Task {
             timeout_secs: self.timeout_secs,
             interruptible: self.interruptible,
             resume_data: self.resume_data.clone(),
-            executable: None,
+            executable: self.executable.clone(),
             callback: self.callback.clone(),
         }
     }
