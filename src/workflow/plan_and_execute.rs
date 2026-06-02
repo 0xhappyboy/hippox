@@ -262,6 +262,7 @@ pub async fn execute_plan_and_execute(
         Ok(instr) => instr,
         Err(e) => return format!("Failed to parse plan: {}", e),
     };
+    let task_id = executor.get_task_id().map(|s| s.to_string());
     match instruction {
         PlanInstruction {
             mode,
@@ -275,7 +276,14 @@ pub async fn execute_plan_and_execute(
             if let Some(plan) = plan {
                 match execute_workflow_plan(executor, &plan).await {
                     Ok(result) => result,
-                    Err(e) => format!("Workflow failed: {}", e),
+                    Err(e) => {
+                        if let Some(cb) = executor.get_callback() {
+                            if let Some(ref tid) = task_id {
+                                cb.on_workflow_failed(tid, &e.to_string()).await;
+                            }
+                        }
+                        format!("Workflow failed: {}", e)
+                    }
                 }
             } else {
                 t!("skill.no_actions_executed").to_string()

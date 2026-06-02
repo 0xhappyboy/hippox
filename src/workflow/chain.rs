@@ -116,10 +116,13 @@ pub async fn execute_chain(
     let mut context = HashMap::new();
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
     for (idx, step) in chain.steps.iter().enumerate() {
         let step_name = step.action.clone();
         if let Some(cb) = executor.get_callback() {
-            cb.on_step_start(&step_name, idx).await;
+            if let Some(ref tid) = task_id {
+                cb.on_step_start(tid, &step_name, idx).await;
+            }
         }
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
@@ -133,7 +136,9 @@ pub async fn execute_chain(
         match executor.get_executor().execute(&call).await {
             Ok(output) => {
                 if let Some(cb) = executor.get_callback() {
-                    cb.on_step_success(&step_name, idx, &output).await;
+                    if let Some(ref tid) = task_id {
+                        cb.on_step_success(tid, &step_name, idx, &output).await;
+                    }
                 }
                 if let Some(output_as) = &step.output_as {
                     if let Ok(num) = output.parse::<f64>() {
@@ -152,7 +157,9 @@ pub async fn execute_chain(
             Err(e) => {
                 let error_msg = e.to_string();
                 if let Some(cb) = executor.get_callback() {
-                    cb.on_step_failure(&step_name, idx, &error_msg).await;
+                    if let Some(ref tid) = task_id {
+                        cb.on_step_failure(tid, &step_name, idx, &error_msg).await;
+                    }
                 }
                 results.push(StepResult {
                     skill: step.action.clone(),
@@ -161,7 +168,9 @@ pub async fn execute_chain(
                     status: ExecutionStatus::Failure,
                 });
                 if let Some(cb) = executor.get_callback() {
-                    cb.on_workflow_failed(&error_msg).await;
+                    if let Some(ref tid) = task_id {
+                        cb.on_workflow_failed(tid, &error_msg).await;
+                    }
                 }
                 return format!("Skill '{}' failed: {}", step.action, error_msg);
             }
@@ -170,11 +179,13 @@ pub async fn execute_chain(
 
     let final_output = format_step_results(&results);
     if let Some(cb) = executor.get_callback() {
-        let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
-        if has_failure {
-            cb.on_workflow_failed(&final_output).await;
-        } else {
-            cb.on_workflow_complete(&final_output).await;
+        if let Some(ref tid) = task_id {
+            let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
+            if has_failure {
+                cb.on_workflow_failed(tid, &final_output).await;
+            } else {
+                cb.on_workflow_complete(tid, &final_output).await;
+            }
         }
     }
     final_output

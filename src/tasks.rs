@@ -438,6 +438,10 @@ impl TaskStateUpdater {
         Self { task_id, task_pool }
     }
 
+    pub fn task_id(&self) -> &str {
+        &self.task_id
+    }
+
     /// Update step start in internal state
     pub async fn update_step_start(&self, step_name: &str, step_index: usize) {
         let mut pool = self.task_pool.write().await;

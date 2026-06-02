@@ -17,6 +17,7 @@ pub(crate) struct WorkflowExecutor {
     pub(crate) executor: Executor,
     pub(crate) max_iterations: usize,
     pub(crate) callback: Option<Arc<dyn WorkflowCallback>>,
+    pub(crate) task_id: Option<String>,
 }
 
 impl WorkflowExecutor {
@@ -26,7 +27,17 @@ impl WorkflowExecutor {
             executor: Executor::new(),
             max_iterations: 10,
             callback: None,
+            task_id: None,
         }
+    }
+
+    pub fn with_task_id(mut self, task_id: String) -> Self {
+        self.task_id = Some(task_id);
+        self
+    }
+
+    pub fn get_task_id(&self) -> Option<&str> {
+        self.task_id.as_deref()
     }
 
     pub fn with_callback(mut self, callback: Arc<dyn WorkflowCallback>) -> Self {

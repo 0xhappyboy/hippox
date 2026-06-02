@@ -65,15 +65,21 @@ impl std::fmt::Display for WorkflowMode {
 #[async_trait]
 pub trait WorkflowCallback: Send + Sync + Debug {
     /// Called when a step (skill execution) starts
-    async fn on_step_start(&self, step_name: &str, step_index: usize);
+    async fn on_step_start(&self, task_id: &str, step_name: &str, step_index: usize);
     /// Called when a step completes successfully
-    async fn on_step_success(&self, step_name: &str, step_index: usize, output: &str);
+    async fn on_step_success(
+        &self,
+        task_id: &str,
+        step_name: &str,
+        step_index: usize,
+        output: &str,
+    );
     /// Called when a step fails
-    async fn on_step_failure(&self, step_name: &str, step_index: usize, error: &str);
+    async fn on_step_failure(&self, task_id: &str, step_name: &str, step_index: usize, error: &str);
     /// Called when the entire workflow completes successfully
-    async fn on_workflow_complete(&self, final_output: &str);
+    async fn on_workflow_complete(&self, task_id: &str, final_output: &str);
     /// Called when the workflow fails
-    async fn on_workflow_failed(&self, error: &str);
+    async fn on_workflow_failed(&self, task_id: &str, error: &str);
 }
 
 /// Context variable for workflow execution

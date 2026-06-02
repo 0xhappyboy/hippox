@@ -24,19 +24,25 @@ pub async fn execute_batch_plan(
     }
     let callback = executor.get_callback().clone();
     let executor_clone = executor.get_executor().clone();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
     let futures = steps.iter().enumerate().map(|(idx, step)| {
         let step = step.clone();
         let executor = executor_clone.clone();
         let callback = callback.clone();
+        let task_id = task_id.clone();
         tokio::spawn(async move {
             let step_name = step.action.clone();
             if let Some(cb) = &callback {
-                cb.on_step_start(&step_name, idx).await;
+                if let Some(ref tid) = task_id {
+                    cb.on_step_start(tid, &step_name, idx).await;
+                }
             }
             match executor.execute(&step).await {
                 Ok(output) => {
                     if let Some(cb) = &callback {
-                        cb.on_step_success(&step_name, idx, &output).await;
+                        if let Some(ref tid) = task_id {
+                            cb.on_step_success(tid, &step_name, idx, &output).await;
+                        }
                     }
                     Some(StepResult {
                         skill: step.action.clone(),
@@ -48,7 +54,9 @@ pub async fn execute_batch_plan(
                 Err(e) => {
                     let error_msg = format!("Failed: {}", e);
                     if let Some(cb) = &callback {
-                        cb.on_step_failure(&step_name, idx, &error_msg).await;
+                        if let Some(ref tid) = task_id {
+                            cb.on_step_failure(tid, &step_name, idx, &error_msg).await;
+                        }
                     }
                     Some(StepResult {
                         skill: step.action.clone(),

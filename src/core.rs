@@ -82,17 +82,18 @@ impl ExecutableTask for NaturalLanguageTask {
         let scheduler = self.scheduler.clone();
         let skills_registry = self.skills_registry.clone();
         let instances_registry = self.instances_registry.clone();
+        let task_id = state_updater.task_id().to_string();
         Box::pin(async move {
             state_updater.update_step_start("natural_language", 0).await;
             if let Some(cb) = &callback {
-                cb.on_step_start("natural_language", 0).await;
+                cb.on_step_start(&task_id, "natural_language", 0).await;
             }
             let result = workflow_executor
                 .execute(&scheduler, &input, &skills_registry, &instances_registry)
                 .await;
             state_updater.update_workflow_complete(&result).await;
             if let Some(cb) = &callback {
-                cb.on_workflow_complete(&result).await;
+                cb.on_workflow_complete(&task_id, &result).await;
             }
         })
     }
@@ -149,10 +150,11 @@ impl ExecutableTask for SkillMdTask {
         let scheduler = self.scheduler.clone();
         let skills_registry = self.skills_registry.clone();
         let instances_registry = self.instances_registry.clone();
+        let task_id = state_updater.task_id().to_string();
         Box::pin(async move {
             state_updater.update_step_start("skill_md", 0).await;
             if let Some(cb) = &callback {
-                cb.on_step_start("skill_md", 0).await;
+                cb.on_step_start(&task_id, "skill_md", 0).await;
             }
             let skill_file = match SkillLoader::load_from_path(&path) {
                 Ok(Some(file)) => file,
@@ -160,7 +162,7 @@ impl ExecutableTask for SkillMdTask {
                     let error_msg = format!("{}: {}", t!("error.skill_not_found"), path);
                     state_updater.update_workflow_failed(&error_msg).await;
                     if let Some(cb) = &callback {
-                        cb.on_workflow_failed(&error_msg).await;
+                        cb.on_workflow_failed(&task_id, &error_msg).await;
                     }
                     return;
                 }
@@ -168,7 +170,7 @@ impl ExecutableTask for SkillMdTask {
                     let error_msg = format!("{}: {}", t!("error.load_skill_failed"), e);
                     state_updater.update_workflow_failed(&error_msg).await;
                     if let Some(cb) = &callback {
-                        cb.on_workflow_failed(&error_msg).await;
+                        cb.on_workflow_failed(&task_id, &error_msg).await;
                     }
                     return;
                 }
@@ -184,7 +186,7 @@ impl ExecutableTask for SkillMdTask {
                 .await;
             state_updater.update_workflow_complete(&result).await;
             if let Some(cb) = &callback {
-                cb.on_workflow_complete(&result).await;
+                cb.on_workflow_complete(&task_id, &result).await;
             }
         })
     }
@@ -556,6 +558,115 @@ impl Hippox {
             .into_iter()
             .map(|(path, params, callback)| self.handle_skill_md(&path, params, callback))
             .collect()
+    }
+
+    /// Execute natural language directly without task pool, returning the result asynchronously.
+    pub async fn direct_handle_natural_language(
+        &self,
+        input: &str,
+        callback: Option<Arc<dyn WorkflowCallback>>,
+    ) -> String {
+        let mut executor = self.workflow_executor.clone();
+        if let Some(cb) = callback {
+            executor = executor.with_callback(cb);
+        }
+        let skills_registry = self.get_skills_registry();
+        let instances_registry = self.get_instances_registry();
+        executor
+            .execute(
+                &self.scheduler,
+                input,
+                &skills_registry,
+                &instances_registry,
+            )
+            .await
+    }
+
+    /// Execute multiple natural language tasks directly without task pool.
+    pub async fn direct_handle_natural_language_batch(
+        &self,
+        inputs: Vec<(String, Option<Arc<dyn WorkflowCallback>>)>,
+    ) -> Vec<String> {
+        let mut results = Vec::new();
+        for (input, callback) in inputs {
+            let result = self.direct_handle_natural_language(&input, callback).await;
+            results.push(result);
+        }
+        results
+    }
+
+    /// Execute SKILL.md directly without task pool, returning the result asynchronously.
+    pub async fn direct_handle_skill_md(
+        &self,
+        skill_md_path: &str,
+        params: Option<HashMap<String, Value>>,
+        callback: Option<Arc<dyn WorkflowCallback>>,
+    ) -> String {
+        let skill_file = match SkillLoader::load_from_path(skill_md_path) {
+            Ok(Some(file)) => file,
+            Ok(None) => {
+                return format!("{}: {}", t!("error.skill_not_found"), skill_md_path);
+            }
+            Err(e) => {
+                return format!("{}: {}", t!("error.load_skill_failed"), e);
+            }
+        };
+        info!(
+            "Executing SKILL.md directly (no task pool): {} with workflow mode: {}",
+            skill_file.name, self.workflow_mode
+        );
+        let skills_registry = self.get_skills_registry();
+        let instances_registry = self.get_instances_registry();
+        let mut executor = self.workflow_executor.clone();
+        if let Some(cb) = callback {
+            executor = executor.with_callback(cb);
+        }
+        executor
+            .execute_skill_md(
+                &self.scheduler,
+                &skill_file,
+                params.as_ref(),
+                &skills_registry,
+                &instances_registry,
+            )
+            .await
+    }
+
+    /// Execute multiple SKILL.md tasks directly without task pool.
+    pub async fn direct_handle_skill_md_batch(
+        &self,
+        tasks: Vec<(
+            String,
+            Option<HashMap<String, Value>>,
+            Option<Arc<dyn WorkflowCallback>>,
+        )>,
+    ) -> Vec<String> {
+        if tasks.is_empty() {
+            return Vec::new();
+        }
+        info!(
+            "Executing {} SKILL.md files directly (no task pool) with workflow mode: {:?}",
+            tasks.len(),
+            self.workflow_mode
+        );
+        let mut handles = Vec::new();
+        for (skill_md_path, params, callback) in tasks {
+            let self_clone = self.clone();
+            let handle = tokio::spawn(async move {
+                self_clone
+                    .direct_handle_skill_md(&skill_md_path, params, callback)
+                    .await
+            });
+            handles.push(handle);
+        }
+        let mut results = Vec::with_capacity(handles.len());
+        for handle in handles {
+            match handle.await {
+                Ok(result) => results.push(result),
+                Err(e) => results.push(format!("{}: {}", t!("error.task_panic"), e)),
+            }
+        }
+        results
     }
 
     /// Get task status by ID

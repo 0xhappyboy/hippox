@@ -65,9 +65,9 @@ pub async fn execute_react(
     let system_prompt = prompt::build_react_prompt(skills_registry, instances_registry);
     messages.push(ChatMessage::system(&system_prompt));
     messages.push(ChatMessage::user(input_trimmed));
+    let task_id = executor.get_task_id().map(|s| s.to_string());
     while iteration < executor.max_iterations {
         iteration += 1;
-        // Clone messages for the call (required by the API)
         let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
             Ok(resp) => resp,
             Err(e) => return format!("{}: {}", t!("error.llm_error"), e),
@@ -86,12 +86,17 @@ pub async fn execute_react(
                 let step_index = step_results.len();
                 let step_name = call.action.clone();
                 if let Some(cb) = executor.get_callback() {
-                    cb.on_step_start(&step_name, step_index).await;
+                    if let Some(ref tid) = task_id {
+                        cb.on_step_start(tid, &step_name, step_index).await;
+                    }
                 }
                 match executor.get_executor().execute(&call).await {
                     Ok(output) => {
                         if let Some(cb) = executor.get_callback() {
-                            cb.on_step_success(&step_name, step_index, &output).await;
+                            if let Some(ref tid) = task_id {
+                                cb.on_step_success(tid, &step_name, step_index, &output)
+                                    .await;
+                            }
                         }
                         step_results.push(StepResult {
                             skill: call.action.clone(),
@@ -107,7 +112,10 @@ pub async fn execute_react(
                     Err(e) => {
                         let error_msg = e.to_string();
                         if let Some(cb) = executor.get_callback() {
-                            cb.on_step_failure(&step_name, step_index, &error_msg).await;
+                            if let Some(ref tid) = task_id {
+                                cb.on_step_failure(tid, &step_name, step_index, &error_msg)
+                                    .await;
+                            }
                         }
                         step_results.push(StepResult {
                             skill: call.action.clone(),
@@ -153,16 +161,17 @@ pub async fn execute_react(
         }
     });
     if let Some(cb) = executor.get_callback() {
-        let has_failure = step_results
-            .iter()
-            .any(|r| r.status == ExecutionStatus::Failure)
-            || final_response.starts_with("Error:")
-            || final_response.contains("failed");
-
-        if has_failure {
-            cb.on_workflow_failed(&final_response).await;
-        } else {
-            cb.on_workflow_complete(&final_response).await;
+        if let Some(ref tid) = task_id {
+            let has_failure = step_results
+                .iter()
+                .any(|r| r.status == ExecutionStatus::Failure)
+                || final_response.starts_with("Error:")
+                || final_response.contains("failed");
+            if has_failure {
+                cb.on_workflow_failed(tid, &final_response).await;
+            } else {
+                cb.on_workflow_complete(tid, &final_response).await;
+            }
         }
     }
     final_response
