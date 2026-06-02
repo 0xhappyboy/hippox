@@ -4,9 +4,9 @@ use crate::config::{
 use crate::executors::Executor;
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
-use crate::tasks::{self, ExecutableTask, StepCallback, TaskStatus};
+use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutor, WorkflowMode};
-use crate::{HippoxConfig, i18n};
+use crate::{HippoxConfig, TaskStateUpdater, i18n};
 use crate::{get_config, t};
 use langhub::LLMClient;
 use langhub::types::ModelProvider;
@@ -74,20 +74,26 @@ impl NaturalLanguageTask {
 impl ExecutableTask for NaturalLanguageTask {
     fn execute(
         &self,
-        step_callback: StepCallback,
+        state_updater: TaskStateUpdater,
+        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let input = self.input.clone();
         let workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
         let skills_registry = self.skills_registry.clone();
         let instances_registry = self.instances_registry.clone();
-
         Box::pin(async move {
-            step_callback.on_step_start("natural_language", 0).await;
+            state_updater.update_step_start("natural_language", 0).await;
+            if let Some(cb) = &callback {
+                cb.on_step_start("natural_language", 0).await;
+            }
             let result = workflow_executor
                 .execute(&scheduler, &input, &skills_registry, &instances_registry)
                 .await;
-            step_callback.on_workflow_complete(&result).await;
+            state_updater.update_workflow_complete(&result).await;
+            if let Some(cb) = &callback {
+                cb.on_workflow_complete(&result).await;
+            }
         })
     }
 
@@ -134,7 +140,8 @@ impl SkillMdTask {
 impl ExecutableTask for SkillMdTask {
     fn execute(
         &self,
-        step_callback: StepCallback,
+        state_updater: TaskStateUpdater,
+        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let path = self.path.clone();
         let params = self.params.clone();
@@ -142,24 +149,30 @@ impl ExecutableTask for SkillMdTask {
         let scheduler = self.scheduler.clone();
         let skills_registry = self.skills_registry.clone();
         let instances_registry = self.instances_registry.clone();
-
         Box::pin(async move {
-            step_callback.on_step_start("skill_md", 0).await;
-
+            state_updater.update_step_start("skill_md", 0).await;
+            if let Some(cb) = &callback {
+                cb.on_step_start("skill_md", 0).await;
+            }
             let skill_file = match SkillLoader::load_from_path(&path) {
                 Ok(Some(file)) => file,
                 Ok(None) => {
                     let error_msg = format!("{}: {}", t!("error.skill_not_found"), path);
-                    step_callback.on_workflow_failed(&error_msg).await;
+                    state_updater.update_workflow_failed(&error_msg).await;
+                    if let Some(cb) = &callback {
+                        cb.on_workflow_failed(&error_msg).await;
+                    }
                     return;
                 }
                 Err(e) => {
                     let error_msg = format!("{}: {}", t!("error.load_skill_failed"), e);
-                    step_callback.on_workflow_failed(&error_msg).await;
+                    state_updater.update_workflow_failed(&error_msg).await;
+                    if let Some(cb) = &callback {
+                        cb.on_workflow_failed(&error_msg).await;
+                    }
                     return;
                 }
             };
-
             let result = workflow_executor
                 .execute_skill_md(
                     &scheduler,
@@ -169,8 +182,10 @@ impl ExecutableTask for SkillMdTask {
                     &instances_registry,
                 )
                 .await;
-
-            step_callback.on_workflow_complete(&result).await;
+            state_updater.update_workflow_complete(&result).await;
+            if let Some(cb) = &callback {
+                cb.on_workflow_complete(&result).await;
+            }
         })
     }
 
@@ -443,12 +458,10 @@ impl Hippox {
     pub fn handle_natural_language(
         &self,
         input: &str,
-        _session_id: Option<&str>,
-        _callback: Option<Arc<dyn WorkflowCallback>>,
+        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
         let skills_registry = self.get_skills_registry();
         let instances_registry = self.get_instances_registry();
-
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
             self.workflow_executor.clone(),
@@ -456,13 +469,12 @@ impl Hippox {
             skills_registry,
             instances_registry,
         ));
-
         let task_id = futures::executor::block_on(tasks::create_task_with_executable(
             "natural_language".to_string(),
             input.to_string(),
             executable,
+            callback,
         ));
-
         info!(
             "Created natural language task: {} with input: {}",
             task_id, input
@@ -483,9 +495,7 @@ impl Hippox {
     ) -> Vec<String> {
         inputs
             .into_iter()
-            .map(|(input, session_id, callback)| {
-                self.handle_natural_language(&input, session_id.as_deref(), callback)
-            })
+            .map(|(input, session_id, callback)| self.handle_natural_language(&input, callback))
             .collect()
     }
 
@@ -502,11 +512,10 @@ impl Hippox {
         &self,
         skill_md_path: &str,
         params: Option<HashMap<String, Value>>,
-        _callback: Option<Arc<dyn WorkflowCallback>>,
+        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
         let skills_registry = self.get_skills_registry();
         let instances_registry = self.get_instances_registry();
-
         let executable = Arc::new(SkillMdTask::new(
             skill_md_path.to_string(),
             params,
@@ -515,13 +524,12 @@ impl Hippox {
             skills_registry,
             instances_registry,
         ));
-
         let task_id = futures::executor::block_on(tasks::create_task_with_executable(
             "skill_md".to_string(),
             skill_md_path.to_string(),
             executable,
+            callback,
         ));
-
         info!(
             "Created SKILL.md task: {} for path: {}",
             task_id, skill_md_path

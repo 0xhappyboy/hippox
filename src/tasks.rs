@@ -13,8 +13,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::{Mutex, Notify, RwLock};
+use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
+
+use crate::workflow::WorkflowCallback;
 
 /// Maximum number of concurrent tasks allowed
 const MAX_CONCURRENT_TASKS: usize = 10;
@@ -25,11 +27,8 @@ const MAX_HISTORY_TASKS: usize = 100;
 /// Global static task pool (auto-initialized at program start)
 pub static TASK_POOL: Lazy<Arc<RwLock<TaskPool>>> = Lazy::new(|| {
     let pool = Arc::new(RwLock::new(TaskPool::new()));
-    // Start the execution engine automatically
     let pool_clone = pool.clone();
-    tokio::spawn(async move {
-        start_execution_engine(pool_clone);
-    });
+    start_execution_engine(pool_clone);
     pool
 });
 
@@ -55,32 +54,34 @@ fn start_execution_engine(pool: Arc<RwLock<TaskPool>>) {
 /// Background execution engine - runs automatically when the static variable is initialized
 async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
     loop {
-        // Check if engine is shutting down
         {
             let pool = task_pool.read().await;
             if pool.is_shutdown() {
                 break;
             }
         }
-
-        // Get the next task to execute
         let task_id = {
             let mut pool = task_pool.write().await;
             pool.next_task()
         };
-
         if let Some(task_id) = task_id {
-            // Get the executable task
-            let executable = {
+            // Get the executable task and its callback
+            let (executable, callback) = {
                 let pool = task_pool.read().await;
-                pool.get_task(&task_id).and_then(|t| t.get_executable())
+                if let Some(task) = pool.get_task(&task_id) {
+                    if let Some(executable) = task.get_executable() {
+                        (Some(executable), task.callback.clone())
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
             };
-
             if let Some(executable_task) = executable {
-                let step_callback = StepCallback::new(task_id.clone());
-                executable_task.execute(step_callback).await;
+                let state_updater = TaskStateUpdater::new(task_id.clone(), task_pool.clone());
+                executable_task.execute(state_updater, callback).await;
             } else {
-                // No executable found, mark task as failed
                 let mut pool = task_pool.write().await;
                 if let Some(task) = pool.get_task_mut(&task_id) {
                     task.failed("No executable associated with task".to_string());
@@ -88,7 +89,6 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
                 pool.complete_task(&task_id);
             }
         } else {
-            // No tasks to execute, wait for notification
             TASK_NOTIFIER.notified().await;
         }
     }
@@ -194,11 +194,16 @@ impl StepResult {
 
 /// Task trait - each task must implement this to be executable
 pub trait ExecutableTask: Send + Sync + Debug {
-    /// Execute the task with the given step callback
-    fn execute(&self, step_callback: StepCallback)
-    -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+    /// Execute the task with the given state updater and external callback
+    fn execute(
+        &self,
+        state_updater: TaskStateUpdater,
+        callback: Option<Arc<dyn WorkflowCallback>>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+
     /// Get the task type identifier
     fn task_type(&self) -> &str;
+
     /// Get the input for the task
     fn input(&self) -> &str;
 }
@@ -221,6 +226,7 @@ pub struct Task {
     pub interruptible: bool,
     pub resume_data: Option<String>,
     executable: Option<Arc<dyn ExecutableTask>>,
+    pub callback: Option<Arc<dyn WorkflowCallback>>,
 }
 
 impl Clone for Task {
@@ -241,7 +247,8 @@ impl Clone for Task {
             timeout_secs: self.timeout_secs,
             interruptible: self.interruptible,
             resume_data: self.resume_data.clone(),
-            executable: None, // Skip cloning executable
+            executable: None,
+            callback: self.callback.clone(),
         }
     }
 }
@@ -265,6 +272,7 @@ impl Debug for Task {
             .field("interruptible", &self.interruptible)
             .field("resume_data", &self.resume_data)
             .field("executable", &"<skipped>")
+            .field("callback", &self.callback.as_ref().map(|_| "<callback>"))
             .finish()
     }
 }
@@ -289,6 +297,7 @@ impl Task {
             interruptible: true,
             resume_data: None,
             executable: None,
+            callback: None,
         }
     }
 
@@ -296,6 +305,11 @@ impl Task {
         self.task_type = executable.task_type().to_string();
         self.input = executable.input().to_string();
         self.executable = Some(executable);
+        self
+    }
+
+    pub fn with_callback(mut self, callback: Option<Arc<dyn WorkflowCallback>>) -> Self {
+        self.callback = callback;
         self
     }
 
@@ -412,20 +426,21 @@ impl Task {
     }
 }
 
-/// Step callback for tracking step execution progress
+/// Task state updater - updates internal task pool state
 #[derive(Clone)]
-pub struct StepCallback {
+pub struct TaskStateUpdater {
     task_id: String,
+    task_pool: Arc<RwLock<TaskPool>>,
 }
 
-impl StepCallback {
-    pub fn new(task_id: String) -> Self {
-        Self { task_id }
+impl TaskStateUpdater {
+    pub fn new(task_id: String, task_pool: Arc<RwLock<TaskPool>>) -> Self {
+        Self { task_id, task_pool }
     }
 
-    /// Called when a step starts
-    pub async fn on_step_start(&self, step_name: &str, step_index: usize) {
-        let mut pool = TASK_POOL.write().await;
+    /// Update step start in internal state
+    pub async fn update_step_start(&self, step_name: &str, step_index: usize) {
+        let mut pool = self.task_pool.write().await;
         if let Some(task) = pool.get_task_mut(&self.task_id) {
             if step_index < task.steps.len() {
                 task.steps[step_index].started();
@@ -440,9 +455,9 @@ impl StepCallback {
         }
     }
 
-    /// Called when a step completes successfully
-    pub async fn on_step_success(&self, step_name: &str, step_index: usize, output: &str) {
-        let mut pool = TASK_POOL.write().await;
+    /// Update step success in internal state
+    pub async fn update_step_success(&self, step_name: &str, step_index: usize, output: &str) {
+        let mut pool = self.task_pool.write().await;
         if let Some(task) = pool.get_task_mut(&self.task_id) {
             if step_index < task.steps.len() {
                 task.steps[step_index].completed(output.to_string());
@@ -457,9 +472,9 @@ impl StepCallback {
         }
     }
 
-    /// Called when a step fails
-    pub async fn on_step_failure(&self, step_name: &str, step_index: usize, error: &str) {
-        let mut pool = TASK_POOL.write().await;
+    /// Update step failure in internal state
+    pub async fn update_step_failure(&self, step_name: &str, step_index: usize, error: &str) {
+        let mut pool = self.task_pool.write().await;
         if let Some(task) = pool.get_task_mut(&self.task_id) {
             if step_index < task.steps.len() {
                 task.steps[step_index].failed(error.to_string());
@@ -474,17 +489,17 @@ impl StepCallback {
         }
     }
 
-    /// Called when the entire workflow completes
-    pub async fn on_workflow_complete(&self, final_output: &str) {
-        let mut pool = TASK_POOL.write().await;
+    /// Update workflow completion in internal state
+    pub async fn update_workflow_complete(&self, final_output: &str) {
+        let mut pool = self.task_pool.write().await;
         if let Some(task) = pool.get_task_mut(&self.task_id) {
             task.completed(final_output.to_string());
         }
     }
 
-    /// Called when the workflow fails
-    pub async fn on_workflow_failed(&self, error: &str) {
-        let mut pool = TASK_POOL.write().await;
+    /// Update workflow failure in internal state
+    pub async fn update_workflow_failed(&self, error: &str) {
+        let mut pool = self.task_pool.write().await;
         if let Some(task) = pool.get_task_mut(&self.task_id) {
             task.failed(error.to_string());
         }
@@ -541,14 +556,17 @@ impl TaskPool {
         task_id
     }
 
-    /// Create and register a new task with executable
+    /// Create and register a new task with executable and callback
     pub fn create_task_with_executable(
         &mut self,
         task_type: String,
         input: String,
         executable: Arc<dyn ExecutableTask>,
+        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let task = Task::new(task_type, input).with_executable(executable);
+        let task = Task::new(task_type, input)
+            .with_executable(executable)
+            .with_callback(callback);
         let task_id = task.id.clone();
         self.task_counter.fetch_add(1, Ordering::Relaxed);
         self.tasks.insert(task_id.clone(), task);
@@ -738,14 +756,15 @@ pub async fn create_task(task_type: String, input: String) -> String {
     pool.create_task(task_type, input)
 }
 
-/// Create a new task with executable
+/// Create a new task with executable and callback
 pub async fn create_task_with_executable(
     task_type: String,
     input: String,
     executable: Arc<dyn ExecutableTask>,
+    callback: Option<Arc<dyn WorkflowCallback>>,
 ) -> String {
     let mut pool = TASK_POOL.write().await;
-    pool.create_task_with_executable(task_type, input, executable)
+    pool.create_task_with_executable(task_type, input, executable, callback)
 }
 
 /// Get task by ID
