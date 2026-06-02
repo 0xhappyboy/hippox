@@ -1,220 +1,24 @@
-use crate::config::{
-    init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file,
-};
+//! Main Hippox core implementation
+
+use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tracing::info;
+
+use langhub::LLMClient;
+use langhub::types::ModelProvider;
+
+use crate::core::registry::{generate_instances_registry, generate_skills_registry};
+use crate::core::tasks::{NaturalLanguageTask, SkillMdTask};
+use crate::core::welcome::generate_welcome_message;
 use crate::executors::Executor;
-use crate::executors::skills::task;
+use crate::{ConfigInitMethod, HippoxConfig, get_config, i18n, init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file, t};
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutor, WorkflowMode};
-use crate::{HippoxConfig, TaskStateUpdater, i18n};
-use crate::{get_config, t};
-use langhub::LLMClient;
-use langhub::types::ModelProvider;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
-use tracing::info;
 
-const STARTUP_BANNER: &str = r#"
-██╗  ██╗██╗██████╗ ██████╗  ██████╗ ██╗  ██╗
-██║  ██║██║██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝
-███████║██║██████╔╝██████╔╝██║   ██║ ╚███╔╝ 
-██╔══██║██║██╔═══╝ ██╔═══╝ ██║   ██║ ██╔██╗ 
-██║  ██║██║██║     ██║     ╚██████╔╝██╔╝ ██╗
-╚═╝  ╚═╝╚═╝╚═╝     ╚═╝      ╚═════╝ ╚═╝  ╚═╝
-"#;
-
-pub enum ConfigInitMethod {
-    TomlFile(String),
-    JsonFile(String),
-    ParamsJsonStr(String),
-}
-
-/// Welcome message structure containing registry information
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct WelcomeMessage {
-    pub type_: String,
-    pub message: String,
-    pub skills_registry: Value,
-    pub instances_registry: Value,
-    pub version: String,
-}
-
-/// Task for natural language processing
-#[derive(Debug)]
-pub(crate) struct NaturalLanguageTask {
-    input: String,
-    workflow_executor: WorkflowExecutor,
-    scheduler: SkillScheduler,
-    skills_registry: String,
-    instances_registry: String,
-}
-
-impl NaturalLanguageTask {
-    pub(crate) fn new(
-        input: String,
-        workflow_executor: WorkflowExecutor,
-        scheduler: SkillScheduler,
-        skills_registry: String,
-        instances_registry: String,
-    ) -> Self {
-        Self {
-            input,
-            workflow_executor,
-            scheduler,
-            skills_registry,
-            instances_registry,
-        }
-    }
-}
-
-impl ExecutableTask for NaturalLanguageTask {
-    fn execute(
-        &self,
-        state_updater: TaskStateUpdater,
-        callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-        let input = self.input.clone();
-        let workflow_executor = self.workflow_executor.clone();
-        let scheduler = self.scheduler.clone();
-        let skills_registry = self.skills_registry.clone();
-        let instances_registry = self.instances_registry.clone();
-        let task_id = state_updater.task_id().to_string();
-        let overall_start = Instant::now();
-        Box::pin(async move {
-            let mut executor_with_callback = workflow_executor.clone();
-            if let Some(ref cb) = callback {
-                executor_with_callback = executor_with_callback.with_callback(cb.clone());
-            }
-            executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
-            let result = executor_with_callback
-                .execute(&scheduler, &input, &skills_registry, &instances_registry)
-                .await;
-            let total_duration = overall_start.elapsed().as_millis() as u64;
-            let total_steps = 0;
-            state_updater.update_workflow_complete(&result).await;
-            if let Some(ref cb) = callback {
-                cb.on_workflow_complete(&task_id, &result, total_duration, total_steps)
-                    .await;
-            }
-        })
-    }
-
-    fn task_type(&self) -> &str {
-        "natural_language"
-    }
-
-    fn input(&self) -> &str {
-        &self.input
-    }
-}
-
-/// Task for SKILL.md file execution
-#[derive(Debug)]
-pub(crate) struct SkillMdTask {
-    path: String,
-    params: Option<HashMap<String, Value>>,
-    workflow_executor: WorkflowExecutor,
-    scheduler: SkillScheduler,
-    skills_registry: String,
-    instances_registry: String,
-}
-
-impl SkillMdTask {
-    pub(crate) fn new(
-        path: String,
-        params: Option<HashMap<String, Value>>,
-        workflow_executor: WorkflowExecutor,
-        scheduler: SkillScheduler,
-        skills_registry: String,
-        instances_registry: String,
-    ) -> Self {
-        Self {
-            path,
-            params,
-            workflow_executor,
-            scheduler,
-            skills_registry,
-            instances_registry,
-        }
-    }
-}
-
-impl ExecutableTask for SkillMdTask {
-    fn execute(
-        &self,
-        state_updater: TaskStateUpdater,
-        callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-        let path = self.path.clone();
-        let params = self.params.clone();
-        let workflow_executor = self.workflow_executor.clone();
-        let scheduler = self.scheduler.clone();
-        let skills_registry = self.skills_registry.clone();
-        let instances_registry = self.instances_registry.clone();
-        let task_id = state_updater.task_id().to_string();
-        let overall_start = Instant::now();
-        Box::pin(async move {
-            let skill_file = match SkillLoader::load_from_path(&path) {
-                Ok(Some(file)) => file,
-                Ok(None) => {
-                    let error_msg = format!("{}: {}", t!("error.skill_not_found"), path);
-                    let total_duration = overall_start.elapsed().as_millis() as u64;
-                    state_updater.update_workflow_failed(&error_msg).await;
-                    if let Some(ref cb) = callback {
-                        cb.on_workflow_failed(&task_id, &error_msg, total_duration, 0)
-                            .await;
-                    }
-                    return;
-                }
-                Err(e) => {
-                    let error_msg = format!("{}: {}", t!("error.load_skill_failed"), e);
-                    let total_duration = overall_start.elapsed().as_millis() as u64;
-                    state_updater.update_workflow_failed(&error_msg).await;
-                    if let Some(ref cb) = callback {
-                        cb.on_workflow_failed(&task_id, &error_msg, total_duration, 0)
-                            .await;
-                    }
-                    return;
-                }
-            };
-            let mut executor_with_callback = workflow_executor.clone();
-            if let Some(ref cb) = callback {
-                executor_with_callback = executor_with_callback.with_callback(cb.clone());
-            }
-            executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
-            let result = executor_with_callback
-                .execute_skill_md(
-                    &scheduler,
-                    &skill_file,
-                    params.as_ref(),
-                    &skills_registry,
-                    &instances_registry,
-                )
-                .await;
-            let total_duration = overall_start.elapsed().as_millis() as u64;
-            let total_steps = 0;
-            state_updater.update_workflow_complete(&result).await;
-            if let Some(ref cb) = callback {
-                cb.on_workflow_complete(&task_id, &result, total_duration, total_steps)
-                    .await;
-            }
-        })
-    }
-
-    fn task_type(&self) -> &str {
-        "skill_md"
-    }
-
-    fn input(&self) -> &str {
-        &self.path
-    }
-}
 /// Core engine for Hippox
 ///
 /// This is the main entry point for the Hippox engine. It handles:
@@ -285,148 +89,6 @@ impl Hippox {
         })
     }
 
-    /// Generate skills registry (atomic skills metadata)
-    fn generate_skills_registry() -> String {
-        let skills = crate::executors::registry::list_skills();
-        let registry: Vec<serde_json::Value> = skills
-            .iter()
-            .filter_map(|name| {
-                crate::executors::registry::get_skill(name).map(|skill| {
-                    serde_json::json!({
-                        "name": name,
-                        "description": skill.description(),
-                        "category": skill.category(),
-                        "parameters": skill.parameters(),
-                        "example_call": skill.example_call(),
-                        "example_output": skill.example_output(),
-                    })
-                })
-            })
-            .collect();
-        serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
-    }
-
-    /// Generate instances registry (configured database/service instances)
-    fn generate_instances_registry() -> String {
-        let config = get_config();
-        let mut instances = serde_json::Map::new();
-        // PostgreSQL instances
-        let pg_instances: Vec<serde_json::Value> = config
-            .postgresql_instances
-            .values()
-            .map(|inst| {
-                json!({
-                    "id": inst.id,
-                    "name": inst.name,
-                    "description": inst.description,
-                    "type": "postgresql"
-                })
-            })
-            .collect();
-        if !pg_instances.is_empty() {
-            instances.insert("postgresql".to_string(), json!(pg_instances));
-        }
-        // MySQL instances
-        let mysql_instances: Vec<serde_json::Value> = config
-            .mysql_instances
-            .values()
-            .map(|inst| {
-                json!({
-                    "id": inst.id,
-                    "name": inst.name,
-                    "description": inst.description,
-                    "type": "mysql"
-                })
-            })
-            .collect();
-        if !mysql_instances.is_empty() {
-            instances.insert("mysql".to_string(), json!(mysql_instances));
-        }
-        // Redis instances
-        let redis_instances: Vec<serde_json::Value> = config
-            .redis_instances
-            .values()
-            .map(|inst| {
-                json!({
-                    "id": inst.id,
-                    "name": inst.name,
-                    "description": inst.description,
-                    "type": "redis"
-                })
-            })
-            .collect();
-        if !redis_instances.is_empty() {
-            instances.insert("redis".to_string(), json!(redis_instances));
-        }
-        // SQLite instances
-        let sqlite_instances: Vec<serde_json::Value> = config
-            .sqlite_instances
-            .values()
-            .map(|inst| {
-                json!({
-                    "id": inst.id,
-                    "name": inst.name,
-                    "description": inst.description,
-                    "type": "sqlite"
-                })
-            })
-            .collect();
-        if !sqlite_instances.is_empty() {
-            instances.insert("sqlite".to_string(), json!(sqlite_instances));
-        }
-        // Docker instances
-        let docker_instances: Vec<serde_json::Value> = config
-            .docker_instances
-            .values()
-            .map(|inst| {
-                json!({
-                    "id": inst.id,
-                    "name": inst.name,
-                    "description": inst.description,
-                    "type": "docker"
-                })
-            })
-            .collect();
-        if !docker_instances.is_empty() {
-            instances.insert("docker".to_string(), json!(docker_instances));
-        }
-        // Kubernetes instances
-        let k8s_instances: Vec<serde_json::Value> = config
-            .k8s_instances
-            .values()
-            .map(|inst| {
-                json!({
-                    "id": inst.id,
-                    "name": inst.name,
-                    "description": inst.description,
-                    "type": "kubernetes",
-                    "namespace": inst.namespace
-                })
-            })
-            .collect();
-        if !k8s_instances.is_empty() {
-            instances.insert("kubernetes".to_string(), json!(k8s_instances));
-        }
-        serde_json::to_string_pretty(&instances).unwrap_or_else(|_| "{}".to_string())
-    }
-
-    /// Generate welcome message with registries
-    fn generate_welcome_message(skills_registry: &str, instances_registry: &str) -> String {
-        let welcome = WelcomeMessage {
-            type_: "welcome".to_string(),
-            message: format!("{}\n\n{}", STARTUP_BANNER, t!("app.welcome_message")),
-            skills_registry: serde_json::from_str(skills_registry).unwrap_or(Value::Null),
-            instances_registry: serde_json::from_str(instances_registry).unwrap_or(Value::Null),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        };
-        serde_json::to_string_pretty(&welcome).unwrap_or_else(|_| {
-            format!(
-                "{{\"type\":\"welcome\",\"message\":\"{}\"}}",
-                t!("app.welcome_message")
-            )
-        })
-    }
-
     /// Notify LLM about updated skills registry
     ///
     /// Call this after dynamically registering new skills.
@@ -445,19 +107,19 @@ impl Hippox {
 
     /// Get current skills registry as JSON string
     pub fn get_skills_registry(&self) -> String {
-        Self::generate_skills_registry()
+        generate_skills_registry()
     }
 
     /// Get current instances registry as JSON string
     pub fn get_instances_registry(&self) -> String {
-        Self::generate_instances_registry()
+        generate_instances_registry()
     }
 
     /// Get welcome message with current registries
     pub fn get_welcome_message(&self) -> String {
         let skills = self.get_skills_registry();
         let instances = self.get_instances_registry();
-        Self::generate_welcome_message(&skills, &instances)
+        generate_welcome_message(&skills, &instances)
     }
 
     /// Submit a natural language task and return task ID immediately
@@ -512,7 +174,7 @@ impl Hippox {
     ) -> Vec<String> {
         inputs
             .into_iter()
-            .map(|(input, session_id, callback)| self.handle_natural_language(&input, callback))
+            .map(|(input, _session_id, callback)| self.handle_natural_language(&input, callback))
             .collect()
     }
 
@@ -823,24 +485,5 @@ impl Hippox {
     /// Get configuration
     pub fn get_config(&self) -> HippoxConfig {
         crate::config::get_config()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_generate_skills_registry() {
-        let registry = Hippox::generate_skills_registry();
-        assert!(!registry.is_empty());
-        assert!(registry.contains("helloworld") || registry.contains("file_read"));
-    }
-
-    #[test]
-    fn test_generate_instances_registry() {
-        let registry = Hippox::generate_instances_registry();
-        // Registry should be valid JSON even if empty
-        assert!(serde_json::from_str::<Value>(&registry).is_ok());
     }
 }
