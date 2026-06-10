@@ -10,7 +10,7 @@ use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
 use crate::{
-    ConfigInitMethod, HippoxConfig, execute_stage_one, execute_stage_two, get_config, i18n, init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file, needs_format_conversion, t
+    ConfigInitMethod, HippoxConfig, IdentityInformation, execute_stage_one, execute_stage_two, get_config, i18n, init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file, needs_format_conversion, t
 };
 use langhub::LLMClient;
 use langhub::types::ModelProvider;
@@ -114,6 +114,28 @@ impl Hippox {
     /// Get current instances registry as JSON string
     pub fn get_instances_registry(&self) -> String {
         generate_instances_registry()
+    }
+
+    /// Get identity information
+    pub fn get_identity(&self) -> IdentityInformation {
+        self.get_config().identity_information
+    }
+
+    /// Update identity information with a closure
+    pub fn update_identity<F>(&self, f: F) -> anyhow::Result<()>
+    where
+        F: FnOnce(&mut IdentityInformation),
+    {
+        self.update_config(|config| {
+            f(&mut config.identity_information);
+        })
+    }
+
+    /// Set identity information directly
+    pub fn set_identity(&self, identity: IdentityInformation) -> anyhow::Result<()> {
+        self.update_config(|config| {
+            config.identity_information = identity;
+        })
     }
 
     /// Submit a natural language task and return task ID immediately

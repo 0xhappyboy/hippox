@@ -10,12 +10,54 @@ use super::instances::*;
 pub(crate) static HIPPOX_CORE_CONFIG: Lazy<RwLock<HippoxConfig>> =
     Lazy::new(|| RwLock::new(HippoxConfig::default()));
 
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct IdentityInformation {
+    // Name, Default: Hippox
+    pub name: Option<String>,
+    // Sex
+    pub sex: Option<String>,
+    // age
+    pub age: Option<String>,
+    // Species
+    pub species: Option<String>,
+    // Role/Profession (e.g., "assistant", "teacher", "life coach")
+    pub role: Option<String>,
+    // Personality traits (e.g., "friendly", "humorous", "professional")
+    pub personality: Option<String>,
+    // Tone style (e.g., "casual", "formal", "poetic")
+    pub tone_style: Option<String>,
+    // Knowledge scope (e.g., "general", "medical", "programming")
+    pub knowledge_scope: Option<String>,
+    // Catchphrase / habitual expression (e.g., "Haha", "I see")
+    pub catchphrase: Option<String>,
+    // Taboos / prohibited topics (e.g., "no politics", "no medical advice")
+    pub taboos: Option<String>,
+}
+
+impl Default for IdentityInformation {
+    fn default() -> Self {
+        Self {
+            name: Some("Hippox".to_string()),
+            sex: None,
+            age: None,
+            species: None,
+            role: None,
+            personality: None,
+            tone_style: None,
+            knowledge_scope: None,
+            catchphrase: None,
+            taboos: None,
+        }
+    }
+}
+
 /// Hippox global configuration
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct HippoxConfig {
     // Application settings
     pub lang: String,
-
+    // Identity information
+    pub identity_information: IdentityInformation,
     // Database configurations (multiple instances)
     pub postgresql_instances: HashMap<String, PostgreSQLConfig>,
     pub mysql_instances: HashMap<String, MySQLConfig>,
@@ -48,6 +90,7 @@ impl Default for HippoxConfig {
     fn default() -> Self {
         Self {
             lang: "en".to_string(),
+            identity_information: IdentityInformation::default(),
             postgresql_instances: HashMap::new(),
             mysql_instances: HashMap::new(),
             redis_instances: HashMap::new(),
@@ -68,6 +111,25 @@ impl Default for HippoxConfig {
 }
 
 impl HippoxConfig {
+    /// Get identity information reference
+    pub fn get_identity(&self) -> &IdentityInformation {
+        &self.identity_information
+    }
+
+    /// Get mutable identity information reference
+    pub fn get_identity_mut(&mut self) -> &mut IdentityInformation {
+        &mut self.identity_information
+    }
+
+    /// Update identity information
+    pub fn update_identity<F>(&mut self, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut IdentityInformation),
+    {
+        f(&mut self.identity_information);
+        self
+    }
+
     /// Load from TOML configuration file
     pub fn load_from_toml_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
