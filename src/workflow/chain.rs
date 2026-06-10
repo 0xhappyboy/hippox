@@ -154,11 +154,13 @@ pub async fn execute_chain(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
+
     // Check for checkpoint to resume from
     let mut checkpoint_restored = false;
     let mut restored_context: HashMap<String, Value> = HashMap::new();
     let mut restored_results: Vec<StepResult> = Vec::new();
     let mut last_completed_idx = 0;
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
@@ -168,7 +170,6 @@ pub async fn execute_chain(
                     restored_results = checkpoint.completed_results;
                     last_completed_idx = checkpoint.last_completed_step;
                     checkpoint_restored = true;
-                    // Notify that workflow is resumed
                     if let Some(cb) = executor.get_callback() {
                         cb.on_workflow_resumed(
                             tid,
@@ -181,6 +182,7 @@ pub async fn execute_chain(
             }
         }
     }
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -201,6 +203,7 @@ pub async fn execute_chain(
             }
         }
     }
+
     let chain_prompt = build_chain_prompt(input);
     let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
         Ok(resp) => resp,
@@ -211,6 +214,7 @@ pub async fn execute_chain(
             };
         }
     };
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -233,6 +237,7 @@ pub async fn execute_chain(
             }
         }
     }
+
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
         Err(e) => {
@@ -242,6 +247,7 @@ pub async fn execute_chain(
             };
         }
     };
+
     let mut context = if checkpoint_restored {
         restored_context
     } else {
@@ -251,6 +257,7 @@ pub async fn execute_chain(
     };
     let mut results = restored_results;
     let start_idx = last_completed_idx;
+
     for (idx, step) in chain.steps.iter().enumerate().skip(start_idx) {
         let step_name = step.action.clone();
         let step_start = Instant::now();
@@ -263,6 +270,7 @@ pub async fn execute_chain(
             metadata: HashMap::new(),
         })
         .ok();
+
         if let Err(result) = check_step_interruption(
             task_id.as_deref(),
             executor.get_callback(),
@@ -274,21 +282,25 @@ pub async fn execute_chain(
         {
             return result;
         }
+
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
             let resolved = resolve_variables_deep(value, &context);
             resolved_params.insert(key.clone(), resolved);
         }
+
         if let Some(cb) = executor.get_callback() {
             if let Some(ref tid) = task_id {
                 cb.on_step_start(tid, &step_name, idx, Some(&resolved_params))
                     .await;
             }
         }
+
         let call = SkillCall {
             action: step.action.clone(),
             parameters: resolved_params,
         };
+
         match executor.get_executor().execute(&call).await {
             Ok(output) => {
                 let duration = step_start.elapsed().as_millis() as u64;
@@ -341,19 +353,24 @@ pub async fn execute_chain(
             }
         }
     }
-    let final_output = format_step_results(&results);
-    let total_duration = overall_start.elapsed().as_millis() as u64;
-    if let Some(cb) = executor.get_callback() {
-        if let Some(ref tid) = task_id {
-            let has_failure = results.iter().any(|r| r.status == ExecutionStatus::Failure);
-            if has_failure {
-                cb.on_workflow_failed(tid, &final_output, total_duration, results.len())
-                    .await;
-            } else {
-                cb.on_workflow_complete(tid, &final_output, total_duration, results.len())
-                    .await;
-            }
-        }
+
+    let final_display = format_step_results(&results);
+    let raw_json = serde_json::json!({
+        "mode": "chain",
+        "steps": results.iter().map(|r| {
+            serde_json::json!({
+                "skill": r.skill,
+                "output": r.output,
+                "status": match r.status {
+                    ExecutionStatus::Success => "success",
+                    ExecutionStatus::Failure => "failure",
+                }
+            })
+        }).collect::<Vec<_>>()
+    })
+    .to_string();
+    WorkflowExecutionResult::CompletedWithRaw {
+        display: final_display,
+        raw_json,
     }
-    WorkflowExecutionResult::Completed(final_output)
 }

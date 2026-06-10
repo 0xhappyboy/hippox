@@ -60,9 +60,15 @@ impl std::fmt::Display for WorkflowMode {
 }
 
 /// Workflow execution result
+/// Workflow execution result
 #[derive(Debug, Clone)]
 pub enum WorkflowExecutionResult {
     Completed(String),
+    /// Completed with separate raw JSON data for stage two conversion
+    CompletedWithRaw {
+        display: String,
+        raw_json: String,
+    },
     Paused {
         checkpoint: Option<String>,
         completed_steps: usize,
@@ -79,7 +85,11 @@ pub enum WorkflowExecutionResult {
 
 impl WorkflowExecutionResult {
     pub fn is_completed(&self) -> bool {
-        matches!(self, WorkflowExecutionResult::Completed(_))
+        matches!(
+            self,
+            WorkflowExecutionResult::Completed(_)
+                | WorkflowExecutionResult::CompletedWithRaw { .. }
+        )
     }
 
     pub fn is_paused(&self) -> bool {
@@ -90,12 +100,27 @@ impl WorkflowExecutionResult {
         matches!(self, WorkflowExecutionResult::Cancelled { .. })
     }
 
-    pub fn final_output(&self) -> Option<&str> {
+    /// Get the display output (for callbacks)
+    pub fn display_output(&self) -> Option<&str> {
         match self {
             WorkflowExecutionResult::Completed(output) => Some(output),
+            WorkflowExecutionResult::CompletedWithRaw { display, .. } => Some(display),
             WorkflowExecutionResult::Paused { partial_output, .. } => Some(partial_output),
             _ => None,
         }
+    }
+
+    /// Get the raw JSON output (for stage two conversion)
+    pub fn raw_json(&self) -> Option<&str> {
+        match self {
+            WorkflowExecutionResult::CompletedWithRaw { raw_json, .. } => Some(raw_json),
+            WorkflowExecutionResult::Completed(output) => Some(output),
+            _ => None,
+        }
+    }
+
+    pub fn final_output(&self) -> Option<&str> {
+        self.raw_json()
     }
 }
 

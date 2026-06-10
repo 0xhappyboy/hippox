@@ -147,6 +147,7 @@ impl TaskStateUpdater {
         let mut pool = self.task_pool.write().await;
         if let Some(task) = pool.get_task_mut(&self.task_id) {
             task.completed(final_output.to_string());
+            pool.complete_task(&self.task_id);
         }
     }
 
@@ -155,6 +156,7 @@ impl TaskStateUpdater {
         let mut pool = self.task_pool.write().await;
         if let Some(task) = pool.get_task_mut(&self.task_id) {
             task.failed(error.to_string());
+            pool.complete_task(&self.task_id);
         }
     }
 }

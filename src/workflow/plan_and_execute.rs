@@ -337,13 +337,13 @@ pub async fn execute_plan_and_execute(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
+
     // Check for checkpoint to resume from
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
                 if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
                 {
-                    // Notify that workflow is resumed
                     if let Some(cb) = executor.get_callback() {
                         cb.on_workflow_resumed(
                             tid,
@@ -352,12 +352,11 @@ pub async fn execute_plan_and_execute(
                         )
                         .await;
                     }
-                    // For PlanAndExecute, we may need to restore state from checkpoint
-                    // This can be implemented based on specific requirements
                 }
             }
         }
     }
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -378,6 +377,7 @@ pub async fn execute_plan_and_execute(
             }
         }
     }
+
     let plan_prompt = build_plan_prompt(input);
     let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
         Ok(resp) => resp,
@@ -388,6 +388,7 @@ pub async fn execute_plan_and_execute(
             };
         }
     };
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -420,6 +421,7 @@ pub async fn execute_plan_and_execute(
             };
         }
     };
+
     match instruction {
         PlanInstruction {
             mode,
@@ -430,12 +432,6 @@ pub async fn execute_plan_and_execute(
                 let total_duration = overall_start.elapsed().as_millis() as u64;
                 let final_msg =
                     message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
-                if let Some(cb) = executor.get_callback() {
-                    if let Some(ref tid) = task_id {
-                        cb.on_workflow_complete(tid, &final_msg, total_duration, 0)
-                            .await;
-                    }
-                }
                 return WorkflowExecutionResult::Completed(final_msg);
             }
 
@@ -444,28 +440,17 @@ pub async fn execute_plan_and_execute(
                     Ok((result, success_count, failed_count)) => {
                         let total_duration = overall_start.elapsed().as_millis() as u64;
                         let total_steps = success_count + failed_count;
-                        if let Some(cb) = executor.get_callback() {
-                            if let Some(ref tid) = task_id {
-                                if failed_count > 0 {
-                                    cb.on_workflow_failed(
-                                        tid,
-                                        &result,
-                                        total_duration,
-                                        total_steps,
-                                    )
-                                    .await;
-                                } else {
-                                    cb.on_workflow_complete(
-                                        tid,
-                                        &result,
-                                        total_duration,
-                                        total_steps,
-                                    )
-                                    .await;
-                                }
-                            }
+                        let raw_json = serde_json::json!({
+                            "mode": "plan_and_execute",
+                            "result": result,
+                            "success_count": success_count,
+                            "failed_count": failed_count,
+                        })
+                        .to_string();
+                        WorkflowExecutionResult::CompletedWithRaw {
+                            display: result,
+                            raw_json,
                         }
-                        WorkflowExecutionResult::Completed(result)
                     }
                     Err(e) => {
                         let total_duration = overall_start.elapsed().as_millis() as u64;

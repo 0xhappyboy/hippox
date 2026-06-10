@@ -122,14 +122,12 @@ pub async fn execute_react(
                 if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
                 {
                     step_results = checkpoint.completed_results;
-                    // Restore messages from completed results
                     for result in &step_results {
                         messages.push(ChatMessage::user(&format!(
                             "Skill '{}' executed. Result: {}",
                             result.skill, result.output
                         )));
                     }
-                    // Notify that workflow is resumed
                     if let Some(cb) = executor.get_callback() {
                         cb.on_workflow_resumed(
                             tid,
@@ -213,6 +211,7 @@ pub async fn execute_react(
                 let step_index = step_results.len();
                 let step_name = call.action.clone();
                 let step_start = Instant::now();
+
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_callback(),
@@ -280,6 +279,7 @@ pub async fn execute_react(
             ReactInstruction::Batch(steps) => {
                 let step_index = step_results.len();
                 let step_name = format!("batch_{}_steps", steps.len());
+
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_callback(),
@@ -291,9 +291,10 @@ pub async fn execute_react(
                 {
                     return result;
                 }
-                let results = execute_batch_plan(executor, &steps).await;
+
+                let batch_results = execute_batch_plan(executor, &steps).await;
                 let mut batch_output = String::new();
-                for (i, result) in results.iter().enumerate() {
+                for (i, result) in batch_results.iter().enumerate() {
                     step_results.push(result.clone());
                     batch_output.push_str(&format!("Step {}: {}\n", i + 1, result.output));
                 }
@@ -301,8 +302,7 @@ pub async fn execute_react(
                     "Batch execution completed. Results:\n{}",
                     batch_output
                 )));
-                let summary = format_step_results(&step_results);
-                final_response = Some(summary);
+                final_response = Some(format_step_results(&step_results));
                 break;
             }
         }
@@ -318,22 +318,23 @@ pub async fn execute_react(
             format_step_results(&step_results)
         }
     });
-    if let Some(cb) = executor.get_callback() {
-        if let Some(ref tid) = task_id {
-            let has_failure = step_results
-                .iter()
-                .any(|r| r.status == ExecutionStatus::Failure)
-                || final_response.starts_with("Error:")
-                || final_response.contains("failed");
-            let total_steps = step_results.len();
-            if has_failure {
-                cb.on_workflow_failed(tid, &final_response, total_duration, total_steps)
-                    .await;
-            } else {
-                cb.on_workflow_complete(tid, &final_response, total_duration, total_steps)
-                    .await;
-            }
-        }
+    let raw_json = serde_json::json!({
+        "mode": "react",
+        "result": final_response,
+        "steps": step_results.iter().map(|r| {
+            serde_json::json!({
+                "skill": r.skill,
+                "output": r.output,
+                "status": match r.status {
+                    ExecutionStatus::Success => "success",
+                    ExecutionStatus::Failure => "failure",
+                }
+            })
+        }).collect::<Vec<_>>()
+    })
+    .to_string();
+    WorkflowExecutionResult::CompletedWithRaw {
+        display: final_response,
+        raw_json,
     }
-    WorkflowExecutionResult::Completed(final_response)
 }

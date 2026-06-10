@@ -146,6 +146,7 @@ pub async fn execute_batch(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
+
     // Check for checkpoint to resume from
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -162,9 +163,24 @@ pub async fn execute_batch(
                         .await;
                     }
                     if !checkpoint.completed_results.is_empty() {
-                        return WorkflowExecutionResult::Completed(format_step_results(
-                            &checkpoint.completed_results,
-                        ));
+                        let raw_json = serde_json::json!({
+                            "mode": "batch",
+                            "results": checkpoint.completed_results.iter().map(|r| {
+                                serde_json::json!({
+                                    "skill": r.skill,
+                                    "output": r.output,
+                                    "status": match r.status {
+                                        ExecutionStatus::Success => "success",
+                                        ExecutionStatus::Failure => "failure",
+                                    }
+                                })
+                            }).collect::<Vec<_>>()
+                        })
+                        .to_string();
+                        return WorkflowExecutionResult::CompletedWithRaw {
+                            display: format_step_results(&checkpoint.completed_results),
+                            raw_json,
+                        };
                     }
                 }
             }
@@ -191,6 +207,7 @@ pub async fn execute_batch(
             }
         }
     }
+
     let batch_prompt = build_batch_prompt(input);
     let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
         Ok(resp) => resp,
@@ -201,12 +218,14 @@ pub async fn execute_batch(
             };
         }
     };
+
     let instruction = match parse_react_response(&llm_response) {
         Ok(instr) => instr,
         Err(_) => {
             return WorkflowExecutionResult::Completed(llm_response);
         }
     };
+
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -246,20 +265,32 @@ pub async fn execute_batch(
         }
     }
 
-    let (result, total_steps) = match &instruction {
-        ReactInstruction::Done(message) => (message.clone(), 0),
+    let (display, total_steps, raw_json) = match &instruction {
+        ReactInstruction::Done(message) => (message.clone(), 0, None),
         ReactInstruction::Batch(steps) => {
             let results = execute_batch_plan(executor, steps).await;
-            (format_step_results(&results), steps.len())
+            let display = format_step_results(&results);
+            let raw_json = serde_json::json!({
+                "mode": "batch",
+                "results": results.iter().map(|r| {
+                    serde_json::json!({
+                        "skill": r.skill,
+                        "output": r.output,
+                        "status": match r.status {
+                            ExecutionStatus::Success => "success",
+                            ExecutionStatus::Failure => "failure",
+                        }
+                    })
+                }).collect::<Vec<_>>()
+            })
+            .to_string();
+            (display, steps.len(), Some(raw_json))
         }
-        ReactInstruction::Single(_) => (t!("error.batch_mode_invalid").to_string(), 0),
+        ReactInstruction::Single(_) => (t!("error.batch_mode_invalid").to_string(), 0, None),
     };
-    let total_duration = overall_start.elapsed().as_millis() as u64;
-    if let Some(cb) = executor.get_callback() {
-        if let Some(ref tid) = task_id {
-            cb.on_workflow_complete(tid, &result, total_duration, total_steps)
-                .await;
-        }
+    if let Some(raw_json) = raw_json {
+        WorkflowExecutionResult::CompletedWithRaw { display, raw_json }
+    } else {
+        WorkflowExecutionResult::Completed(display)
     }
-    WorkflowExecutionResult::Completed(result)
 }
