@@ -7,6 +7,7 @@ mod skill_loader;
 mod skill_scheduler;
 mod tasks;
 mod workflow;
+mod prompts;
 
 pub use crate::config::*;
 pub use crate::core::ConfigInitMethod;

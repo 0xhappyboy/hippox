@@ -19,8 +19,6 @@ pub(crate) struct NaturalLanguageTask {
     input: String,
     workflow_executor: WorkflowExecutor,
     scheduler: SkillScheduler,
-    skills_registry: String,
-    instances_registry: String,
 }
 
 impl NaturalLanguageTask {
@@ -35,8 +33,6 @@ impl NaturalLanguageTask {
             input,
             workflow_executor,
             scheduler,
-            skills_registry,
-            instances_registry,
         }
     }
 }
@@ -50,8 +46,6 @@ impl ExecutableTask for NaturalLanguageTask {
         let input = self.input.clone();
         let workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
-        let skills_registry = self.skills_registry.clone();
-        let instances_registry = self.instances_registry.clone();
         let task_id = state_updater.task_id().to_string();
         let overall_start = Instant::now();
         Box::pin(async move {
@@ -60,12 +54,9 @@ impl ExecutableTask for NaturalLanguageTask {
                 executor_with_callback = executor_with_callback.with_callback(cb.clone());
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
-            let result = executor_with_callback
-                .execute(&scheduler, &input, &skills_registry, &instances_registry)
-                .await;
+            let result = executor_with_callback.execute(&scheduler, &input).await;
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;
-
             match result {
                 WorkflowExecutionResult::Completed(output) => {
                     state_updater.update_workflow_complete(&output).await;
@@ -93,11 +84,9 @@ impl ExecutableTask for NaturalLanguageTask {
             }
         })
     }
-
     fn task_type(&self) -> &str {
         "natural_language"
     }
-
     fn input(&self) -> &str {
         &self.input
     }
@@ -177,17 +166,10 @@ impl ExecutableTask for SkillMdTask {
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
             let result = executor_with_callback
-                .execute_skill_md(
-                    &scheduler,
-                    &skill_file,
-                    params.as_ref(),
-                    &skills_registry,
-                    &instances_registry,
-                )
+                .execute_skill_md(&scheduler, &skill_file, params.as_ref())
                 .await;
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;
-
             match result {
                 WorkflowExecutionResult::Completed(output) => {
                     state_updater.update_workflow_complete(&output).await;

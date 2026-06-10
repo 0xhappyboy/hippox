@@ -1,6 +1,7 @@
 //! Batch mode workflow execution
 
 use crate::executors::{Executor, SkillCall};
+use crate::prompts::build_batch_prompt;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use futures::future::join_all;
@@ -10,7 +11,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use super::core::WorkflowExecutor;
-use super::prompt;
 use super::react::parse_react_response;
 use super::types::*;
 use super::utils::format_step_results;
@@ -143,12 +143,9 @@ pub async fn execute_batch(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
-    skills_registry: &str,
-    instances_registry: &str,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-
     // Check for checkpoint to resume from
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -194,7 +191,7 @@ pub async fn execute_batch(
             }
         }
     }
-    let batch_prompt = prompt::build_batch_prompt(skills_registry, instances_registry, input);
+    let batch_prompt = build_batch_prompt(input);
     let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
         Ok(resp) => resp,
         Err(e) => {

@@ -3,10 +3,10 @@
 use super::batch::execute_batch;
 use super::chain::execute_chain;
 use super::plan_and_execute::execute_plan_and_execute;
-use super::prompt;
 use super::react::execute_react;
 use super::types::*;
 use crate::executors::Executor;
+use crate::prompts::{build_react_prompt, build_skill_md_prompt};
 use crate::skill_scheduler::SkillScheduler;
 use std::sync::Arc;
 
@@ -65,29 +65,12 @@ impl WorkflowExecutor {
         &self,
         scheduler: &SkillScheduler,
         input: &str,
-        skills_registry: &str,
-        instances_registry: &str,
     ) -> WorkflowExecutionResult {
         match self.mode {
-            WorkflowMode::ReAct => {
-                execute_react(self, scheduler, input, skills_registry, instances_registry).await
-            }
-            WorkflowMode::Batch => {
-                execute_batch(self, scheduler, input, skills_registry, instances_registry).await
-            }
-            WorkflowMode::Chain => {
-                execute_chain(self, scheduler, input, skills_registry, instances_registry).await
-            }
-            WorkflowMode::PlanAndExecute => {
-                execute_plan_and_execute(
-                    self,
-                    scheduler,
-                    input,
-                    skills_registry,
-                    instances_registry,
-                )
-                .await
-            }
+            WorkflowMode::ReAct => execute_react(self, scheduler, input).await,
+            WorkflowMode::Batch => execute_batch(self, scheduler, input).await,
+            WorkflowMode::Chain => execute_chain(self, scheduler, input).await,
+            WorkflowMode::PlanAndExecute => execute_plan_and_execute(self, scheduler, input).await,
         }
     }
 
@@ -96,8 +79,6 @@ impl WorkflowExecutor {
         scheduler: &SkillScheduler,
         skill_file: &crate::skill_loader::SkillFile,
         params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-        skills_registry: &str,
-        instances_registry: &str,
     ) -> WorkflowExecutionResult {
         let mut instructions = skill_file.instructions.clone();
         if let Some(params) = params {
@@ -112,56 +93,15 @@ impl WorkflowExecutor {
                 instructions = instructions.replace(&placeholder, &replacement);
             }
         }
-        let enhanced_input = format!(
-            "{}\n\n## Available Atomic Skills\n{}\n\n## Available Instances\n{}\n\n## Task\nExecute the workflow step by step according to the instructions above.",
-            instructions, skills_registry, instances_registry
-        );
+        let enhanced_input = build_skill_md_prompt(&instructions);
         match self.mode {
-            WorkflowMode::ReAct => {
-                execute_react(
-                    self,
-                    scheduler,
-                    &enhanced_input,
-                    skills_registry,
-                    instances_registry,
-                )
-                .await
-            }
-            WorkflowMode::Batch => {
-                execute_batch(
-                    self,
-                    scheduler,
-                    &enhanced_input,
-                    skills_registry,
-                    instances_registry,
-                )
-                .await
-            }
-            WorkflowMode::Chain => {
-                execute_chain(
-                    self,
-                    scheduler,
-                    &enhanced_input,
-                    skills_registry,
-                    instances_registry,
-                )
-                .await
-            }
+            WorkflowMode::ReAct => execute_react(self, scheduler, &enhanced_input).await,
+            WorkflowMode::Batch => execute_batch(self, scheduler, &enhanced_input).await,
+            WorkflowMode::Chain => execute_chain(self, scheduler, &enhanced_input).await,
             WorkflowMode::PlanAndExecute => {
-                execute_plan_and_execute(
-                    self,
-                    scheduler,
-                    &enhanced_input,
-                    skills_registry,
-                    instances_registry,
-                )
-                .await
+                execute_plan_and_execute(self, scheduler, &enhanced_input).await
             }
         }
-    }
-
-    pub fn build_react_prompt(skills_registry: &str, instances_registry: &str) -> String {
-        prompt::build_react_prompt(skills_registry, instances_registry)
     }
 
     pub fn extract_json(text: &str) -> String {

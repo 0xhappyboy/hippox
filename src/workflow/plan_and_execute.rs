@@ -1,6 +1,7 @@
 //! Plan-and-Execute mode workflow execution
 
 use crate::executors::SkillCall;
+use crate::prompts::build_plan_prompt;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use serde_json::Value;
@@ -10,7 +11,6 @@ use std::time::Instant;
 use tracing::info;
 
 use super::core::WorkflowExecutor;
-use super::prompt;
 use super::types::*;
 use super::utils::VARIABLE_REGEX;
 
@@ -334,12 +334,9 @@ pub async fn execute_plan_and_execute(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
-    skills_registry: &str,
-    instances_registry: &str,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-
     // Check for checkpoint to resume from
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -361,7 +358,6 @@ pub async fn execute_plan_and_execute(
             }
         }
     }
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -382,8 +378,7 @@ pub async fn execute_plan_and_execute(
             }
         }
     }
-
-    let plan_prompt = prompt::build_plan_prompt(skills_registry, instances_registry, input);
+    let plan_prompt = build_plan_prompt(input);
     let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
         Ok(resp) => resp,
         Err(e) => {
@@ -393,7 +388,6 @@ pub async fn execute_plan_and_execute(
             };
         }
     };
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {

@@ -1,16 +1,7 @@
 //! Registry generation for skills and instances
 
-use serde_json::{Value, json};
 use crate::get_config;
-
-const STARTUP_BANNER: &str = r#"
-██╗  ██╗██╗██████╗ ██████╗  ██████╗ ██╗  ██╗
-██║  ██║██║██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝
-███████║██║██████╔╝██████╔╝██║   ██║ ╚███╔╝ 
-██╔══██║██║██╔═══╝ ██╔═══╝ ██║   ██║ ██╔██╗ 
-██║  ██║██║██║     ██║     ╚██████╔╝██╔╝ ██╗
-╚═╝  ╚═╝╚═╝╚═╝     ╚═╝      ╚═════╝ ╚═╝  ╚═╝
-"#;
+use serde_json::{Value, json};
 
 /// Generate skills registry (atomic skills metadata)
 pub fn generate_skills_registry() -> String {
@@ -37,7 +28,6 @@ pub fn generate_skills_registry() -> String {
 pub fn generate_instances_registry() -> String {
     let config = get_config();
     let mut instances = serde_json::Map::new();
-    
     // PostgreSQL instances
     let pg_instances: Vec<serde_json::Value> = config
         .postgresql_instances
@@ -54,7 +44,6 @@ pub fn generate_instances_registry() -> String {
     if !pg_instances.is_empty() {
         instances.insert("postgresql".to_string(), json!(pg_instances));
     }
-    
     // MySQL instances
     let mysql_instances: Vec<serde_json::Value> = config
         .mysql_instances
@@ -71,7 +60,6 @@ pub fn generate_instances_registry() -> String {
     if !mysql_instances.is_empty() {
         instances.insert("mysql".to_string(), json!(mysql_instances));
     }
-    
     // Redis instances
     let redis_instances: Vec<serde_json::Value> = config
         .redis_instances
@@ -88,7 +76,6 @@ pub fn generate_instances_registry() -> String {
     if !redis_instances.is_empty() {
         instances.insert("redis".to_string(), json!(redis_instances));
     }
-    
     // SQLite instances
     let sqlite_instances: Vec<serde_json::Value> = config
         .sqlite_instances
@@ -105,7 +92,6 @@ pub fn generate_instances_registry() -> String {
     if !sqlite_instances.is_empty() {
         instances.insert("sqlite".to_string(), json!(sqlite_instances));
     }
-    
     // Docker instances
     let docker_instances: Vec<serde_json::Value> = config
         .docker_instances
@@ -122,7 +108,6 @@ pub fn generate_instances_registry() -> String {
     if !docker_instances.is_empty() {
         instances.insert("docker".to_string(), json!(docker_instances));
     }
-    
     // Kubernetes instances
     let k8s_instances: Vec<serde_json::Value> = config
         .k8s_instances
@@ -140,11 +125,5 @@ pub fn generate_instances_registry() -> String {
     if !k8s_instances.is_empty() {
         instances.insert("kubernetes".to_string(), json!(k8s_instances));
     }
-    
     serde_json::to_string_pretty(&instances).unwrap_or_else(|_| "{}".to_string())
-}
-
-/// Get the startup banner
-pub fn get_startup_banner() -> &'static str {
-    STARTUP_BANNER
 }

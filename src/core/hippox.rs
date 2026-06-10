@@ -5,14 +5,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::info;
-
 use langhub::LLMClient;
 use langhub::types::ModelProvider;
-
-use crate::core::registry::{generate_instances_registry, generate_skills_registry};
 use crate::core::tasks::{NaturalLanguageTask, SkillMdTask};
-use crate::core::welcome::generate_welcome_message;
 use crate::executors::Executor;
+use crate::prompts::{generate_instances_registry, generate_skills_registry};
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
@@ -116,13 +113,6 @@ impl Hippox {
     /// Get current instances registry as JSON string
     pub fn get_instances_registry(&self) -> String {
         generate_instances_registry()
-    }
-
-    /// Get welcome message with current registries
-    pub fn get_welcome_message(&self) -> String {
-        let skills = self.get_skills_registry();
-        let instances = self.get_instances_registry();
-        generate_welcome_message(&skills, &instances)
     }
 
     /// Submit a natural language task and return task ID immediately
@@ -252,15 +242,7 @@ impl Hippox {
         }
         let skills_registry = self.get_skills_registry();
         let instances_registry = self.get_instances_registry();
-        let result = executor
-            .execute(
-                &self.scheduler,
-                input,
-                &skills_registry,
-                &instances_registry,
-            )
-            .await;
-
+        let result = executor.execute(&self.scheduler, input).await;
         match result {
             WorkflowExecutionResult::Completed(output) => output,
             WorkflowExecutionResult::Paused { partial_output, .. } => partial_output,
@@ -309,15 +291,8 @@ impl Hippox {
             executor = executor.with_callback(cb);
         }
         let result = executor
-            .execute_skill_md(
-                &self.scheduler,
-                &skill_file,
-                params.as_ref(),
-                &skills_registry,
-                &instances_registry,
-            )
+            .execute_skill_md(&self.scheduler, &skill_file, params.as_ref())
             .await;
-
         match result {
             WorkflowExecutionResult::Completed(output) => output,
             WorkflowExecutionResult::Paused { partial_output, .. } => partial_output,

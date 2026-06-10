@@ -1,6 +1,7 @@
 //! ReAct mode workflow execution
 
 use crate::executors::SkillCall;
+use crate::prompts::build_react_prompt;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use langhub::types::ChatMessage;
@@ -11,7 +12,6 @@ use std::time::Instant;
 
 use super::batch::execute_batch_plan;
 use super::core::WorkflowExecutor;
-use super::prompt;
 use super::types::*;
 use super::utils::format_step_results;
 
@@ -95,8 +95,6 @@ pub async fn execute_react(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
-    skills_registry: &str,
-    instances_registry: &str,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let input_trimmed = input.trim();
@@ -113,11 +111,10 @@ pub async fn execute_react(
     let mut final_response = None;
     let mut iteration = 0;
     let mut messages: Vec<ChatMessage> = Vec::new();
-    let system_prompt = prompt::build_react_prompt(skills_registry, instances_registry);
+    let system_prompt = build_react_prompt();
     messages.push(ChatMessage::system(&system_prompt));
     messages.push(ChatMessage::user(input_trimmed));
     let task_id = executor.get_task_id().map(|s| s.to_string());
-
     // Check for checkpoint to resume from
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -145,10 +142,8 @@ pub async fn execute_react(
             }
         }
     }
-
     while iteration < executor.max_iterations {
         iteration += 1;
-
         if let Some(ref tid) = task_id {
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
                 if state_updater.is_cancelled().await {
@@ -193,7 +188,6 @@ pub async fn execute_react(
                 }
             }
         }
-
         let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
             Ok(resp) => resp,
             Err(e) => {
@@ -219,7 +213,6 @@ pub async fn execute_react(
                 let step_index = step_results.len();
                 let step_name = call.action.clone();
                 let step_start = Instant::now();
-
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_callback(),
@@ -231,14 +224,12 @@ pub async fn execute_react(
                 {
                     return result;
                 }
-
                 if let Some(cb) = executor.get_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
                             .await;
                     }
                 }
-
                 match executor.get_executor().execute(&call).await {
                     Ok(output) => {
                         let duration = step_start.elapsed().as_millis() as u64;
@@ -289,7 +280,6 @@ pub async fn execute_react(
             ReactInstruction::Batch(steps) => {
                 let step_index = step_results.len();
                 let step_name = format!("batch_{}_steps", steps.len());
-
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_callback(),
@@ -301,7 +291,6 @@ pub async fn execute_react(
                 {
                     return result;
                 }
-
                 let results = execute_batch_plan(executor, &steps).await;
                 let mut batch_output = String::new();
                 for (i, result) in results.iter().enumerate() {
@@ -318,11 +307,9 @@ pub async fn execute_react(
             }
         }
     }
-
     if iteration >= executor.max_iterations {
         final_response = Some(t!("error.max_iterations_reached").to_string());
     }
-
     let total_duration = overall_start.elapsed().as_millis() as u64;
     let final_response = final_response.unwrap_or_else(|| {
         if step_results.is_empty() {
@@ -331,7 +318,6 @@ pub async fn execute_react(
             format_step_results(&step_results)
         }
     });
-
     if let Some(cb) = executor.get_callback() {
         if let Some(ref tid) = task_id {
             let has_failure = step_results
@@ -349,6 +335,5 @@ pub async fn execute_react(
             }
         }
     }
-
     WorkflowExecutionResult::Completed(final_response)
 }

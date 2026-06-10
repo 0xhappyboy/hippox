@@ -1,6 +1,7 @@
 //! Chain mode workflow execution
 
 use crate::executors::{Executor, SkillCall};
+use crate::prompts::build_chain_prompt;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use serde_json::{Value, json};
@@ -9,7 +10,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use super::core::WorkflowExecutor;
-use super::prompt;
 use super::types::*;
 use super::utils::{VARIABLE_REGEX, format_step_results};
 
@@ -151,18 +151,14 @@ pub async fn execute_chain(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
     input: &str,
-    skills_registry: &str,
-    instances_registry: &str,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-
     // Check for checkpoint to resume from
     let mut checkpoint_restored = false;
     let mut restored_context: HashMap<String, Value> = HashMap::new();
     let mut restored_results: Vec<StepResult> = Vec::new();
     let mut last_completed_idx = 0;
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
@@ -185,7 +181,6 @@ pub async fn execute_chain(
             }
         }
     }
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -206,8 +201,7 @@ pub async fn execute_chain(
             }
         }
     }
-
-    let chain_prompt = prompt::build_chain_prompt(skills_registry, instances_registry, input);
+    let chain_prompt = build_chain_prompt(input);
     let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
         Ok(resp) => resp,
         Err(e) => {
@@ -217,7 +211,6 @@ pub async fn execute_chain(
             };
         }
     };
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -240,7 +233,6 @@ pub async fn execute_chain(
             }
         }
     }
-
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
         Err(e) => {
@@ -250,7 +242,6 @@ pub async fn execute_chain(
             };
         }
     };
-
     let mut context = if checkpoint_restored {
         restored_context
     } else {
@@ -259,7 +250,6 @@ pub async fn execute_chain(
         new_context
     };
     let mut results = restored_results;
-
     let start_idx = last_completed_idx;
     for (idx, step) in chain.steps.iter().enumerate().skip(start_idx) {
         let step_name = step.action.clone();
@@ -273,7 +263,6 @@ pub async fn execute_chain(
             metadata: HashMap::new(),
         })
         .ok();
-
         if let Err(result) = check_step_interruption(
             task_id.as_deref(),
             executor.get_callback(),
@@ -285,25 +274,21 @@ pub async fn execute_chain(
         {
             return result;
         }
-
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
             let resolved = resolve_variables_deep(value, &context);
             resolved_params.insert(key.clone(), resolved);
         }
-
         if let Some(cb) = executor.get_callback() {
             if let Some(ref tid) = task_id {
                 cb.on_step_start(tid, &step_name, idx, Some(&resolved_params))
                     .await;
             }
         }
-
         let call = SkillCall {
             action: step.action.clone(),
             parameters: resolved_params,
         };
-
         match executor.get_executor().execute(&call).await {
             Ok(output) => {
                 let duration = step_start.elapsed().as_millis() as u64;
