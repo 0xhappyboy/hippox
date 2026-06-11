@@ -183,6 +183,80 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### Configuration
+
+#### 1. HippoxConfig
+
+```rust
+/// Hippox 全局配置
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct HippoxConfig {
+    /// 语言设置: "en" 或 "zh"
+    pub lang: String,
+    /// AI 身份信息（名称、角色、性格等）
+    pub identity_information: IdentityInformation,
+    /// PostgreSQL 数据库实例（支持多个）
+    pub postgresql_instances: HashMap<String, PostgreSQLConfig>,
+    /// MySQL 数据库实例（支持多个）
+    pub mysql_instances: HashMap<String, MySQLConfig>,
+    /// Redis 实例（支持多个）
+    pub redis_instances: HashMap<String, RedisConfig>,
+    /// SQLite 实例（支持多个）
+    pub sqlite_instances: HashMap<String, SQLiteConfig>,
+    /// Docker 实例（支持多个）
+    pub docker_instances: HashMap<String, DockerConfig>,
+    /// Kubernetes 集群（支持多个）
+    pub k8s_instances: HashMap<String, K8sConfig>,
+    /// TCP 连接实例（支持多个）
+    pub tcp_instances: HashMap<String, TCPConfig>,
+    /// UDP 连接实例（支持多个）
+    pub udp_instances: HashMap<String, UDPConfig>,
+    /// FTP 服务器实例（支持多个）
+    pub ftp_instances: HashMap<String, FTPConfig>,
+    /// SMTP 邮件实例（支持多个）
+    pub smtp_instances: HashMap<String, SMTPConfig>,
+    /// Telegram 机器人实例（支持多个）
+    pub telegram_instances: HashMap<String, TelegramConfig>,
+    /// 钉钉机器人实例（支持多个）
+    pub dingtalk_instances: HashMap<String, DingTalkConfig>,
+    /// 飞书 webhook 实例（支持多个）
+    pub feishu_instances: HashMap<String, FeishuConfig>,
+    /// 企业微信 webhook 实例（支持多个）
+    pub wecom_instances: HashMap<String, WeComConfig>,
+    /// GitHub API 实例（支持多个）
+    pub github_instances: HashMap<String, GitHubConfig>,
+}
+```
+
+#### 2. IdentityInformation
+
+```rust
+/// AI 身份配置
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct IdentityInformation {
+    /// AI 名称，如 "助手", "Hippox"
+    pub name: Option<String>,
+    /// 性别，如 "男", "女", "中性"
+    pub sex: Option<String>,
+    /// 年龄，如 "25", "年轻"
+    pub age: Option<String>,
+    /// 物种，如 "AI", "人类", "机器人"
+    pub species: Option<String>,
+    /// 角色，如 "助手", "老师", "人生导师"
+    pub role: Option<String>,
+    /// 性格，如 "友好", "幽默", "专业"
+    pub personality: Option<String>,
+    /// 语气风格，如 "随意", "正式", "诗意"
+    pub tone_style: Option<String>,
+    /// 知识范围，如 "通用", "医疗", "编程"
+    pub knowledge_scope: Option<String>,
+    /// 口头禅，如 "哈哈", "原来如此", "走起"
+    pub catchphrase: Option<String>,
+    /// 禁忌话题，如 "不谈政治", "不给医疗建议"
+    pub taboos: Option<String>,
+}
+```
+
 ## Hippox核心工作原理
 
 ```

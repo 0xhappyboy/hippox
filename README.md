@@ -182,6 +182,80 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### Configuration
+
+#### 1. HippoxConfig
+
+```rust
+/// Hippox global configuration
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct HippoxConfig {
+    /// Language setting: "en" or "zh"
+    pub lang: String,
+    /// AI identity information (name, role, personality, etc.)
+    pub identity_information: IdentityInformation,
+    /// PostgreSQL database instances (multiple)
+    pub postgresql_instances: HashMap<String, PostgreSQLConfig>,
+    /// MySQL database instances (multiple)
+    pub mysql_instances: HashMap<String, MySQLConfig>,
+    /// Redis instances (multiple)
+    pub redis_instances: HashMap<String, RedisConfig>,
+    /// SQLite instances (multiple)
+    pub sqlite_instances: HashMap<String, SQLiteConfig>,
+    /// Docker instances (multiple)
+    pub docker_instances: HashMap<String, DockerConfig>,
+    /// Kubernetes clusters (multiple)
+    pub k8s_instances: HashMap<String, K8sConfig>,
+    /// TCP connection instances (multiple)
+    pub tcp_instances: HashMap<String, TCPConfig>,
+    /// UDP connection instances (multiple)
+    pub udp_instances: HashMap<String, UDPConfig>,
+    /// FTP server instances (multiple)
+    pub ftp_instances: HashMap<String, FTPConfig>,
+    /// SMTP email instances (multiple)
+    pub smtp_instances: HashMap<String, SMTPConfig>,
+    /// Telegram bot instances (multiple)
+    pub telegram_instances: HashMap<String, TelegramConfig>,
+    /// DingTalk robot instances (multiple)
+    pub dingtalk_instances: HashMap<String, DingTalkConfig>,
+    /// Feishu webhook instances (multiple)
+    pub feishu_instances: HashMap<String, FeishuConfig>,
+    /// WeCom webhook instances (multiple)
+    pub wecom_instances: HashMap<String, WeComConfig>,
+    /// GitHub API instances (multiple)
+    pub github_instances: HashMap<String, GitHubConfig>,
+}
+```
+
+#### 2. IdentityInformation
+
+```rust
+/// AI identity configuration
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct IdentityInformation {
+    /// AI name, e.g., "Assistant", "Hippox"
+    pub name: Option<String>,
+    /// Gender, e.g., "male", "female", "neutral"
+    pub sex: Option<String>,
+    /// Age, e.g., "25", "young"
+    pub age: Option<String>,
+    /// Species, e.g., "AI", "human", "robot"
+    pub species: Option<String>,
+    /// Role, e.g., "assistant", "teacher", "life coach"
+    pub role: Option<String>,
+    /// Personality, e.g., "friendly", "humorous", "professional"
+    pub personality: Option<String>,
+    /// Tone style, e.g., "casual", "formal", "poetic"
+    pub tone_style: Option<String>,
+    /// Knowledge scope, e.g., "general", "medical", "programming"
+    pub knowledge_scope: Option<String>,
+    /// Catchphrase, e.g., "Haha", "I see", "Let's go"
+    pub catchphrase: Option<String>,
+    /// Prohibited topics, e.g., "no politics", "no medical advice"
+    pub taboos: Option<String>,
+}
+```
+
 ## Hippox Core Working Principle
 
 ````
