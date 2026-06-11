@@ -14,7 +14,7 @@ use crate::{
     needs_format_conversion, t, update_config,
 };
 use langhub::LLMClient;
-use langhub::types::ModelProvider;
+use langhub::types::{ChatMessage, ModelProvider};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -146,11 +146,7 @@ impl Hippox {
     ///
     /// # Returns
     /// The task ID as a string
-    pub fn submit(
-        &self,
-        input: &str,
-        callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> String {
+    pub fn submit(&self, input: &str, callback: Option<Arc<dyn WorkflowCallback>>) -> String {
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
             self.workflow_executor.clone(),
@@ -259,6 +255,16 @@ impl Hippox {
             results.push(result);
         }
         results
+    }
+
+    /// heartbeat
+    pub async fn heartbeat(&self) -> String {
+        let mut messages: Vec<ChatMessage> = Vec::new();
+        messages.push(ChatMessage::user("hi"));
+        match self.scheduler.get_llm().chat(messages).await {
+            Ok(response) => response,
+            Err(e) => format!("Error: {}", e),
+        }
     }
 
     /// Get task status by ID
