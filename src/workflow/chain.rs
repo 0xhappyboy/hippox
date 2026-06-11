@@ -374,3 +374,106 @@ pub async fn execute_chain(
         raw_json,
     }
 }
+
+pub async fn execute_chain_with_categories(
+    executor: &WorkflowExecutor,
+    scheduler: &SkillScheduler,
+    input: &str,
+    categories: &[String],
+) -> WorkflowExecutionResult {
+    let overall_start = Instant::now();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
+    let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
+    let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_skills, input);
+    let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("{}: {}", t!("error.llm_error"), e),
+                completed_steps: 0,
+            };
+        }
+    };
+
+    let chain = match parse_chain_response(&llm_response) {
+        Ok(chain) => chain,
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("Failed to parse chain: {}", e),
+                completed_steps: 0,
+            };
+        }
+    };
+
+    let mut context = HashMap::new();
+    context.insert("user_input".to_string(), Value::String(input.to_string()));
+    let mut results = Vec::new();
+
+    for (idx, step) in chain.steps.iter().enumerate() {
+        let step_name = step.action.clone();
+        let step_start = Instant::now();
+
+        let mut resolved_params = HashMap::new();
+        for (key, value) in &step.parameters {
+            let resolved = resolve_variables_deep(value, &context);
+            resolved_params.insert(key.clone(), resolved);
+        }
+
+        let call = SkillCall {
+            action: step.action.clone(),
+            parameters: resolved_params,
+        };
+
+        match executor.get_executor().execute(&call).await {
+            Ok(output) => {
+                if let Some(output_as) = &step.output_as {
+                    if let Ok(num) = output.parse::<f64>() {
+                        context.insert(output_as.clone(), json!(num));
+                    } else {
+                        context.insert(output_as.clone(), Value::String(output.clone()));
+                    }
+                }
+                results.push(StepResult {
+                    skill: step.action.clone(),
+                    parameters: call.parameters,
+                    output: output.clone(),
+                    status: ExecutionStatus::Success,
+                });
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                results.push(StepResult {
+                    skill: step.action.clone(),
+                    parameters: call.parameters,
+                    output: error_msg.clone(),
+                    status: ExecutionStatus::Failure,
+                });
+                return WorkflowExecutionResult::Failed {
+                    error: format!("Skill '{}' failed: {}", step.action, error_msg),
+                    completed_steps: results.len(),
+                };
+            }
+        }
+    }
+
+    let final_display = format_step_results(&results);
+    let raw_json = serde_json::json!({
+        "mode": "chain",
+        "steps": results.iter().map(|r| {
+            serde_json::json!({
+                "skill": r.skill,
+                "output": r.output,
+                "status": match r.status {
+                    ExecutionStatus::Success => "success",
+                    ExecutionStatus::Failure => "failure",
+                }
+            })
+        }).collect::<Vec<_>>()
+    })
+    .to_string();
+
+    WorkflowExecutionResult::CompletedWithRaw {
+        display: final_display,
+        raw_json,
+    }
+}

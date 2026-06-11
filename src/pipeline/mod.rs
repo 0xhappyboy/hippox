@@ -3,8 +3,10 @@
 //! Stage One: Core workflow execution, outputs standard JSON
 //! Stage Two: Format conversion based on user's structure requirements
 
-mod detector;
-mod stage;
+pub(crate) mod core;
+pub(crate) mod detector;
+pub(crate) mod types;
 
-pub use detector::*;
-pub use stage::*;
+pub(crate) use core::*;
+pub(crate) use detector::*;
+pub(crate) use types::*;

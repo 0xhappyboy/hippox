@@ -294,3 +294,55 @@ pub async fn execute_batch(
         WorkflowExecutionResult::Completed(display)
     }
 }
+
+pub async fn execute_batch_with_categories(
+    executor: &WorkflowExecutor,
+    scheduler: &SkillScheduler,
+    input: &str,
+    categories: &[String],
+) -> WorkflowExecutionResult {
+    let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
+    let batch_prompt = crate::prompts::build_batch_prompt_with_categories(&filtered_skills, input);
+    let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("{}: {}", t!("error.llm_error"), e),
+                completed_steps: 0,
+            };
+        }
+    };
+
+    let instruction = match parse_react_response(&llm_response) {
+        Ok(instr) => instr,
+        Err(_) => {
+            return WorkflowExecutionResult::Completed(llm_response);
+        }
+    };
+
+    match instruction {
+        ReactInstruction::Done(message) => WorkflowExecutionResult::Completed(message),
+        ReactInstruction::Batch(steps) => {
+            let results = execute_batch_plan(executor, &steps).await;
+            let display = format_step_results(&results);
+            let raw_json = serde_json::json!({
+                "mode": "batch",
+                "results": results.iter().map(|r| {
+                    serde_json::json!({
+                        "skill": r.skill,
+                        "output": r.output,
+                        "status": match r.status {
+                            ExecutionStatus::Success => "success",
+                            ExecutionStatus::Failure => "failure",
+                        }
+                    })
+                }).collect::<Vec<_>>()
+            })
+            .to_string();
+            WorkflowExecutionResult::CompletedWithRaw { display, raw_json }
+        }
+        ReactInstruction::Single(_) => {
+            WorkflowExecutionResult::Completed(t!("error.batch_mode_invalid").to_string())
+        }
+    }
+}

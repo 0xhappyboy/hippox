@@ -1,6 +1,6 @@
 //! Main Hippox core implementation
 
-use crate::core::tasks::{NaturalLanguageTask, SkillMdTask};
+use crate::core::tasks::NaturalLanguageTask;
 use crate::executors::Executor;
 use crate::prompts::{
     build_skill_md_prompt, generate_instances_registry, generate_skills_registry,
@@ -10,7 +10,9 @@ use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
 use crate::{
-    ConfigInitMethod, HippoxConfig, IdentityInformation, execute_stage_one, execute_stage_two, get_config, i18n, init_config_from_json_file, init_config_from_params_json_str, init_config_from_toml_file, needs_format_conversion, t
+    ConfigInitMethod, HippoxConfig, IdentityInformation, Pipeline, StageOneResult, SystemPipeline,
+    get_config, i18n, init_config_from_json_file, init_config_from_params_json_str,
+    init_config_from_toml_file, needs_format_conversion, t,
 };
 use langhub::LLMClient;
 use langhub::types::ModelProvider;
@@ -80,7 +82,6 @@ impl Hippox {
         let scheduler = SkillScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
-
         Ok(Self {
             scheduler,
             executor,
@@ -155,11 +156,34 @@ impl Hippox {
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let executable = Arc::new(NaturalLanguageTask::new(
-            input.to_string(),
-            self.workflow_executor.clone(),
-            self.scheduler.clone(),
-        ));
+        let pipeline = SystemPipeline::new();
+        let scheduler = self.scheduler.clone();
+        let input_owned = input.to_string();
+        // Stage Zero: Classify intent
+        let categories =
+            match futures::executor::block_on(pipeline.stage_zero(&scheduler, &input_owned)) {
+                Ok(result) => result.categories,
+                Err(e) => {
+                    tracing::warn!("Stage Zero classification failed: {}", e);
+                    vec![]
+                }
+            };
+        let executable = if categories.is_empty() {
+            Arc::new(NaturalLanguageTask::new(
+                input_owned,
+                self.workflow_executor.clone(),
+                self.scheduler.clone(),
+            ))
+        } else {
+            Arc::new(
+                NaturalLanguageTask::new(
+                    input_owned,
+                    self.workflow_executor.clone(),
+                    self.scheduler.clone(),
+                )
+                .with_categories(categories),
+            )
+        };
         let task_id = futures::executor::block_on(tasks::create_task_with_executable(
             "natural_language".to_string(),
             input.to_string(),
@@ -190,61 +214,6 @@ impl Hippox {
             .collect()
     }
 
-    /// Submit a SKILL.md workflow task and return task ID immediately
-    ///
-    /// # Arguments
-    /// * `skill_md_path` - Path to the SKILL.md file
-    /// * `params` - Optional parameters to substitute in the SKILL.md content
-    /// * `_callback` - Optional callback for workflow execution progress
-    ///
-    /// # Returns
-    /// The task ID as a string
-    pub fn handle_skill_md(
-        &self,
-        skill_md_path: &str,
-        params: Option<HashMap<String, Value>>,
-        callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> String {
-        let executable = Arc::new(SkillMdTask::new(
-            skill_md_path.to_string(),
-            params,
-            self.workflow_executor.clone(),
-            self.scheduler.clone(),
-        ));
-        let task_id = futures::executor::block_on(tasks::create_task_with_executable(
-            "skill_md".to_string(),
-            skill_md_path.to_string(),
-            executable,
-            callback,
-        ));
-        info!(
-            "Created SKILL.md task: {} for path: {}",
-            task_id, skill_md_path
-        );
-        task_id
-    }
-
-    /// Submit multiple SKILL.md tasks in batch and return task IDs immediately
-    ///
-    /// # Arguments
-    /// * `tasks` - Vector of tuples (skill_md_path, params, callback)
-    ///
-    /// # Returns
-    /// Vector of task IDs in the same order as inputs
-    pub fn handle_skill_md_batch(
-        &self,
-        tasks: Vec<(
-            String,
-            Option<HashMap<String, Value>>,
-            Option<Arc<dyn WorkflowCallback>>,
-        )>,
-    ) -> Vec<String> {
-        tasks
-            .into_iter()
-            .map(|(path, params, callback)| self.handle_skill_md(&path, params, callback))
-            .collect()
-    }
-
     /// Execute natural language directly without task pool, returning the result asynchronously.
     /// Execute natural language directly without task pool
     pub async fn direct_handle_natural_language(
@@ -252,25 +221,55 @@ impl Hippox {
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let mut executor = self.workflow_executor.clone();
-        if let Some(cb) = callback {
-            executor = executor.with_callback(cb);
-        }
+        let pipeline = SystemPipeline::new();
+        // Stage Zero: Classify intent
+        let categories = match pipeline.stage_zero(&self.scheduler, input).await {
+            Ok(result) => result.categories,
+            Err(e) => {
+                tracing::warn!("Stage Zero classification failed: {}, using all skills", e);
+                vec![]
+            }
+        };
         // Stage One: Core workflow execution
-        let stage_one_result =
-            execute_stage_one(self.workflow_mode, &executor, &self.scheduler, input, None).await;
-        // If Stage One produced empty output, return it
+        let stage_one_result = if categories.is_empty() {
+            pipeline
+                .stage_one(
+                    self.workflow_mode,
+                    &self.workflow_executor,
+                    &self.scheduler,
+                    input,
+                    callback,
+                )
+                .await
+        } else {
+            let result = self
+                .workflow_executor
+                .execute_with_categories(&self.scheduler, input, &categories)
+                .await;
+            let json_output = match result {
+                WorkflowExecutionResult::Completed(output) => output,
+                WorkflowExecutionResult::CompletedWithRaw { raw_json, .. } => raw_json,
+                WorkflowExecutionResult::Paused { partial_output, .. } => partial_output,
+                WorkflowExecutionResult::Cancelled { .. } => String::new(),
+                WorkflowExecutionResult::Failed { error, .. } => error,
+            };
+            StageOneResult {
+                json_output,
+                original_input: input.to_string(),
+            }
+        };
         if stage_one_result.json_output.is_empty() {
             return stage_one_result.json_output;
         }
-        // Stage Two: Format conversion (only if user has format requirement)
+        // Stage Two: Format conversion
         if needs_format_conversion(input) {
-            let stage_two_result = execute_stage_two(
-                &self.scheduler,
-                &stage_one_result.original_input,
-                &stage_one_result.json_output,
-            )
-            .await;
+            let stage_two_result = pipeline
+                .stage_two(
+                    &self.scheduler,
+                    &stage_one_result.original_input,
+                    &stage_one_result.json_output,
+                )
+                .await;
             stage_two_result.final_output
         } else {
             stage_one_result.json_output
@@ -286,111 +285,6 @@ impl Hippox {
         for (input, callback) in inputs {
             let result = self.direct_handle_natural_language(&input, callback).await;
             results.push(result);
-        }
-        results
-    }
-
-    /// Execute SKILL.md directly without task pool, returning the result asynchronously.
-    pub async fn direct_handle_skill_md(
-        &self,
-        skill_md_path: &str,
-        params: Option<HashMap<String, Value>>,
-        callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> String {
-        let skill_file = match SkillLoader::load_from_path(skill_md_path) {
-            Ok(Some(file)) => file,
-            Ok(None) => {
-                return format!("{}: {}", t!("error.skill_not_found"), skill_md_path);
-            }
-            Err(e) => {
-                return format!("{}: {}", t!("error.load_skill_failed"), e);
-            }
-        };
-        info!(
-            "Executing SKILL.md directly (no task pool): {} with workflow mode: {}",
-            skill_file.name, self.workflow_mode
-        );
-        let mut executor = self.workflow_executor.clone();
-        if let Some(cb) = callback {
-            executor = executor.with_callback(cb);
-        }
-        // For SKILL.md, we need to enhance the input first
-        let enhanced_input = {
-            let mut instructions = skill_file.instructions.clone();
-            if let Some(params) = params.as_ref() {
-                for (key, value) in params {
-                    let placeholder = format!("{{{{{}}}}}", key);
-                    let replacement = match value {
-                        serde_json::Value::String(s) => s.clone(),
-                        serde_json::Value::Number(n) => n.to_string(),
-                        serde_json::Value::Bool(b) => b.to_string(),
-                        _ => value.to_string(),
-                    };
-                    instructions = instructions.replace(&placeholder, &replacement);
-                }
-            }
-            build_skill_md_prompt(&instructions)
-        };
-        // Stage One: Core workflow execution
-        let stage_one_result = execute_stage_one(
-            self.workflow_mode,
-            &executor,
-            &self.scheduler,
-            &enhanced_input,
-            None,
-        )
-        .await;
-        if stage_one_result.json_output.is_empty() {
-            return stage_one_result.json_output;
-        }
-        // Stage Two: Format conversion (only if user has format requirement in original params)
-        // For SKILL.md, we check the original skill_md_path as proxy
-        if needs_format_conversion(skill_md_path) {
-            let stage_two_result = execute_stage_two(
-                &self.scheduler,
-                &stage_one_result.original_input,
-                &stage_one_result.json_output,
-            )
-            .await;
-            stage_two_result.final_output
-        } else {
-            stage_one_result.json_output
-        }
-    }
-
-    /// Execute multiple SKILL.md tasks directly without task pool.
-    pub async fn direct_handle_skill_md_batch(
-        &self,
-        tasks: Vec<(
-            String,
-            Option<HashMap<String, Value>>,
-            Option<Arc<dyn WorkflowCallback>>,
-        )>,
-    ) -> Vec<String> {
-        if tasks.is_empty() {
-            return Vec::new();
-        }
-        info!(
-            "Executing {} SKILL.md files directly (no task pool) with workflow mode: {:?}",
-            tasks.len(),
-            self.workflow_mode
-        );
-        let mut handles = Vec::new();
-        for (skill_md_path, params, callback) in tasks {
-            let self_clone = self.clone();
-            let handle = tokio::spawn(async move {
-                self_clone
-                    .direct_handle_skill_md(&skill_md_path, params, callback)
-                    .await
-            });
-            handles.push(handle);
-        }
-        let mut results = Vec::with_capacity(handles.len());
-        for handle in handles {
-            match handle.await {
-                Ok(result) => results.push(result),
-                Err(e) => results.push(format!("{}: {}", t!("error.task_panic"), e)),
-            }
         }
         results
     }

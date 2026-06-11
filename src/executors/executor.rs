@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 /// # Executor Module
 ///
 /// This module provides the `Executor` struct, which is responsible for parsing
@@ -28,7 +30,7 @@
 /// - Invalid JSON input during parsing
 /// - Unknown skill name (not found in registry)
 /// - Skill execution failure (delegated to the skill itself)
-use crate::executors::{SkillCall, registry};
+use crate::{executors::{Skill, SkillCall, registry}, registry::get_registry};
 use anyhow::Result;
 use serde_json::Value;
 
@@ -246,6 +248,34 @@ impl Default for Executor {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Get skills filtered by categories
+pub fn get_skills_by_categories(categories: &[String]) -> Vec<Arc<dyn Skill>> {
+    let registry = get_registry();
+    let mut result = Vec::new();
+    for skill in registry.values() {
+        let skill_category = skill.category();
+        if categories.iter().any(|cat| cat == skill_category) {
+            result.push(skill.clone());
+        }
+    }
+    result
+}
+
+/// Get skill names filtered by categories
+pub fn list_skills_by_categories(categories: &[String]) -> Vec<String> {
+    let registry = get_registry();
+    let mut result = Vec::new();
+
+    for (name, skill) in registry.iter() {
+        let skill_category = skill.category();
+        if categories.iter().any(|cat| cat == skill_category) {
+            result.push(name.clone());
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]

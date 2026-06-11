@@ -1,6 +1,9 @@
 //! Registry generation for skills and instances
 
-use crate::get_config;
+use crate::{
+    get_config,
+    registry::{get_skill, get_skills_by_categories, list_skills},
+};
 use serde_json::{Value, json};
 
 /// Generate skills registry (atomic skills metadata)
@@ -126,4 +129,63 @@ pub fn generate_instances_registry() -> String {
         instances.insert("kubernetes".to_string(), json!(k8s_instances));
     }
     serde_json::to_string_pretty(&instances).unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Generate filtered skills registry by categories
+pub fn generate_skills_registry_by_categories(categories: &[String]) -> String {
+    if categories.is_empty() {
+        return "[]".to_string();
+    }
+    let skills = get_skills_by_categories(categories);
+    let registry: Vec<serde_json::Value> = skills
+        .iter()
+        .map(|skill| {
+            serde_json::json!({
+                "name": skill.name(),
+                "description": skill.description(),
+                "category": skill.category(),
+                "parameters": skill.parameters(),
+                "example_call": skill.example_call(),
+                "example_output": skill.example_output(),
+            })
+        })
+        .collect();
+    serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Generate minimal skills registry (only name, desc, category) - for ultra-low token usage
+pub fn generate_minimal_skills_registry() -> String {
+    let skills = list_skills();
+    let registry: Vec<serde_json::Value> = skills
+        .iter()
+        .filter_map(|name| {
+            get_skill(name).map(|skill| {
+                serde_json::json!({
+                    "name": name,
+                    "desc": skill.description(),
+                    "category": skill.category(),
+                })
+            })
+        })
+        .collect();
+    serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Generate filtered minimal skills registry by categories
+pub fn generate_minimal_skills_registry_by_categories(categories: &[String]) -> String {
+    if categories.is_empty() {
+        return "[]".to_string();
+    }
+    let skills = get_skills_by_categories(categories);
+    let registry: Vec<serde_json::Value> = skills
+        .iter()
+        .map(|skill| {
+            serde_json::json!({
+                "name": skill.name(),
+                "desc": skill.description(),
+                "category": skill.category(),
+            })
+        })
+        .collect();
+    serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
 }

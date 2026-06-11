@@ -172,143 +172,33 @@ async fn main() -> anyhow::Result<()> {
 ═══════════════════════════════════════════════════════════════════════════════════
 ```
 
-### SKILL.md
+## Pipe Line
 
 ```
-═══════════════════════════════════════════════════════════════════════════════════
-                    HIPPOX SKILL.md WORKFLOW ARCHITECTURE (English)
-═══════════════════════════════════════════════════════════════════════════════════
-
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  INPUT LAYER: SKILL.md File                                                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │  ./skills/web-search/SKILL.md                                           │   │
-│   │  ┌─────────────────────────────────────────────────────────────────────┐│   │
-│   │  │  ---                                                               ││   │
-│   │  │  name: web-search                                                  ││   │
-│   │  │  description: Search the web using a search engine                 ││   │
-│   │  │  version: 1.0.0                                                    ││   │
-│   │  │  author: lobster-team                                              ││   │
-│   │  │  triggers:                                                         ││   │
-│   │  │    patterns: ["search for", "find online", "google"]               ││   │
-│   │  │    case_sensitive: false                                           ││   │
-│   │  │  allowed_tools: ["net_httprequest", "json"]                        ││   │
-│   │  │  parameters:                                                       ││   │
-│   │  │    - name: query                                                   ││   │
-│   │  │      type: string                                                  ││   │
-│   │  │      description: Search keywords                                  ││   │
-│   │  │      required: true                                                ││   │
-│   │  │    - name: limit                                                   ││   │
-│   │  │      type: integer                                                 ││   │
-│   │  │      default: 10                                                   ││   │
-│   │  │  metadata:                                                         ││   │
-│   │  │    emoji: 🔍                                                        ││   │
-│   │  │    os: [linux, macos, windows]                                     ││   │
-│   │  │  ---                                                               ││   │
-│   │  │  # Search Execution Workflow                                       ││   │
-│   │  │                                                                     ││   │
-│   │  │  1. Parse user's search query                                      ││   │
-│   │  │  2. Call search API: net_httprequest                              ││   │
-│   │  │  3. Parse JSON response                                            ││   │
-│   │  │  4. Format and return results                                      ││   │
-│   │  └─────────────────────────────────────────────────────────────────────┘│   │
-│   └─────────────────────────────────────────────────────────────────────────┘   │
-│                                      │                                          │
-│                                      ▼                                          │
-│   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │  Hippox::handle_skill_md(path, params, callback)                        │   │
-│   │  → SkillLoader::load_from_path() parses YAML frontmatter + Markdown     │   │
-│   └─────────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-═══════════════════════════════════════════════════════════════════════════════════
-
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  PARSING LAYER: SkillFile Structure                                            │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │  pub struct SkillFile {                                                 │   │
-│   │      name: String,           // "web-search"                            │   │
-│   │      description: String,    // "Search the web..."                     │   │
-│   │      triggers: Option<SkillTrigger>,  // Trigger configuration         │   │
-│   │      allowed_tools: Vec<String>,       // ["net_httprequest", "json"]  │   │
-│   │      parameters: Vec<SkillParameter>,  // Parameter definitions        │   │
-│   │      instructions: String,   // Markdown execution instructions        │   │
-│   │      metadata: Option<SkillFrontmatterMetadata>,  // Extended metadata │   │
-│   │      path: PathBuf,          // Original file path                      │   │
-│   │  }                                                                       │   │
-│   └─────────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-═══════════════════════════════════════════════════════════════════════════════════
-
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  EXECUTION LAYER: WorkflowExecutor executes SKILL.md                           │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │  WorkflowExecutor::execute_skill_md(skill_file, params)                 │   │
-│   │                                                                          │   │
-│   │  Step 1: Parameter Substitution                                         │   │
-│   │  ┌─────────────────────────────────────────────────────────────────┐    │   │
-│   │  │ params = {"query": "Rust programming", "limit": 5}              │    │   │
-│   │  │ {{query}} in instructions → "Rust programming"                  │    │   │
-│   │  │ {{limit}} in instructions → "5"                                 │    │   │
-│   │  └─────────────────────────────────────────────────────────────────┘    │   │
-│   │                                                                          │   │
-│   │  Step 2: Build Enhanced Prompt                                          │   │
-│   │  ┌─────────────────────────────────────────────────────────────────┐    │   │
-│   │  │ instructions + atomic skills list + instances list → full prompt│    │   │
-│   │  └─────────────────────────────────────────────────────────────────┘    │   │
-│   │                                                                          │   │
-│   │  Step 3: Execute based on configured workflow mode                      │   │
-│   │  ┌─────────────────────────────────────────────────────────────────┐    │   │
-│   │  │  match workflow_mode {                                          │    │   │
-│   │  │      ReAct → execute_react()     // Complex reasoning           │    │   │
-│   │  │      Batch → execute_batch()     // Parallel independent tasks  │    │   │
-│   │  │      Chain → execute_chain()     // Pipeline processing         │    │   │
-│   │  │      PlanAndExecute → execute_plan_and_execute()  // Complex deps│    │   │
-│   │  │  }                                                               │    │   │
-│   │  └─────────────────────────────────────────────────────────────────┘    │   │
-│   └─────────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-═══════════════════════════════════════════════════════════════════════════════════
-
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  ATOMIC SKILLS INVOCATION LAYER                                                │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │  LLM generates calls based on instructions:                             │   │
-│   │                                                                          │   │
-│   │  {"action": "net_httprequest", "parameters": {                          │   │
-│   │      "url": "https://api.search.com?q=Rust+programming",                │   │
-│   │      "method": "GET"                                                    │   │
-│   │  }}                                                                      │   │
-│   │                                                                          │   │
-│   │  Executor executes → returns search results JSON                        │   │
-│   │                                                                          │   │
-│   │  LLM continues → formats results                                        │   │
-│   │                                                                          │   │
-│   │  {"action": "done", "message": "Found these results about Rust:\n1. "}  │   │
-│   └─────────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-═══════════════════════════════════════════════════════════════════════════════════
-  SKILL.md Benefits: Community Contribution │ Versioning │ Auto-triggers │ Permissions
-═══════════════════════════════════════════════════════════════════════════════════
+User Input
+    │
+    ▼
+┌─────────────┐
+│ Stage Zero  │ → Classify intent (math, file, web, etc.)
+│ Classify    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Stage One   │ → Execute workflow, output standard JSON
+│  Execute    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐      ┌─────────────┐
+│ Need Format │ ──Yes──▶│ Stage Two   │ → Call LLM to convert
+│ Conversion? │      │  Convert    │   (JSON → XML/Table)
+└──────┬──────┘      └──────┬──────┘
+       │                    │
+       └──────────┬─────────┘
+                  ▼
+            Final Output
 ```
-
-## How skill loaders and schedulers work
-
-<img src="./assets/architecture/skill_load_and_schedul_en.png" width="100%">
 
 ## Task Pool
 

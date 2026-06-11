@@ -1209,3 +1209,49 @@ mod registry_test {
         }
     }
 }
+
+/// Get skills filtered by categories
+pub fn get_skills_by_categories(categories: &[String]) -> Vec<Arc<dyn Skill>> {
+    let registry = get_registry();
+    let mut result = Vec::new();
+
+    for (name, skill) in registry.iter() {
+        let skill_category = skill.category();
+        if categories.iter().any(|cat| cat == skill_category) {
+            result.push(skill.clone());
+        }
+    }
+
+    result
+}
+
+/// Get skill names filtered by categories
+pub fn list_skills_by_categories(categories: &[String]) -> Vec<String> {
+    let registry = get_registry();
+    let mut result = Vec::new();
+
+    for (name, skill) in registry.iter() {
+        let skill_category = skill.category();
+        if categories.iter().any(|cat| cat == skill_category) {
+            result.push(name.clone());
+        }
+    }
+
+    result
+}
+
+/// Get all available skill categories with their skill counts
+pub fn get_skill_categories() -> Vec<(String, usize)> {
+    let registry = get_registry();
+    let mut category_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+
+    for skill in registry.values() {
+        let cat = skill.category().to_string();
+        *category_counts.entry(cat).or_insert(0) += 1;
+    }
+
+    let mut result: Vec<(String, usize)> = category_counts.into_iter().collect();
+    result.sort_by(|a, b| a.0.cmp(&b.0));
+    result
+}

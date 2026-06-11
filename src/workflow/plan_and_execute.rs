@@ -473,3 +473,75 @@ pub async fn execute_plan_and_execute(
         }
     }
 }
+
+pub async fn execute_plan_and_execute_with_categories(
+    executor: &WorkflowExecutor,
+    scheduler: &SkillScheduler,
+    input: &str,
+    categories: &[String],
+) -> WorkflowExecutionResult {
+    let overall_start = Instant::now();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
+    let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
+    let plan_prompt = crate::prompts::build_plan_prompt_with_categories(&filtered_skills, input);
+    let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("{}: {}", t!("error.llm_error"), e),
+                completed_steps: 0,
+            };
+        }
+    };
+
+    let instruction = match parse_plan_response(&llm_response) {
+        Ok(instr) => instr,
+        Err(e) => {
+            return WorkflowExecutionResult::Failed {
+                error: format!("Failed to parse plan: {}", e),
+                completed_steps: 0,
+            };
+        }
+    };
+
+    match instruction {
+        PlanInstruction {
+            mode,
+            plan,
+            message,
+        } => {
+            if mode == "done" {
+                let final_msg =
+                    message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
+                return WorkflowExecutionResult::Completed(final_msg);
+            }
+
+            if let Some(plan) = plan {
+                match execute_workflow_plan(executor, &plan, task_id.as_deref()).await {
+                    Ok((result, success_count, failed_count)) => {
+                        let raw_json = serde_json::json!({
+                            "mode": "plan_and_execute",
+                            "result": result,
+                            "success_count": success_count,
+                            "failed_count": failed_count,
+                        })
+                        .to_string();
+                        WorkflowExecutionResult::CompletedWithRaw {
+                            display: result,
+                            raw_json,
+                        }
+                    }
+                    Err(e) => {
+                        let error_msg = e.to_string();
+                        WorkflowExecutionResult::Failed {
+                            error: format!("Workflow failed: {}", error_msg),
+                            completed_steps: 0,
+                        }
+                    }
+                }
+            } else {
+                WorkflowExecutionResult::Completed(t!("skill.no_actions_executed").to_string())
+            }
+        }
+    }
+}

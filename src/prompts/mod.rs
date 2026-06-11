@@ -1,17 +1,27 @@
 pub(crate) mod batch;
+pub(crate) mod batch_with_categories;
 pub(crate) mod chain;
+pub(crate) mod chain_with_categories;
+pub(crate) mod classifier;
 pub(crate) mod identity;
 pub(crate) mod plan_and_execute;
+pub(crate) mod plan_and_execute_with_categories;
 pub(crate) mod react;
+pub(crate) mod react_with_categories;
 pub(crate) mod registry;
 pub(crate) mod skill_md;
 pub(crate) mod stage_two;
 
 pub(crate) use batch::*;
+pub(crate) use batch_with_categories::*;
 pub(crate) use chain::*;
+pub(crate) use chain_with_categories::*;
+pub(crate) use classifier::*;
 pub(crate) use identity::*;
 pub(crate) use plan_and_execute::*;
+pub(crate) use plan_and_execute_with_categories::*;
 pub(crate) use react::*;
+pub(crate) use react_with_categories::*;
 pub(crate) use registry::*;
 pub(crate) use skill_md::*;
 pub(crate) use stage_two::*;
