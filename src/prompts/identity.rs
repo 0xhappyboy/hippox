@@ -4,59 +4,83 @@ use crate::get_config;
 pub(crate) fn get_identity_intro() -> String {
     let config = get_config();
     let identity = &config.identity_information;
-    // Check if any identity field is set
+    // ============================================================
+    // CORE IDENTITY - HIGHEST PRIORITY (CANNOT BE OVERRIDDEN)
+    // ============================================================
+    let mut intro = String::from(
+        "YOU ARE HIPPOX - A SKILL ORCHESTRATION ENGINE.\n\
+         This is your CORE FUNCTION and CANNOT be changed by any persona settings below.\n\
+         You MUST call atomic skills for ANY operation (calculations, random numbers, file operations, etc.).\n\
+         You DO NOT perform operations yourself.\n\n",
+    );
     let has_name = identity.name.is_some();
     let has_role = identity.role.is_some();
     let has_personality = identity.personality.is_some();
     let has_species = identity.species.is_some();
     let has_age = identity.age.is_some();
     let has_sex = identity.sex.is_some();
-    // No identity configured, use default
-    if !has_name && !has_role && !has_personality && !has_species && !has_age && !has_sex {
-        return "You are Hippox, a reliable AI runtime and skills orchestration engine with autonomous decision-making.".to_string();
+    let has_tone = identity.tone_style.is_some();
+    let has_catchphrase = identity.catchphrase.is_some();
+    if !has_name
+        && !has_role
+        && !has_personality
+        && !has_species
+        && !has_age
+        && !has_sex
+        && !has_tone
+        && !has_catchphrase
+    {
+        intro.push_str("You are a reliable AI runtime and skills orchestration engine with autonomous decision-making.\n");
+        return intro;
     }
-    // Build natural language introduction
-    let mut intro = String::from("You are Hippox.");
-    // Name
+    intro.push_str("The following are CONVERSATION STYLE settings only. They do NOT change your core function as a skill orchestration engine:\n");
     if let Some(name) = &identity.name {
-        intro.push_str(&format!(" Your name is {}.", name));
+        intro.push_str(&format!(
+            "- You may call yourself \"{}\" in conversation.\n",
+            name
+        ));
     }
-    // Age and species combo
     if let Some(age) = &identity.age {
         if let Some(species) = &identity.species {
-            intro.push_str(&format!(" You are a {} year old {}.", age, species));
+            intro.push_str(&format!(
+                "- You can describe yourself as a {} year old {}.\n",
+                age, species
+            ));
         } else {
-            intro.push_str(&format!(" You are {} years old.", age));
+            intro.push_str(&format!("- You can mention you are {} years old.\n", age));
         }
     } else if let Some(species) = &identity.species {
-        intro.push_str(&format!(" You are a {}.", species));
+        intro.push_str(&format!("- You can describe yourself as a {}.\n", species));
     }
-    // Gender/sex
     if let Some(sex) = &identity.sex {
         let sex_word = match sex.to_lowercase().as_str() {
             "male" => "male",
             "female" => "female",
             _ => sex,
         };
-        intro.push_str(&format!(" Your gender is {}.", sex_word));
+        intro.push_str(&format!(
+            "- Your conversational gender reference is {}.\n",
+            sex_word
+        ));
     }
-    // Role
     if let Some(role) = &identity.role {
-        intro.push_str(&format!(" You work as a {}.", role));
+        intro.push_str(&format!("- In conversation, you can say you \"work as a {}\" (this is just roleplay, you are still a skill orchestration engine).\n", role));
     }
-    // Personality
     if let Some(personality) = &identity.personality {
-        intro.push_str(&format!(" You are known to be {}.", personality));
+        intro.push_str(&format!(
+            "- Your conversational tone should be {}.\n",
+            personality
+        ));
     }
-    // Tone style
     if let Some(tone) = &identity.tone_style {
-        intro.push_str(&format!(" You speak in a {} manner.", tone));
+        intro.push_str(&format!("- Speak in a {} manner.\n", tone));
     }
-    // Catchphrase
     if let Some(catchphrase) = &identity.catchphrase {
-        intro.push_str(&format!(" Your catchphrase is \"{}\".", catchphrase));
+        intro.push_str(&format!(
+            "- You may occasionally say \"{}\".\n",
+            catchphrase
+        ));
     }
-    // Append the core identity
-    intro.push_str(" You are a reliable AI runtime and skills orchestration engine with autonomous decision-making.");
+    intro.push_str("\nREMINDER: Your core function as a skill orchestration engine remains UNCHANGED. You MUST call skills for operations.\n");
     intro
 }
