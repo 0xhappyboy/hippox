@@ -31,27 +31,153 @@ A skill-driven AI runtime with autonomous decision-making that automatically loa
 
 ## Basic Usage
 
+### Instantiate
+
 ```rust
-use hippox::{Hippox, tasks, TaskStatus};
+// =================== Method 1 ===================
+let hippox = Hippox::builder(ModelProvider::OpenAI)
+    .api_key("sk-xxx")
+    .lang("zh")
+    .identity(|id| {
+        id.name = Some("agent".to_string());
+        id.role = Some("assistant".to_string());
+        id.personality = Some("friendly".to_string());
+    })
+    .add_postgresql(
+        PostgreSQLConfig::new(
+            "main".to_string(),
+            Some("db".to_string()),
+            None,
+            "localhost".to_string(),
+            5432,
+            "mydb".to_string(),
+            "user".to_string(),
+            "password".to_string(),
+        )
+    )
+    .build()
+    .await?;
+
+// =================== Method 2 ===================
+let mut config = HippoxConfig::default();
+config.lang = "zh".to_string();
+config.identity_information = IdentityInformation {
+    name: Some("agent".to_string()),
+    role: Some("assistant".to_string()),
+    personality: Some("friendly".to_string()),
+    ..Default::default()
+};
+let pg_config = PostgreSQLConfig::new(
+    "main".to_string(),
+    Some("db".to_string()),
+    None,
+    "localhost".to_string(),
+    5432,
+    "mydb".to_string(),
+    "user".to_string(),
+    "password".to_string(),
+);
+config.add_postgresql_instance(pg_config);
+let hippox = Hippox::new(
+    ModelProvider::OpenAI,
+    Some("sk-xxx".to_string()),
+    None,
+    Some(config),
+).await?;
+
+// =================== Simple Method ===================
+let hippox = Hippox::new(
+    ModelProvider::OpenAI,
+    Some("sk-xxx".to_string()),
+    None,
+    Some(HippoxConfig::default()),
+).await?;
+
+// builder
+let hippox = Hippox::builder(ModelProvider::OpenAI)
+    .api_key("sk-xxx")
+    .build()
+    .await?;
+```
+
+### Task Execution
+
+#### Submit
+
+##### 1. Execution mode
+
+- Asynchronous non-blocking submission. Task goes to background pool, returns task_id immediately. Result must be obtained via polling.
+
+##### 2. How it works
+
+- Call `submit()` method
+- `NaturalLanguageTask` is created and pushed to global `TASK_POOL`
+- Background execution engine processes tasks automatically
+- Method `returns task_id immediately (does NOT wait for completion)`
+- Caller repeatedly queries `get_task(task_id)` to check status
+- When `task.status == TaskStatus::Completed`, extract result from `task.final_output`
+
+##### 3. Use when
+
+- You don't need immediate results, or want to run multiple tasks concurrently.
+
+```rust
+use hippox::{Hippox, TaskStatus};
+use langhub::types::ModelProvider;
+use std::time::Duration;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+    // Submit task, returns task_id immediately
+    let task_id = hippox.submit("Calculate 15 * 3", None);
+    // Poll until task completes
+    let result = loop {
+        if let Some(task) = hippox.get_task(&task_id) {
+            if let Some(output) = task.final_output {
+                break output;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
+    println!("Result: {}", result);
+    Ok(())
+}
+```
+
+#### Execute - Direct execution
+
+##### 1. Execution mode
+
+- Synchronous blocking call. The function waits until the task completes and returns the result directly.
+
+##### 2. How it works
+
+- Call `execute()` method
+- Task starts immediately in the current thread
+- Code pauses and waits for completion
+- Returns `String` result directly
+
+##### 3. Use when
+
+- You need the result immediately and don't want to manage task state.
+
+```rust
+use hippox::Hippox;
 use langhub::types::ModelProvider;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize Hippox
-    let hippox = Hippox::new(ModelProvider::OpenAI, Some("sk-xxx".into()), None, ConfigInitMethod::ParamsJsonStr("{}".into())).await?;
-    // Submit task, get task_id immediately
-    let task_id = hippox.handle_natural_language("Calculate 15 * 3 and save to result.txt", None);
-    // Query task status from global task manager
-    loop {
-        if let Some(task) = tasks::get_task(&task_id).await {
-            println!("Status: {:?}, Progress: {}%", task.status, task.progress());
-            if matches!(task.status, TaskStatus::Completed | TaskStatus::Failed) {
-                println!("Result: {:?}", task.final_output);
-                break;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    }
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+    // Execute and wait for result
+    let result = hippox.execute("Calculate 15 * 3", None).await;
+    println!("Result: {}", result);
     Ok(())
 }
 ```

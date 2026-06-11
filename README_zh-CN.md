@@ -31,27 +31,154 @@
 
 ## 基础使用
 
+### 实例化
+
 ```rust
-use hippox::{Hippox, tasks, TaskStatus};
+// =================== Method 1 ===================
+let hippox = Hippox::builder(ModelProvider::OpenAI)
+    .api_key("sk-xxx")
+    .lang("zh")
+    .identity(|id| {
+        id.name = Some("智能助手".to_string());
+        id.role = Some("assistant".to_string());
+        id.personality = Some("friendly".to_string());
+    })
+    .add_postgresql(
+        PostgreSQLConfig::new(
+            "main".to_string(),
+            Some("主数据库".to_string()),
+            None,
+            "localhost".to_string(),
+            5432,
+            "mydb".to_string(),
+            "user".to_string(),
+            "password".to_string(),
+        )
+    )
+    .build()
+    .await?;
+
+// =================== Method 2 ===================
+let mut config = HippoxConfig::default();
+config.lang = "zh".to_string();
+config.identity_information = IdentityInformation {
+    name: Some("智能助手".to_string()),
+    role: Some("assistant".to_string()),
+    personality: Some("friendly".to_string()),
+    ..Default::default()
+};
+let pg_config = PostgreSQLConfig::new(
+    "main".to_string(),
+    Some("主数据库".to_string()),
+    None,
+    "localhost".to_string(),
+    5432,
+    "mydb".to_string(),
+    "user".to_string(),
+    "password".to_string(),
+);
+config.add_postgresql_instance(pg_config);
+let hippox = Hippox::new(
+    ModelProvider::OpenAI,
+    Some("sk-xxx".to_string()),
+    None,
+    Some(config),
+).await?;
+
+// =================== Simple Method ===================
+let hippox = Hippox::new(
+    ModelProvider::OpenAI,
+    Some("sk-xxx".to_string()),
+    None,
+    Some(HippoxConfig::default()),
+).await?;
+
+// builder
+let hippox = Hippox::builder(ModelProvider::OpenAI)
+    .api_key("sk-xxx")
+    .build()
+    .await?;
+```
+
+### 任务执行
+
+#### 提交模式
+
+##### 1. 执行方式
+
+- 异步提交,任务放入后台任务池执行,立即返回任务ID,需要通过轮询获取结果.
+
+##### 2. 工作流程
+
+- 调用 `submit()` 方法.
+- 创建 `NaturalLanguageTask` 并放入全局 `TASK_POOL`.
+- 后台执行引擎自动轮询并执行任务.
+- 方法立即返回 `task_id` (不等待任务完成).
+- 调用方需要通过 ` get_task(task_id)` 反复查询任务状态.
+- 当 `task.status == TaskStatus::Completed` 时, 从 `task.final_output` 取出结果.
+
+##### 3. 适用场景
+
+- 不需要立即等待结果,或需要同时提交多个任务并发执行.
+
+```rust
+use hippox::{Hippox, TaskStatus};
+use langhub::types::ModelProvider;
+use std::time::Duration;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+    // Submit task, returns task_id immediately
+    let task_id = hippox.submit("Calculate 15 * 3", None);
+    // Poll until task completes
+    let result = loop {
+        if let Some(task) = hippox.get_task(&task_id) {
+            if let Some(output) = task.final_output {
+                break output;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
+    println!("Result: {}", result);
+    Ok(())
+}
+```
+
+#### Execute - 直接执行
+
+##### 1. 执行方式
+
+- 同步等待,函数会阻塞直到任务完成并直接返回结果.
+
+##### 2. 工作流程
+
+- 调用 `execute()` 方法
+- 任务在当前线程中立即开始执行
+- 代码暂停等待，直到任务完成
+- 直接返回 `String` 类型的结果
+
+##### 3. 适用场景
+
+- 需要立即得到结果,且不希望处理异步状态管理.
+
+```rust
+use hippox::Hippox;
 use langhub::types::ModelProvider;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 初始化 Hippox
-    let hippox = Hippox::new(ModelProvider::OpenAI, Some("sk-xxx".into()), None, ConfigInitMethod::ParamsJsonStr("{}".into())).await?;
-    // 提交任务，立即返回 task_id
-    let task_id = hippox.handle_natural_language("计算 15 * 3 并保存到 result.txt", None);
-    // 从全局任务管理器查询任务状态
-    loop {
-        if let Some(task) = tasks::get_task(&task_id).await {
-            println!("状态: {:?}, 进度: {}%", task.status, task.progress());
-            if matches!(task.status, TaskStatus::Completed | TaskStatus::Failed) {
-                println!("结果: {:?}", task.final_output);
-                break;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    }
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+
+    // Execute and wait for result
+    let result = hippox.execute("Calculate 15 * 3", None).await;
+    println!("Result: {}", result);
     Ok(())
 }
 ```

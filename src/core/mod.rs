@@ -1,6 +1,8 @@
 //! Core engine module for Hippox
 
-mod hippox;
-mod tasks;
+pub mod builder;
+pub mod hippox;
+pub mod tasks;
 
+pub use builder::*;
 pub use hippox::Hippox;

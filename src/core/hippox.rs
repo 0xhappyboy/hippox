@@ -146,7 +146,7 @@ impl Hippox {
     ///
     /// # Returns
     /// The task ID as a string
-    pub fn handle_natural_language(
+    pub fn submit(
         &self,
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
@@ -176,19 +176,19 @@ impl Hippox {
     ///
     /// # Returns
     /// Vector of task IDs in the same order as inputs
-    pub fn handle_natural_language_batch(
+    pub fn submit_batch(
         &self,
         inputs: Vec<(String, Option<String>, Option<Arc<dyn WorkflowCallback>>)>,
     ) -> Vec<String> {
         inputs
             .into_iter()
-            .map(|(input, _session_id, callback)| self.handle_natural_language(&input, callback))
+            .map(|(input, _session_id, callback)| self.submit(&input, callback))
             .collect()
     }
 
     /// Execute natural language directly without task pool, returning the result asynchronously.
     /// Execute natural language directly without task pool
-    pub async fn direct_handle_natural_language(
+    pub async fn execute(
         &self,
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
@@ -249,13 +249,13 @@ impl Hippox {
     }
 
     /// Execute multiple natural language tasks directly without task pool.
-    pub async fn direct_handle_natural_language_batch(
+    pub async fn execute_batch(
         &self,
         inputs: Vec<(String, Option<Arc<dyn WorkflowCallback>>)>,
     ) -> Vec<String> {
         let mut results = Vec::new();
         for (input, callback) in inputs {
-            let result = self.direct_handle_natural_language(&input, callback).await;
+            let result = self.execute(&input, callback).await;
             results.push(result);
         }
         results
