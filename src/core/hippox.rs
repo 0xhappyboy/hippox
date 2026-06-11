@@ -10,9 +10,8 @@ use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
 use crate::{
-    ConfigInitMethod, HippoxConfig, IdentityInformation, Pipeline, StageOneResult, SystemPipeline,
-    get_config, i18n, init_config_from_json_file, init_config_from_params_json_str,
-    init_config_from_toml_file, needs_format_conversion, t,
+    HippoxConfig, IdentityInformation, Pipeline, StageOneResult, SystemPipeline, get_config, i18n,
+    needs_format_conversion, t, update_config,
 };
 use langhub::LLMClient;
 use langhub::types::ModelProvider;
@@ -43,13 +42,13 @@ impl Hippox {
         provider: ModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
-        config_method: ConfigInitMethod,
+        config: Option<HippoxConfig>,
     ) -> anyhow::Result<Self> {
         Self::with_workflow_mode(
             provider,
             api_key,
             extra_keys,
-            config_method,
+            config,
             WorkflowMode::default(),
         )
         .await
@@ -60,7 +59,7 @@ impl Hippox {
         provider: ModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
-        config_method: ConfigInitMethod,
+        config: Option<HippoxConfig>,
         workflow_mode: WorkflowMode,
     ) -> anyhow::Result<Self> {
         info!(
@@ -68,11 +67,7 @@ impl Hippox {
             workflow_mode
         );
         // init config
-        match config_method {
-            ConfigInitMethod::TomlFile(path) => init_config_from_toml_file(&path)?,
-            ConfigInitMethod::JsonFile(path) => init_config_from_json_file(&path)?,
-            ConfigInitMethod::ParamsJsonStr(json) => init_config_from_params_json_str(&json)?,
-        }
+        update_config(|global| *global = config.unwrap_or_default())?;
         // set i18n
         let config = get_config();
         i18n::set_language(&config.lang);
