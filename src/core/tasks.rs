@@ -8,19 +8,18 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
 
-use crate::pipeline::{SystemPipeline, needs_format_conversion};
+use crate::pipeline::{Pipeline, StageOneResult, SystemPipeline, needs_format_conversion};
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
+use crate::t;
 use crate::tasks::{ExecutableTask, TaskStateUpdater};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor};
-use crate::{Pipeline, t};
 
 #[derive(Debug)]
 pub(crate) struct NaturalLanguageTask {
     input: String,
     workflow_executor: WorkflowExecutor,
     scheduler: SkillScheduler,
-    categories: Option<Vec<String>>,
 }
 
 impl NaturalLanguageTask {
@@ -33,13 +32,7 @@ impl NaturalLanguageTask {
             input,
             workflow_executor,
             scheduler,
-            categories: None,
         }
-    }
-
-    pub(crate) fn with_categories(mut self, categories: Vec<String>) -> Self {
-        self.categories = Some(categories);
-        self
     }
 }
 
@@ -53,21 +46,29 @@ impl ExecutableTask for NaturalLanguageTask {
         let workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
         let task_id = state_updater.task_id().to_string();
-        let categories = self.categories.clone();
         let overall_start = Instant::now();
         let pipeline = SystemPipeline::new();
         Box::pin(async move {
+            // Stage Zero: Classify intent (now inside the task)
+            let categories = match pipeline.stage_zero(&scheduler, &input).await {
+                Ok(result) => result.categories,
+                Err(e) => {
+                    tracing::warn!("Stage Zero classification failed: {}", e);
+                    vec![]
+                }
+            };
             let mut executor_with_callback = workflow_executor.clone();
             if let Some(ref cb) = callback {
                 executor_with_callback = executor_with_callback.with_callback(cb.clone());
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
-            let result = if let Some(cats) = &categories {
-                executor_with_callback
-                    .execute_with_categories(&scheduler, &input, cats)
-                    .await
-            } else {
+            // Stage One: Core workflow execution
+            let result = if categories.is_empty() {
                 executor_with_callback.execute(&scheduler, &input).await
+            } else {
+                executor_with_callback
+                    .execute_with_categories(&scheduler, &input, &categories)
+                    .await
             };
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;

@@ -156,34 +156,11 @@ impl Hippox {
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let pipeline = SystemPipeline::new();
-        let scheduler = self.scheduler.clone();
-        let input_owned = input.to_string();
-        // Stage Zero: Classify intent
-        let categories =
-            match futures::executor::block_on(pipeline.stage_zero(&scheduler, &input_owned)) {
-                Ok(result) => result.categories,
-                Err(e) => {
-                    tracing::warn!("Stage Zero classification failed: {}", e);
-                    vec![]
-                }
-            };
-        let executable = if categories.is_empty() {
-            Arc::new(NaturalLanguageTask::new(
-                input_owned,
-                self.workflow_executor.clone(),
-                self.scheduler.clone(),
-            ))
-        } else {
-            Arc::new(
-                NaturalLanguageTask::new(
-                    input_owned,
-                    self.workflow_executor.clone(),
-                    self.scheduler.clone(),
-                )
-                .with_categories(categories),
-            )
-        };
+        let executable = Arc::new(NaturalLanguageTask::new(
+            input.to_string(),
+            self.workflow_executor.clone(),
+            self.scheduler.clone(),
+        ));
         let task_id = futures::executor::block_on(tasks::create_task_with_executable(
             "natural_language".to_string(),
             input.to_string(),
