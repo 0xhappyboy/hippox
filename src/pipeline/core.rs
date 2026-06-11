@@ -41,6 +41,13 @@ impl Pipeline for SystemPipeline {
         raw_input: &str,
     ) -> anyhow::Result<IntentAnalysisResult> {
         let parsed = self.parse_intent(scheduler, raw_input).await;
+
+        eprintln!("意图提取");
+
+        eprintln!("原始输入 :{:?}", raw_input.clone());
+        eprintln!("意图提取结果: {:?}", parsed.clone());
+        
+
         Ok(IntentAnalysisResult {
             categories: parsed.skill_categories,
             clean_intent: parsed.clean_intent,

@@ -1,9 +1,9 @@
 [package]
 name = "hippox"
-version = "0.5.0"
+version = "0.5.5"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
-description = "🦛A reliable AI agent and skills orchestration runtime engine."
+description = "🦛A reliable, autonomous LLM runtime and skill orchestration engine, Capable of processing natural language and automatically executing OS-native atomic skills, fundamentally enabling the LLM to truly take over the computer."
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/0xhappyboy/hippox"
