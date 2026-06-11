@@ -5,8 +5,8 @@
     HippoX
 </h1>
 <h4 align="center">
-An reliable AI runtime and skills orchestration engine with autonomous decision-making.<br>
-A skill-driven AI runtime with autonomous decision-making that automatically loads and executes skills simply by writing a SKILL.md file.
+A reliable, autonomous LLM runtime and skill orchestration engine.<br> 
+Capable of processing natural language and automatically executing OS-native atomic skills, fundamentally enabling the LLM to truly take over the computer.
 </h4>
 <p align="center">
   <a href="https://github.com/0xhappyboy/hippo/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache2.0-d1d1f6.svg?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=googledocs&label=license&logoColor=BEC5C9" alt="License"></a>
