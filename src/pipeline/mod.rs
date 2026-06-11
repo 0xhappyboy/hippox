@@ -5,8 +5,10 @@
 
 pub(crate) mod core;
 pub(crate) mod detector;
+pub(crate) mod intent;
 pub(crate) mod types;
 
 pub(crate) use core::*;
 pub(crate) use detector::*;
+pub(crate) use intent::*;
 pub(crate) use types::*;

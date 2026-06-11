@@ -4,9 +4,7 @@ use crate::get_config;
 pub(crate) fn get_identity_intro() -> String {
     let config = get_config();
     let identity = &config.identity_information;
-    // ============================================================
     // CORE IDENTITY - HIGHEST PRIORITY (CANNOT BE OVERRIDDEN)
-    // ============================================================
     let mut intro = String::from(
         "YOU ARE HIPPOX - A SKILL ORCHESTRATION ENGINE.\n\
          This is your CORE FUNCTION and CANNOT be changed by any persona settings below.\n\

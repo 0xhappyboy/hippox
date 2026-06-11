@@ -10,8 +10,8 @@ use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
 use crate::{
-    HippoxConfig, IdentityInformation, Pipeline, StageOneResult, SystemPipeline, get_config, i18n,
-    needs_format_conversion, t, update_config,
+    HippoxConfig, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
+    WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
@@ -190,57 +190,52 @@ impl Hippox {
         callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
         let pipeline = SystemPipeline::new();
-        // Stage Zero: Classify intent
-        let categories = match pipeline.stage_zero(&self.scheduler, input).await {
-            Ok(result) => result.categories,
+        // Step 1: intent analysis
+        let intent_result = match pipeline.intent_analysis(&self.scheduler, input).await {
+            Ok(result) => result,
             Err(e) => {
-                tracing::warn!("Stage Zero classification failed: {}, using all skills", e);
-                vec![]
+                tracing::warn!("Intent analysis failed: {}, using raw input", e);
+                IntentAnalysisResult {
+                    categories: vec![],
+                    clean_intent: input.to_string(),
+                }
             }
         };
-        // Stage One: Core workflow execution
-        let stage_one_result = if categories.is_empty() {
+        let clean_intent = &intent_result.clean_intent;
+        let categories = &intent_result.categories;
+        // Step 2: Workflow execution
+        let workflow_result = if categories.is_empty() {
             pipeline
-                .stage_one(
+                .workflow_execution(
                     self.workflow_mode,
                     &self.workflow_executor,
                     &self.scheduler,
-                    input,
+                    clean_intent, 
                     callback,
                 )
                 .await
         } else {
             let result = self
                 .workflow_executor
-                .execute_with_categories(&self.scheduler, input, &categories)
+                .execute_with_categories(&self.scheduler, clean_intent, categories)
                 .await;
             let json_output = match result {
                 WorkflowExecutionResult::Completed(output) => output,
                 WorkflowExecutionResult::CompletedWithRaw { raw_json, .. } => raw_json,
-                WorkflowExecutionResult::Paused { partial_output, .. } => partial_output,
-                WorkflowExecutionResult::Cancelled { .. } => String::new(),
-                WorkflowExecutionResult::Failed { error, .. } => error,
+                _ => String::new(),
             };
-            StageOneResult {
+            WorkflowExecResult {
                 json_output,
-                original_input: input.to_string(),
+                original_input: clean_intent.to_string(),
             }
         };
-        if stage_one_result.json_output.is_empty() {
-            return stage_one_result.json_output;
-        }
-        // Stage Two: Format conversion
         if needs_format_conversion(input) {
-            let stage_two_result = pipeline
-                .stage_two(
-                    &self.scheduler,
-                    &stage_one_result.original_input,
-                    &stage_one_result.json_output,
-                )
+            let format_result = pipeline
+                .response_formatting(&self.scheduler, input, &workflow_result.json_output)
                 .await;
-            stage_two_result.final_output
+            format_result.final_output
         } else {
-            stage_one_result.json_output
+            workflow_result.json_output
         }
     }
 

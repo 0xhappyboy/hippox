@@ -3,55 +3,56 @@ use serde::{Deserialize, Serialize};
 use crate::{SkillScheduler, WorkflowCallback, WorkflowExecutor, WorkflowMode};
 use std::sync::Arc;
 
-/// Classification result from Stage Zero
+/// Intent analysis result from Step 1 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ClassificationResult {
+pub struct IntentAnalysisResult {
     pub categories: Vec<String>,
+    pub clean_intent: String,
 }
 
-/// Result after Stage One execution
+/// Workflow execution result from Step 2  
 #[derive(Debug, Clone)]
-pub struct StageOneResult {
+pub struct WorkflowExecResult {
     /// The standard JSON output from workflow
     pub json_output: String,
     /// Original user input
     pub original_input: String,
 }
 
-/// Result after Stage Two execution
+/// Format result from Step 3 
 #[derive(Debug, Clone)]
-pub struct StageTwoResult {
+pub struct FormatResult {
     /// Final output after format conversion
     pub final_output: String,
     /// Whether conversion was performed
     pub was_converted: bool,
 }
 
-/// Pipeline trait - defines the three stages of execution
+/// Pipeline trait - defines the three steps of execution
 #[async_trait::async_trait]
 pub trait Pipeline: Send + Sync {
-    /// Stage Zero: Classify user intent into skill categories
-    async fn stage_zero(
+    /// Step 1: Analyze user intent into skill categories
+    async fn intent_analysis(
         &self,
         scheduler: &SkillScheduler,
         input: &str,
-    ) -> anyhow::Result<ClassificationResult>;
+    ) -> anyhow::Result<IntentAnalysisResult>;
 
-    /// Stage One: Core workflow execution
-    async fn stage_one(
+    /// Step 2: Core workflow execution
+    async fn workflow_execution(
         &self,
         mode: WorkflowMode,
         executor: &WorkflowExecutor,
         scheduler: &SkillScheduler,
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> StageOneResult;
+    ) -> WorkflowExecResult;
 
-    /// Stage Two: Format conversion based on user's structure requirements
-    async fn stage_two(
+    /// Step 3: Format conversion based on user's structure requirements
+    async fn response_formatting(
         &self,
         scheduler: &SkillScheduler,
         original_input: &str,
         json_output: &str,
-    ) -> StageTwoResult;
+    ) -> FormatResult;
 }

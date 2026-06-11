@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
 
-use crate::pipeline::{Pipeline, StageOneResult, SystemPipeline, needs_format_conversion};
+use crate::pipeline::{Pipeline, SystemPipeline, WorkflowExecResult, needs_format_conversion};
 use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
@@ -49,25 +49,30 @@ impl ExecutableTask for NaturalLanguageTask {
         let overall_start = Instant::now();
         let pipeline = SystemPipeline::new();
         Box::pin(async move {
-            // Stage Zero: Classify intent (now inside the task)
-            let categories = match pipeline.stage_zero(&scheduler, &input).await {
-                Ok(result) => result.categories,
+            let intent_result = match pipeline.intent_analysis(&scheduler, &input).await {
+                Ok(result) => result,
                 Err(e) => {
-                    tracing::warn!("Stage Zero classification failed: {}", e);
-                    vec![]
+                    tracing::warn!("Intent analysis failed: {}, using raw input", e);
+                    crate::pipeline::IntentAnalysisResult {
+                        categories: vec![],
+                        clean_intent: input.clone(),
+                    }
                 }
             };
+            let clean_intent = &intent_result.clean_intent;
+            let categories = &intent_result.categories;
             let mut executor_with_callback = workflow_executor.clone();
             if let Some(ref cb) = callback {
                 executor_with_callback = executor_with_callback.with_callback(cb.clone());
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
-            // Stage One: Core workflow execution
             let result = if categories.is_empty() {
-                executor_with_callback.execute(&scheduler, &input).await
+                executor_with_callback
+                    .execute(&scheduler, clean_intent)
+                    .await
             } else {
                 executor_with_callback
-                    .execute_with_categories(&scheduler, &input, &categories)
+                    .execute_with_categories(&scheduler, clean_intent, categories)
                     .await
             };
             let total_duration = overall_start.elapsed().as_millis() as u64;
@@ -83,10 +88,11 @@ impl ExecutableTask for NaturalLanguageTask {
                 WorkflowExecutionResult::Cancelled { .. } => (String::new(), String::new()),
                 WorkflowExecutionResult::Failed { error, .. } => (error.clone(), String::new()),
             };
-            // Stage Two: Format conversion
-            let final_output = if !raw_json.is_empty() && needs_format_conversion(&input) {
-                let stage_two_result = pipeline.stage_two(&scheduler, &input, &raw_json).await;
-                stage_two_result.final_output
+            let final_output = if needs_format_conversion(&input) {
+                let format_result = pipeline
+                    .response_formatting(&scheduler, &input, &raw_json)
+                    .await;
+                format_result.final_output
             } else {
                 display_output
             };

@@ -1,4 +1,3 @@
-// prompts/skill_md.rs
 use crate::prompts::{generate_instances_registry, generate_skills_registry};
 
 pub fn build_skill_md_prompt(instructions: &str) -> String {

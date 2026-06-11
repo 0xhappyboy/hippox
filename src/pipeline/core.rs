@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use crate::{
-    ClassificationResult, Pipeline, SkillScheduler, StageOneResult, StageTwoResult,
-    WorkflowCallback, WorkflowExecutor, WorkflowMode,
-    prompts::{build_classifier_prompt, build_format_conversion_prompt},
+    FormatResult, IntentAnalysisResult, IntentParseResult, Pipeline, SkillScheduler,
+    WorkflowCallback, WorkflowExecResult, WorkflowExecutor, WorkflowMode,
+    prompts::{build_format_conversion_prompt, build_intent_parser_prompt},
 };
 
 /// Default implementation of Pipeline trait
@@ -15,41 +15,47 @@ impl SystemPipeline {
     pub fn new() -> Self {
         Self
     }
+
+    /// Internal: Parse raw input to extract clean intent, categories, and format
+    async fn parse_intent(&self, scheduler: &SkillScheduler, raw_input: &str) -> IntentParseResult {
+        let prompt = build_intent_parser_prompt(raw_input);
+        match scheduler.get_llm().generate(&prompt).await {
+            Ok(response) => {
+                let json_str = crate::workflow::WorkflowExecutor::extract_json(&response);
+                match serde_json::from_str::<IntentParseResult>(&json_str) {
+                    Ok(result) => result,
+                    Err(e) => IntentParseResult::fallback(raw_input),
+                }
+            }
+            Err(e) => IntentParseResult::fallback(raw_input),
+        }
+    }
 }
 
 #[async_trait]
 impl Pipeline for SystemPipeline {
-    /// Stage Zero: Classify user intent into skill categories
-    async fn stage_zero(
+    /// Step 1: Analyze user intent
+    async fn intent_analysis(
         &self,
         scheduler: &SkillScheduler,
-        input: &str,
-    ) -> anyhow::Result<ClassificationResult> {
-        let prompt = build_classifier_prompt(input);
-        let response = scheduler.get_llm().generate(&prompt).await?;
-        // Extract JSON from response
-        let json_str = crate::workflow::WorkflowExecutor::extract_json(&response);
-        match serde_json::from_str::<ClassificationResult>(&json_str) {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to parse classification result: {}, response: {}. Using empty categories.",
-                    e,
-                    response
-                );
-                Ok(ClassificationResult { categories: vec![] })
-            }
-        }
+        raw_input: &str,
+    ) -> anyhow::Result<IntentAnalysisResult> {
+        let parsed = self.parse_intent(scheduler, raw_input).await;
+        Ok(IntentAnalysisResult {
+            categories: parsed.skill_categories,
+            clean_intent: parsed.clean_intent,
+        })
     }
-    /// Stage One: Core workflow execution
-    async fn stage_one(
+
+    /// Step 2: Core workflow execution
+    async fn workflow_execution(
         &self,
         mode: WorkflowMode,
         executor: &WorkflowExecutor,
         scheduler: &SkillScheduler,
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> StageOneResult {
+    ) -> WorkflowExecResult {
         // Execute workflow (format requirements are ignored at this stage)
         let result = executor.execute(scheduler, input).await;
         let json_output = match result {
@@ -61,41 +67,35 @@ impl Pipeline for SystemPipeline {
             crate::workflow::WorkflowExecutionResult::Cancelled { .. } => String::new(),
             crate::workflow::WorkflowExecutionResult::Failed { error, .. } => error,
         };
-        StageOneResult {
+        WorkflowExecResult {
             json_output,
             original_input: input.to_string(),
         }
     }
-    /// Stage Two: Format conversion based on user's structure requirements
-    async fn stage_two(
+
+    /// Step 3: Without format specification
+    async fn response_formatting(
         &self,
         scheduler: &SkillScheduler,
         original_input: &str,
         json_output: &str,
-    ) -> StageTwoResult {
-        // If JSON output is empty, just return it
+    ) -> FormatResult {
         if json_output.is_empty() {
-            return StageTwoResult {
+            return FormatResult {
                 final_output: json_output.to_string(),
                 was_converted: false,
             };
         }
-        // Build conversion prompt
         let prompt = build_format_conversion_prompt(original_input, json_output);
-        // Call LLM for conversion
         let final_output = match scheduler.get_llm().generate(&prompt).await {
             Ok(resp) => resp,
             Err(e) => {
-                tracing::warn!(
-                    "Stage Two conversion failed: {}, returning original JSON",
-                    e
-                );
+                tracing::warn!("Response formatting failed: {}, returning original JSON", e);
                 json_output.to_string()
             }
         };
-        // Check if conversion actually changed anything
         let was_converted = final_output != json_output;
-        StageTwoResult {
+        FormatResult {
             final_output,
             was_converted,
         }
