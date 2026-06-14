@@ -10,7 +10,8 @@ use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
 use crate::{
-    HippoxConfig, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
+    HippoxBatchResult, HippoxBoolResult, HippoxConfig, HippoxResult, HippoxStringResult,
+    HippoxVoidResult, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
     WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
 use langhub::LLMClient;
@@ -90,48 +91,56 @@ impl Hippox {
     ///
     /// Call this after dynamically registering new skills.
     /// This will mark the session to resend the skills registry on next message.
-    pub fn refresh_llm_skill_registry(&self) {
+    pub fn refresh_llm_skill_registry(&self) -> HippoxVoidResult {
         self.is_first_message.store(false, Ordering::SeqCst);
+        HippoxResult::ok(())
     }
 
     /// Notify LLM about updated instances registry
     ///
     /// Call this after adding/removing instance configurations.
     /// This will mark the session to resend the instances registry on next message.
-    pub fn refresh_llm_instances(&self) {
+    pub fn refresh_llm_instances(&self) -> HippoxVoidResult {
         self.is_first_message.store(false, Ordering::SeqCst);
+        HippoxResult::ok(())
     }
 
     /// Get current skills registry as JSON string
-    pub fn get_skills_registry(&self) -> String {
-        generate_skills_registry()
+    pub fn get_skills_registry(&self) -> HippoxStringResult {
+        HippoxResult::ok(generate_skills_registry())
     }
 
     /// Get current instances registry as JSON string
-    pub fn get_instances_registry(&self) -> String {
-        generate_instances_registry()
+    pub fn get_instances_registry(&self) -> HippoxStringResult {
+        HippoxResult::ok(generate_instances_registry())
     }
 
     /// Get identity information
-    pub fn get_identity(&self) -> IdentityInformation {
-        self.get_config().identity_information
+    pub fn get_identity(&self) -> HippoxResult<IdentityInformation> {
+        HippoxResult::ok(self.get_config().identity_information)
     }
 
     /// Update identity information with a closure
-    pub fn update_identity<F>(&self, f: F) -> anyhow::Result<()>
+    pub fn update_identity<F>(&self, f: F) -> HippoxVoidResult
     where
         F: FnOnce(&mut IdentityInformation),
     {
-        self.update_config(|config| {
+        match self.update_config(|config| {
             f(&mut config.identity_information);
-        })
+        }) {
+            Ok(_) => HippoxResult::ok(()),
+            Err(e) => HippoxResult::system_error(e.to_string()),
+        }
     }
 
     /// Set identity information directly
-    pub fn set_identity(&self, identity: IdentityInformation) -> anyhow::Result<()> {
-        self.update_config(|config| {
+    pub fn set_identity(&self, identity: IdentityInformation) -> HippoxVoidResult {
+        match self.update_config(|config| {
             config.identity_information = identity;
-        })
+        }) {
+            Ok(_) => HippoxResult::ok(()),
+            Err(e) => HippoxResult::system_error(e.to_string()),
+        }
     }
 
     /// Submit a natural language task and return task ID immediately
@@ -145,8 +154,12 @@ impl Hippox {
     /// * `_callback` - Optional callback for workflow execution progress
     ///
     /// # Returns
-    /// The task ID as a string
-    pub fn submit(&self, input: &str, callback: Option<Arc<dyn WorkflowCallback>>) -> String {
+    /// The task ID as a string wrapped in HippoxResult
+    pub fn submit(
+        &self,
+        input: &str,
+        callback: Option<Arc<dyn WorkflowCallback>>,
+    ) -> HippoxStringResult {
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
             self.workflow_executor.clone(),
@@ -162,7 +175,7 @@ impl Hippox {
             "Created natural language task: {} with input: {}",
             task_id, input
         );
-        task_id
+        HippoxResult::ok(task_id)
     }
 
     /// Submit multiple natural language tasks in batch and return task IDs immediately
@@ -171,24 +184,41 @@ impl Hippox {
     /// * `inputs` - Vector of tuples (input, session_id, callback)
     ///
     /// # Returns
-    /// Vector of task IDs in the same order as inputs
+    /// Vector of task IDs in the same order as inputs wrapped in HippoxResult
     pub fn submit_batch(
         &self,
         inputs: Vec<(String, Option<String>, Option<Arc<dyn WorkflowCallback>>)>,
-    ) -> Vec<String> {
-        inputs
+    ) -> HippoxBatchResult {
+        let task_ids: Vec<String> = inputs
             .into_iter()
-            .map(|(input, _session_id, callback)| self.submit(&input, callback))
-            .collect()
+            .map(|(input, _session_id, callback)| {
+                self.submit(&input, callback).unwrap_or(String::new())
+            })
+            .collect();
+        HippoxResult::ok(task_ids)
+    }
+
+    pub async fn execute_batch(
+        &self,
+        inputs: Vec<(String, Option<Arc<dyn WorkflowCallback>>)>,
+    ) -> HippoxBatchResult {
+        let mut results = Vec::new();
+        for (input, callback) in inputs {
+            results.push(
+                self.execute(&input, callback)
+                    .await
+                    .unwrap_or(String::new()),
+            );
+        }
+        HippoxResult::ok(results)
     }
 
     /// Execute natural language directly without task pool, returning the result asynchronously.
-    /// Execute natural language directly without task pool
     pub async fn execute(
         &self,
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
-    ) -> String {
+    ) -> HippoxStringResult {
         let pipeline = SystemPipeline::new();
         // Step 1: intent analysis
         let intent_result = match pipeline.intent_analysis(&self.scheduler, input).await {
@@ -210,7 +240,7 @@ impl Hippox {
                     self.workflow_mode,
                     &self.workflow_executor,
                     &self.scheduler,
-                    clean_intent, 
+                    clean_intent,
                     callback,
                 )
                 .await
@@ -229,74 +259,80 @@ impl Hippox {
                 original_input: clean_intent.to_string(),
             }
         };
-        if needs_format_conversion(input) {
+        let final_output = if needs_format_conversion(input) {
             let format_result = pipeline
                 .response_formatting(&self.scheduler, input, &workflow_result.json_output)
                 .await;
             format_result.final_output
         } else {
             workflow_result.json_output
-        }
-    }
-
-    /// Execute multiple natural language tasks directly without task pool.
-    pub async fn execute_batch(
-        &self,
-        inputs: Vec<(String, Option<Arc<dyn WorkflowCallback>>)>,
-    ) -> Vec<String> {
-        let mut results = Vec::new();
-        for (input, callback) in inputs {
-            let result = self.execute(&input, callback).await;
-            results.push(result);
-        }
-        results
+        };
+        HippoxResult::ok(final_output)
     }
 
     /// heartbeat
-    pub async fn heartbeat(&self) -> String {
+    pub async fn heartbeat(&self) -> HippoxStringResult {
         let mut messages: Vec<ChatMessage> = Vec::new();
         messages.push(ChatMessage::user("hi"));
         match self.scheduler.get_llm().chat(messages).await {
-            Ok(response) => response,
-            Err(e) => format!("Error: {}", e),
+            Ok(response) => HippoxResult::ok(response),
+            Err(e) => HippoxResult::network_error(e.to_string()),
         }
     }
 
     /// Get task status by ID
-    pub fn get_task_status(&self, task_id: &str) -> Option<TaskStatus> {
-        futures::executor::block_on(tasks::get_task_status(task_id))
+    pub fn get_task_status(&self, task_id: &str) -> HippoxResult<TaskStatus> {
+        match futures::executor::block_on(tasks::get_task_status(task_id)) {
+            Some(status) => HippoxResult::ok(status),
+            None => HippoxResult::system_error(format!("Task not found: {}", task_id)),
+        }
     }
 
     /// Get task by ID
-    pub fn get_task(&self, task_id: &str) -> Option<tasks::Task> {
-        futures::executor::block_on(tasks::get_task(task_id))
+    pub fn get_task(&self, task_id: &str) -> HippoxResult<tasks::Task> {
+        match futures::executor::block_on(tasks::get_task(task_id)) {
+            Some(task) => HippoxResult::ok(task),
+            None => HippoxResult::system_error(format!("Task not found: {}", task_id)),
+        }
     }
 
     /// Cancel a running or pending task
-    pub fn cancel_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(tasks::cancel_task(task_id))
+    pub fn cancel_task(&self, task_id: &str) -> HippoxBoolResult {
+        match futures::executor::block_on(tasks::cancel_task(task_id)) {
+            true => HippoxResult::ok(true),
+            false => HippoxResult::system_error(format!("Failed to cancel task: {}", task_id)),
+        }
     }
 
     /// Pause a running task
-    pub fn pause_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(tasks::pause_task(task_id))
+    pub fn pause_task(&self, task_id: &str) -> HippoxBoolResult {
+        match futures::executor::block_on(tasks::pause_task(task_id)) {
+            true => HippoxResult::ok(true),
+            false => HippoxResult::system_error(format!("Failed to pause task: {}", task_id)),
+        }
     }
 
     /// Resume a paused task
-    pub fn resume_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(tasks::resume_task(task_id))
+    pub fn resume_task(&self, task_id: &str) -> HippoxBoolResult {
+        match futures::executor::block_on(tasks::resume_task(task_id)) {
+            true => HippoxResult::ok(true),
+            false => HippoxResult::system_error(format!("Failed to resume task: {}", task_id)),
+        }
     }
 
     /// Retry a failed task
-    pub fn retry_task(&self, task_id: &str) -> bool {
-        futures::executor::block_on(tasks::retry_task(task_id))
+    pub fn retry_task(&self, task_id: &str) -> HippoxBoolResult {
+        match futures::executor::block_on(tasks::retry_task(task_id)) {
+            true => HippoxResult::ok(true),
+            false => HippoxResult::system_error(format!("Failed to retry task: {}", task_id)),
+        }
     }
 
     /// List all available atomic skills
-    pub fn list_atomic_skills(&self) -> String {
+    pub fn list_atomic_skills(&self) -> HippoxStringResult {
         let skills = crate::executors::registry::list_skills();
         if skills.is_empty() {
-            return t!("skill.no_skills_available").to_string();
+            return HippoxResult::ok(t!("skill.no_skills_available").to_string());
         }
         let mut result = String::new();
         for name in skills {
@@ -322,18 +358,18 @@ impl Hippox {
                 ));
             }
         }
-        result
+        HippoxResult::ok(result)
     }
 
     /// List all available SKILL.md files in a directory
     ///
     /// # Arguments
     /// * `skills_dir` - Directory containing skill subdirectories with SKILL.md files
-    pub fn list_skill_md_files(&self, skills_dir: &str) -> String {
+    pub fn list_skill_md_files(&self, skills_dir: &str) -> HippoxStringResult {
         match SkillLoader::load_all(skills_dir) {
             Ok(skills) => {
                 if skills.is_empty() {
-                    return t!("skill.no_skill_md_available").to_string();
+                    return HippoxResult::ok(t!("skill.no_skill_md_available").to_string());
                 }
                 let mut result = String::new();
                 for skill in skills {
@@ -348,31 +384,33 @@ impl Hippox {
                         emoji, skill.name, skill.description
                     ));
                 }
-                result
+                HippoxResult::ok(result)
             }
-            Err(e) => format!("{}: {}", t!("error.list_skills_failed"), e),
+            Err(e) => {
+                HippoxResult::system_error(format!("{}: {}", t!("error.list_skills_failed"), e))
+            }
         }
     }
 
     /// Get all loaded atomic skill names
-    pub fn get_atomic_skill_names(&self) -> Vec<String> {
-        crate::executors::registry::list_skills()
+    pub fn get_atomic_skill_names(&self) -> HippoxBatchResult {
+        HippoxResult::ok(crate::executors::registry::list_skills())
     }
 
     /// Get all SKILL.md file names from a directory
     ///
     /// # Arguments
     /// * `skills_dir` - Directory containing skill subdirectories with SKILL.md files
-    pub fn get_skill_md_names(&self, skills_dir: &str) -> Vec<String> {
+    pub fn get_skill_md_names(&self, skills_dir: &str) -> HippoxBatchResult {
         match SkillLoader::load_all(skills_dir) {
-            Ok(skills) => skills.into_iter().map(|s| s.name).collect(),
-            Err(_) => Vec::new(),
+            Ok(skills) => HippoxResult::ok(skills.into_iter().map(|s| s.name).collect()),
+            Err(e) => HippoxResult::system_error(e.to_string()),
         }
     }
 
     /// Check if there are any atomic skills available
-    pub fn has_atomic_skills(&self) -> bool {
-        !crate::executors::registry::list_skills().is_empty()
+    pub fn has_atomic_skills(&self) -> HippoxBoolResult {
+        HippoxResult::ok(!crate::executors::registry::list_skills().is_empty())
     }
 
     /// Get the executor
