@@ -9,7 +9,6 @@ use std::time::Instant;
 use tracing::info;
 
 use crate::pipeline::{Pipeline, SystemPipeline, WorkflowExecResult, needs_format_conversion};
-use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::t;
 use crate::tasks::{ExecutableTask, TaskStateUpdater};

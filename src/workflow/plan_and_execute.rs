@@ -2,7 +2,7 @@
 
 use crate::executors::SkillCall;
 use crate::prompts::build_plan_prompt;
-use crate::skill_scheduler::SkillScheduler;
+use crate::SkillScheduler;
 use crate::t;
 use serde_json::Value;
 use std::collections::HashMap;

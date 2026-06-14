@@ -5,7 +5,6 @@ use crate::executors::Executor;
 use crate::prompts::{
     build_skill_md_prompt, generate_instances_registry, generate_skills_registry,
 };
-use crate::skill_loader::SkillLoader;
 use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
@@ -361,51 +360,9 @@ impl Hippox {
         HippoxResult::ok(result)
     }
 
-    /// List all available SKILL.md files in a directory
-    ///
-    /// # Arguments
-    /// * `skills_dir` - Directory containing skill subdirectories with SKILL.md files
-    pub fn list_skill_md_files(&self, skills_dir: &str) -> HippoxStringResult {
-        match SkillLoader::load_all(skills_dir) {
-            Ok(skills) => {
-                if skills.is_empty() {
-                    return HippoxResult::ok(t!("skill.no_skill_md_available").to_string());
-                }
-                let mut result = String::new();
-                for skill in skills {
-                    let emoji = skill
-                        .metadata
-                        .as_ref()
-                        .and_then(|m| m.emoji.as_ref())
-                        .map(|e| e.as_str())
-                        .unwrap_or("📋");
-                    result.push_str(&format!(
-                        "   {} - **{}**: {}\n",
-                        emoji, skill.name, skill.description
-                    ));
-                }
-                HippoxResult::ok(result)
-            }
-            Err(e) => {
-                HippoxResult::system_error(format!("{}: {}", t!("error.list_skills_failed"), e))
-            }
-        }
-    }
-
     /// Get all loaded atomic skill names
     pub fn get_atomic_skill_names(&self) -> HippoxBatchResult {
         HippoxResult::ok(crate::executors::registry::list_skills())
-    }
-
-    /// Get all SKILL.md file names from a directory
-    ///
-    /// # Arguments
-    /// * `skills_dir` - Directory containing skill subdirectories with SKILL.md files
-    pub fn get_skill_md_names(&self, skills_dir: &str) -> HippoxBatchResult {
-        match SkillLoader::load_all(skills_dir) {
-            Ok(skills) => HippoxResult::ok(skills.into_iter().map(|s| s.name).collect()),
-            Err(e) => HippoxResult::system_error(e.to_string()),
-        }
     }
 
     /// Check if there are any atomic skills available

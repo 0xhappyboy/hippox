@@ -147,6 +147,8 @@ pub struct Task {
     pub resume_data: Option<String>,
     pub(crate) executable: Option<Arc<dyn ExecutableTask>>,
     pub callback: Option<Arc<dyn WorkflowCallback>>,
+    pub input_token_count: u64,
+    pub output_token_count: u64,
 }
 
 impl Clone for Task {
@@ -169,6 +171,8 @@ impl Clone for Task {
             resume_data: self.resume_data.clone(),
             executable: self.executable.clone(),
             callback: self.callback.clone(),
+            input_token_count: self.input_token_count.clone(),
+            output_token_count: self.output_token_count.clone(),
         }
     }
 }
@@ -218,6 +222,8 @@ impl Task {
             resume_data: None,
             executable: None,
             callback: None,
+            input_token_count: 0,
+            output_token_count: 0,
         }
     }
 

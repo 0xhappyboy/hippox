@@ -2,8 +2,7 @@
 
 use crate::executors::SkillCall;
 use crate::prompts::build_react_prompt;
-use crate::skill_scheduler::SkillScheduler;
-use crate::t;
+use crate::{SkillScheduler, t};
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -195,7 +194,7 @@ pub async fn execute_react(
                 };
             }
         };
-        messages.push(ChatMessage::assistant(&llm_response));
+        messages.push(ChatMessage::llm(&llm_response));
         let instruction = match parse_react_response(&llm_response) {
             Ok(instr) => instr,
             Err(_) => {
@@ -454,7 +453,7 @@ pub async fn execute_react_with_categories(
                 };
             }
         };
-        messages.push(ChatMessage::assistant(&llm_response));
+        messages.push(ChatMessage::llm(&llm_response));
 
         let instruction = match parse_react_response(&llm_response) {
             Ok(instr) => instr,

@@ -97,36 +97,6 @@ impl WorkflowExecutor {
         }
     }
 
-    pub async fn execute_skill_md(
-        &self,
-        scheduler: &SkillScheduler,
-        skill_file: &crate::skill_loader::SkillFile,
-        params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-    ) -> WorkflowExecutionResult {
-        let mut instructions = skill_file.instructions.clone();
-        if let Some(params) = params {
-            for (key, value) in params {
-                let placeholder = format!("{{{{{}}}}}", key);
-                let replacement = match value {
-                    serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => b.to_string(),
-                    _ => value.to_string(),
-                };
-                instructions = instructions.replace(&placeholder, &replacement);
-            }
-        }
-        let enhanced_input = build_skill_md_prompt(&instructions);
-        match self.mode {
-            WorkflowMode::ReAct => execute_react(self, scheduler, &enhanced_input).await,
-            WorkflowMode::Batch => execute_batch(self, scheduler, &enhanced_input).await,
-            WorkflowMode::Chain => execute_chain(self, scheduler, &enhanced_input).await,
-            WorkflowMode::PlanAndExecute => {
-                execute_plan_and_execute(self, scheduler, &enhanced_input).await
-            }
-        }
-    }
-
     pub fn extract_json(text: &str) -> String {
         if let Some(start) = text.find("```json") {
             let after_start = &text[start + 7..];
