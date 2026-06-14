@@ -1,8 +1,8 @@
 //! Plan-and-Execute mode workflow execution
 
+use crate::SkillScheduler;
 use crate::executors::SkillCall;
 use crate::prompts::build_plan_prompt;
-use crate::SkillScheduler;
 use crate::t;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -377,9 +377,11 @@ pub async fn execute_plan_and_execute(
             }
         }
     }
-
     let plan_prompt = build_plan_prompt(input);
-    let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
+    let llm_response = match scheduler
+        .generate_with_task(&plan_prompt, &task_id.clone().unwrap())
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed {
@@ -388,7 +390,6 @@ pub async fn execute_plan_and_execute(
             };
         }
     };
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -484,7 +485,10 @@ pub async fn execute_plan_and_execute_with_categories(
     let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
     let plan_prompt = crate::prompts::build_plan_prompt_with_categories(&filtered_skills, input);
-    let llm_response = match scheduler.get_llm().generate(&plan_prompt).await {
+    let llm_response = match scheduler
+        .generate_with_task(&plan_prompt, &task_id.clone().unwrap())
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed {
@@ -493,7 +497,6 @@ pub async fn execute_plan_and_execute_with_categories(
             };
         }
     };
-
     let instruction = match parse_plan_response(&llm_response) {
         Ok(instr) => instr,
         Err(e) => {
@@ -515,7 +518,6 @@ pub async fn execute_plan_and_execute_with_categories(
                     message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
                 return WorkflowExecutionResult::Completed(final_msg);
             }
-
             if let Some(plan) = plan {
                 match execute_workflow_plan(executor, &plan, task_id.as_deref()).await {
                     Ok((result, success_count, failed_count)) => {

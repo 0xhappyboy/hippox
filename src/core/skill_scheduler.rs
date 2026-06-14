@@ -11,8 +11,10 @@
 /// - Falling back to general chat when no skill matches
 use crate::executors::registry;
 use crate::t;
+use futures::future::ok;
 use langhub::LLMClient;
-use langhub::types::ChatMessage;
+use langhub::llms::LLMResult;
+use langhub::types::{ChatMessage, LangHubError};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -81,7 +83,8 @@ impl SkillScheduler {
             skills_prompt,
             user_input
         );
-        let response = self.llm.generate(&select_prompt).await?;
+        let result = self.llm.generate(&select_prompt).await?;
+        let response = result.text;
         let skill_name = response.trim();
         if skill_name == "none" || skill_name.is_empty() {
             Ok(None)
@@ -183,8 +186,8 @@ impl SkillScheduler {
             t!("prompt.fallback"),
             user_input
         );
-        let response = self.llm.generate(&prompt).await?;
-        Ok(response)
+        let result = self.llm.generate(&prompt).await?;
+        Ok(result.text)
     }
 
     /// Fallback chat with conversation history
@@ -209,8 +212,8 @@ impl SkillScheduler {
             conversation_history,
             user_input
         );
-        let response = self.llm.generate(&prompt).await?;
-        Ok(response)
+        let result = self.llm.generate(&prompt).await?;
+        Ok(result.text)
     }
 
     /// List all available skills with emoji icons
@@ -269,8 +272,60 @@ impl SkillScheduler {
     ///
     /// # Returns
     /// Reference to the internal LLMClient
-    pub fn get_llm(&self) -> &LLMClient {
+    fn get_llm(&self) -> &LLMClient {
         &self.llm
+    }
+
+    pub async fn chat_raw(
+        &self,
+        messages: Vec<ChatMessage>,
+    ) -> anyhow::Result<LLMResult, LangHubError> {
+        self.llm.chat(messages).await
+    }
+
+    /// Generate and return raw LLMResult (with token info, no task tracking)
+    pub async fn generate_raw(&self, prompt: &str) -> anyhow::Result<LLMResult, LangHubError> {
+        self.llm.generate(prompt).await
+    }
+
+    pub async fn generate(&self, prompt: &str) -> anyhow::Result<String> {
+        let messages = vec![ChatMessage::user(prompt)];
+        self.chat(messages).await
+    }
+
+    /// Chat with LLM (no token tracking)
+    pub async fn chat(&self, messages: Vec<ChatMessage>) -> anyhow::Result<String> {
+        let result = self.llm.chat(messages).await?;
+        Ok(result.text)
+    }
+
+    pub async fn generate_with_task(&self, prompt: &str, task_id: &str) -> anyhow::Result<String> {
+        let result = self.llm.generate(prompt).await?;
+        if let Some(usage) = result.extract_usage() {
+            if let Some(updater) = crate::tasks::get_state_updater(task_id).await {
+                updater
+                    .add_token_usage_global(usage.prompt_tokens as u64, usage.completion_tokens as u64)
+                    .await;
+            }
+        }
+        Ok(result.text)
+    }
+
+    /// Chat with LLM with token tracking for a specific task
+    pub async fn chat_with_task(
+        &self,
+        messages: Vec<ChatMessage>,
+        task_id: &str,
+    ) -> anyhow::Result<String> {
+        let result = self.llm.chat(messages).await?;
+        if let Some(usage) = result.extract_usage() {
+            if let Some(updater) = crate::tasks::get_state_updater(task_id).await {
+                updater
+                    .add_token_usage_global(usage.prompt_tokens as u64, usage.completion_tokens as u64)
+                    .await;
+            }
+        }
+        Ok(result.text)
     }
 }
 

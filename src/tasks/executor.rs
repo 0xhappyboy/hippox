@@ -1,12 +1,13 @@
 //! Executor trait and state updater for tasks
 
-use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::{fmt::Debug, sync::atomic::Ordering};
 use tokio::sync::RwLock;
 
 use super::types::{TASK_POOL, TaskPool, TaskStatus};
+use crate::hippox::{INPUT_TOKEN_COUNT, OUTPUT_TOKEN_COUNT};
 use crate::workflow::WorkflowCallback;
 
 /// Task trait - each task must implement this to be executable
@@ -158,5 +159,25 @@ impl TaskStateUpdater {
             task.failed(error.to_string());
             pool.complete_task(&self.task_id);
         }
+    }
+
+    /// Add token usage to the task
+    pub async fn add_token_usage(&self, input_tokens: u64, output_tokens: u64) {
+        let mut pool = self.task_pool.write().await;
+        if let Some(task) = pool.get_task_mut(&self.task_id) {
+            task.input_token_count += input_tokens;
+            task.output_token_count += output_tokens;
+        }
+    }
+
+    /// Add token usage to both task and global counters
+    pub async fn add_token_usage_global(&self, input_tokens: u64, output_tokens: u64) {
+        let mut pool = self.task_pool.write().await;
+        if let Some(task) = pool.get_task_mut(&self.task_id) {
+            task.input_token_count += input_tokens;
+            task.output_token_count += output_tokens;
+        }
+        INPUT_TOKEN_COUNT.fetch_add(input_tokens, Ordering::Relaxed);
+        OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, Ordering::Relaxed);
     }
 }

@@ -185,7 +185,10 @@ pub async fn execute_react(
                 }
             }
         }
-        let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
+        let llm_response = match scheduler
+            .chat_with_task(messages.clone(), &task_id.clone().unwrap())
+            .await
+        {
             Ok(resp) => resp,
             Err(e) => {
                 return WorkflowExecutionResult::Failed {
@@ -194,7 +197,7 @@ pub async fn execute_react(
                 };
             }
         };
-        messages.push(ChatMessage::llm(&llm_response));
+        messages.push(ChatMessage::assistant(&llm_response));
         let instruction = match parse_react_response(&llm_response) {
             Ok(instr) => instr,
             Err(_) => {
@@ -278,7 +281,6 @@ pub async fn execute_react(
             ReactInstruction::Batch(steps) => {
                 let step_index = step_results.len();
                 let step_name = format!("batch_{}_steps", steps.len());
-
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_callback(),
@@ -290,7 +292,6 @@ pub async fn execute_react(
                 {
                     return result;
                 }
-
                 let batch_results = execute_batch_plan(executor, &steps).await;
                 let mut batch_output = String::new();
                 for (i, result) in batch_results.iter().enumerate() {
@@ -395,10 +396,8 @@ pub async fn execute_react_with_categories(
             }
         }
     }
-
     while iteration < executor.max_iterations {
         iteration += 1;
-
         if let Some(ref tid) = task_id {
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
                 if state_updater.is_cancelled().await {
@@ -443,8 +442,10 @@ pub async fn execute_react_with_categories(
                 }
             }
         }
-
-        let llm_response = match scheduler.get_llm().chat(messages.clone()).await {
+        let llm_response = match scheduler
+            .chat_with_task(messages.clone(), &task_id.clone().unwrap())
+            .await
+        {
             Ok(resp) => resp,
             Err(e) => {
                 return WorkflowExecutionResult::Failed {
@@ -453,8 +454,7 @@ pub async fn execute_react_with_categories(
                 };
             }
         };
-        messages.push(ChatMessage::llm(&llm_response));
-
+        messages.push(ChatMessage::assistant(&llm_response));
         let instruction = match parse_react_response(&llm_response) {
             Ok(instr) => instr,
             Err(_) => {

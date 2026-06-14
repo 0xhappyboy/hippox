@@ -185,7 +185,6 @@ pub async fn execute_batch(
             }
         }
     }
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -206,9 +205,11 @@ pub async fn execute_batch(
             }
         }
     }
-
     let batch_prompt = build_batch_prompt(input);
-    let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
+    let llm_response = match scheduler
+        .generate_with_task(&batch_prompt, &task_id.clone().unwrap())
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed {
@@ -300,9 +301,15 @@ pub async fn execute_batch_with_categories(
     input: &str,
     categories: &[String],
 ) -> WorkflowExecutionResult {
+    let overall_start = Instant::now();
+    let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
     let batch_prompt = crate::prompts::build_batch_prompt_with_categories(&filtered_skills, input);
-    let llm_response = match scheduler.get_llm().generate(&batch_prompt).await {
+    let task_id_str = task_id.as_deref().unwrap_or("unknown");
+    let llm_response = match scheduler
+        .generate_with_task(&batch_prompt, task_id_str)
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed {
@@ -311,14 +318,12 @@ pub async fn execute_batch_with_categories(
             };
         }
     };
-
     let instruction = match parse_react_response(&llm_response) {
         Ok(instr) => instr,
         Err(_) => {
             return WorkflowExecutionResult::Completed(llm_response);
         }
     };
-
     match instruction {
         ReactInstruction::Done(message) => WorkflowExecutionResult::Completed(message),
         ReactInstruction::Batch(steps) => {

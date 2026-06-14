@@ -15,11 +15,18 @@ use crate::{
 };
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::fs;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tracing::info;
+
+/// Global input token count for the entire process
+pub static INPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
+
+/// Global output token count for the entire process
+pub static OUTPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
 
 /// Core engine for Hippox
 ///
@@ -218,9 +225,18 @@ impl Hippox {
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> HippoxStringResult {
+        let temp_task_id = uuid::Uuid::new_v4().to_string();
+        {
+            let mut pool = tasks::TASK_POOL.write().await;
+            let task = tasks::Task::new("temp".to_string(), input.to_string());
+            pool.tasks.insert(temp_task_id.clone(), task);
+        }
         let pipeline = SystemPipeline::new();
         // Step 1: intent analysis
-        let intent_result = match pipeline.intent_analysis(&self.scheduler, input).await {
+        let intent_result = match pipeline
+            .intent_analysis(&self.scheduler, input, &temp_task_id)
+            .await
+        {
             Ok(result) => result,
             Err(e) => {
                 tracing::warn!("Intent analysis failed: {}, using raw input", e);
@@ -233,19 +249,22 @@ impl Hippox {
         let clean_intent = &intent_result.clean_intent;
         let categories = &intent_result.categories;
         // Step 2: Workflow execution
+        let workflow_executor_with_id = self
+            .workflow_executor
+            .clone()
+            .with_task_id(temp_task_id.clone());
         let workflow_result = if categories.is_empty() {
             pipeline
                 .workflow_execution(
                     self.workflow_mode,
-                    &self.workflow_executor,
+                    &workflow_executor_with_id,
                     &self.scheduler,
                     clean_intent,
                     callback,
                 )
                 .await
         } else {
-            let result = self
-                .workflow_executor
+            let result = workflow_executor_with_id
                 .execute_with_categories(&self.scheduler, clean_intent, categories)
                 .await;
             let json_output = match result {
@@ -258,23 +277,51 @@ impl Hippox {
                 original_input: clean_intent.to_string(),
             }
         };
+        // Step 3: format conversion
         let final_output = if needs_format_conversion(input) {
             let format_result = pipeline
-                .response_formatting(&self.scheduler, input, &workflow_result.json_output)
+                .response_formatting(
+                    &self.scheduler,
+                    input,
+                    &workflow_result.json_output,
+                    &temp_task_id,
+                )
                 .await;
             format_result.final_output
         } else {
             workflow_result.json_output
         };
-        HippoxResult::ok(final_output)
+        let (input_tokens, output_tokens) = if let Some(task) = tasks::get_task(&temp_task_id).await
+        {
+            (task.input_token_count, task.output_token_count)
+        } else {
+            (0, 0)
+        };
+        {
+            let mut pool = tasks::TASK_POOL.write().await;
+            pool.tasks.remove(&temp_task_id);
+        }
+        INPUT_TOKEN_COUNT.fetch_add(input_tokens, std::sync::atomic::Ordering::Relaxed);
+        OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, std::sync::atomic::Ordering::Relaxed);
+        HippoxResult::ok_with_tokens(final_output, input_tokens, output_tokens)
     }
 
     /// heartbeat
     pub async fn heartbeat(&self) -> HippoxStringResult {
         let mut messages: Vec<ChatMessage> = Vec::new();
         messages.push(ChatMessage::user("hi"));
-        match self.scheduler.get_llm().chat(messages).await {
-            Ok(response) => HippoxResult::ok(response),
+        match self.scheduler.chat_raw(messages).await {
+            Ok(result) => {
+                let usage = result.extract_usage();
+                let input_tokens = usage.as_ref().map(|u| u.prompt_tokens as u64).unwrap_or(0);
+                let output_tokens = usage
+                    .as_ref()
+                    .map(|u| u.completion_tokens as u64)
+                    .unwrap_or(0);
+                INPUT_TOKEN_COUNT.fetch_add(input_tokens, std::sync::atomic::Ordering::Relaxed);
+                OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, std::sync::atomic::Ordering::Relaxed);
+                HippoxResult::ok_with_tokens(result.text, input_tokens, output_tokens)
+            }
             Err(e) => HippoxResult::network_error(e.to_string()),
         }
     }
@@ -396,5 +443,112 @@ impl Hippox {
     /// Get configuration
     pub fn get_config(&self) -> HippoxConfig {
         crate::config::get_config()
+    }
+
+    /// Get current global input token count
+    ///
+    /// This returns the total input tokens consumed across all tasks
+    /// in the entire process lifetime.
+    ///
+    /// # Returns
+    /// The total input token count as u64
+    ///
+    /// # Example
+    /// ```
+    /// let hippox = Hippox::builder(ModelProvider::OpenAI).build().await?;
+    /// let input_tokens = hippox.get_current_input_token_count();
+    /// println!("Total input tokens: {}", input_tokens);
+    /// ```
+    pub fn get_current_input_token_count(&self) -> u64 {
+        INPUT_TOKEN_COUNT.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Get current global output token count
+    ///
+    /// This returns the total output tokens consumed across all tasks
+    /// in the entire process lifetime.
+    ///
+    /// # Returns
+    /// The total output token count as u64
+    ///
+    /// # Example
+    /// ```
+    /// let hippox = Hippox::builder(ModelProvider::OpenAI).build().await?;
+    /// let output_tokens = hippox.get_current_output_token_count();
+    /// println!("Total output tokens: {}", output_tokens);
+    /// ```
+    pub fn get_current_output_token_count(&self) -> u64 {
+        OUTPUT_TOKEN_COUNT.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Storage task pool to a JSON file
+    ///
+    /// This function saves all completed/failed/cancelled tasks from the task pool
+    /// to a JSON file at the specified path. Only terminal state tasks are saved.
+    ///
+    /// # Arguments
+    /// * `path` - The file path to save the JSON file (e.g., "./task_pool.json")
+    ///
+    /// # Returns
+    /// `HippoxVoidResult` - Ok(()) on success, or error on failure
+    ///
+    /// # Example
+    /// ```
+    /// let hippox = Hippox::builder(ModelProvider::OpenAI).build().await?;
+    /// hippox.storage_task_pool("./tasks_backup.json".to_string());
+    /// ```
+    pub fn storage_task_pool(&self, path: String) -> HippoxVoidResult {
+        let tasks = futures::executor::block_on(tasks::get_all_tasks(None));
+        let completed_tasks: Vec<tasks::Task> = tasks
+            .into_iter()
+            .filter(|task| {
+                matches!(
+                    task.status,
+                    TaskStatus::Completed
+                        | TaskStatus::Failed
+                        | TaskStatus::Cancelled
+                        | TaskStatus::Timeout
+                )
+            })
+            .collect();
+        let json_data = json!({
+            "export_time": chrono::Local::now().to_rfc3339(),
+            "total_count": completed_tasks.len(),
+            "tasks": completed_tasks.iter().map(|task| {
+                json!({
+                    "id": task.id,
+                    "task_type": task.task_type,
+                    "input": task.input,
+                    "status": format!("{:?}", task.status),
+                    "final_output": task.final_output,
+                    "error": task.error,
+                    "created_at": task.created_at,
+                    "started_at": task.started_at,
+                    "completed_at": task.completed_at,
+                    "duration_ms": task.duration_ms,
+                    "input_token_count": task.input_token_count,
+                    "output_token_count": task.output_token_count,
+                    "steps": task.steps.iter().map(|step| {
+                        json!({
+                            "skill_name": step.skill_name,
+                            "status": format!("{:?}", step.status),
+                            "output": step.output,
+                            "error": step.error,
+                            "duration_ms": step.duration_ms,
+                        })
+                    }).collect::<Vec<_>>(),
+                })
+            }).collect::<Vec<_>>(),
+        });
+        let json_string = match serde_json::to_string_pretty(&json_data) {
+            Ok(s) => s,
+            Err(e) => {
+                return HippoxResult::system_error(format!("Failed to serialize tasks: {}", e));
+            }
+        };
+        match fs::write(&path, json_string) {
+            Ok(_) => HippoxResult::ok(()),
+            Err(e) => HippoxResult::system_error(format!("Failed to write file {}: {}", path, e)),
+        }
     }
 }

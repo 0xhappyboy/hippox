@@ -1,8 +1,8 @@
 //! Chain mode workflow execution
 
+use crate::SkillScheduler;
 use crate::executors::{Executor, SkillCall};
 use crate::prompts::build_chain_prompt;
-use crate::SkillScheduler;
 use crate::t;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -182,7 +182,6 @@ pub async fn execute_chain(
             }
         }
     }
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -203,9 +202,11 @@ pub async fn execute_chain(
             }
         }
     }
-
     let chain_prompt = build_chain_prompt(input);
-    let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
+    let llm_response = match scheduler
+        .generate_with_task(&chain_prompt, &task_id.clone().unwrap())
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed {
@@ -214,7 +215,6 @@ pub async fn execute_chain(
             };
         }
     };
-
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
@@ -385,7 +385,10 @@ pub async fn execute_chain_with_categories(
     let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
     let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_skills, input);
-    let llm_response = match scheduler.get_llm().generate(&chain_prompt).await {
+    let llm_response = match scheduler
+        .generate_with_task(&chain_prompt, &task_id.clone().unwrap())
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed {
@@ -394,7 +397,6 @@ pub async fn execute_chain_with_categories(
             };
         }
     };
-
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
         Err(e) => {

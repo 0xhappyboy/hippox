@@ -48,7 +48,7 @@ impl ExecutableTask for NaturalLanguageTask {
         let overall_start = Instant::now();
         let pipeline = SystemPipeline::new();
         Box::pin(async move {
-            let intent_result = match pipeline.intent_analysis(&scheduler, &input).await {
+            let intent_result = match pipeline.intent_analysis(&scheduler, &input, &task_id).await {
                 Ok(result) => result,
                 Err(e) => {
                     tracing::warn!("Intent analysis failed: {}, using raw input", e);
@@ -89,7 +89,7 @@ impl ExecutableTask for NaturalLanguageTask {
             };
             let final_output = if needs_format_conversion(&input) {
                 let format_result = pipeline
-                    .response_formatting(&scheduler, &input, &raw_json)
+                    .response_formatting(&scheduler, &input, &raw_json, &task_id)
                     .await;
                 format_result.final_output
             } else {

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{SkillScheduler, WorkflowCallback, WorkflowExecutor, WorkflowMode};
 use std::sync::Arc;
 
-/// Intent analysis result from Step 1 
+/// Intent analysis result from Step 1
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct IntentAnalysisResult {
     pub categories: Vec<String>,
@@ -19,7 +19,7 @@ pub struct WorkflowExecResult {
     pub original_input: String,
 }
 
-/// Format result from Step 3 
+/// Format result from Step 3
 #[derive(Debug, Clone)]
 pub struct FormatResult {
     /// Final output after format conversion
@@ -36,6 +36,7 @@ pub trait Pipeline: Send + Sync {
         &self,
         scheduler: &SkillScheduler,
         input: &str,
+        task_id: &str,
     ) -> anyhow::Result<IntentAnalysisResult>;
 
     /// Step 2: Core workflow execution
@@ -54,5 +55,6 @@ pub trait Pipeline: Send + Sync {
         scheduler: &SkillScheduler,
         original_input: &str,
         json_output: &str,
+        task_id: &str,
     ) -> FormatResult;
 }

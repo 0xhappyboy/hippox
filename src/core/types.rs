@@ -19,6 +19,12 @@ pub struct HippoxResult<T> {
 
     /// Optional error code for programmatic error handling
     pub error_code: Option<u16>,
+
+    /// Total input tokens consumed during the operation
+    pub input_tokens: u64,
+
+    /// Total output tokens consumed during the operation
+    pub output_tokens: u64,
 }
 
 /// Status of a Hippox operation result
@@ -79,6 +85,20 @@ impl<T> HippoxResult<T> {
             data: Some(data),
             error: None,
             error_code: None,
+            input_tokens: 0,
+            output_tokens: 0,
+        }
+    }
+
+    /// Create a successful result with data and token usage
+    pub fn ok_with_tokens(data: T, input_tokens: u64, output_tokens: u64) -> Self {
+        Self {
+            status: HippoxResultStatus::SUCCESS(String::new()),
+            data: Some(data),
+            error: None,
+            error_code: None,
+            input_tokens,
+            output_tokens,
         }
     }
 
@@ -89,6 +109,25 @@ impl<T> HippoxResult<T> {
             data: Some(data),
             error: None,
             error_code: None,
+            input_tokens: 0,
+            output_tokens: 0,
+        }
+    }
+
+    /// Create a successful result with data, message and token usage
+    pub fn ok_with_message_and_tokens(
+        data: T,
+        message: impl Into<String>,
+        input_tokens: u64,
+        output_tokens: u64,
+    ) -> Self {
+        Self {
+            status: HippoxResultStatus::SUCCESS(message.into()),
+            data: Some(data),
+            error: None,
+            error_code: None,
+            input_tokens,
+            output_tokens,
         }
     }
 
@@ -101,6 +140,8 @@ impl<T> HippoxResult<T> {
             data: None,
             error: error_msg,
             error_code,
+            input_tokens: 0,
+            output_tokens: 0,
         }
     }
 
@@ -193,12 +234,16 @@ impl<T> HippoxResult<T> {
                 data: self.data.map(f),
                 error: None,
                 error_code: None,
+                input_tokens: self.input_tokens,
+                output_tokens: self.output_tokens,
             },
             HippoxResultStatus::ERROR(err) => HippoxResult {
                 status: HippoxResultStatus::ERROR(err),
                 data: None,
                 error: self.error,
                 error_code: self.error_code,
+                input_tokens: self.input_tokens,
+                output_tokens: self.output_tokens,
             },
         }
     }
@@ -211,6 +256,16 @@ impl<T> HippoxResult<T> {
     /// Get a mutable reference to the data if present
     pub fn as_mut(&mut self) -> Option<&mut T> {
         self.data.as_mut()
+    }
+
+    /// Get token usage as a tuple (input_tokens, output_tokens)
+    pub fn token_usage(&self) -> (u64, u64) {
+        (self.input_tokens, self.output_tokens)
+    }
+
+    /// Check if token usage is recorded
+    pub fn has_token_usage(&self) -> bool {
+        self.input_tokens > 0 || self.output_tokens > 0
     }
 }
 
@@ -238,9 +293,25 @@ impl<T: fmt::Display> fmt::Display for HippoxResult<T> {
             HippoxResultStatus::SUCCESS(msg) => match &self.data {
                 Some(data) => {
                     if msg.is_empty() {
-                        write!(f, "Success: {}", data)
+                        if self.has_token_usage() {
+                            write!(
+                                f,
+                                "Success: {} (tokens: input={}, output={})",
+                                data, self.input_tokens, self.output_tokens
+                            )
+                        } else {
+                            write!(f, "Success: {}", data)
+                        }
                     } else {
-                        write!(f, "Success ({}): {}", msg, data)
+                        if self.has_token_usage() {
+                            write!(
+                                f,
+                                "Success ({}): {} (tokens: input={}, output={})",
+                                msg, data, self.input_tokens, self.output_tokens
+                            )
+                        } else {
+                            write!(f, "Success ({}): {}", msg, data)
+                        }
                     }
                 }
                 None => write!(f, "Success"),

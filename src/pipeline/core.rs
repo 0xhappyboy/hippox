@@ -17,11 +17,17 @@ impl SystemPipeline {
     }
 
     /// Internal: Parse raw input to extract clean intent, categories, and format
-    async fn parse_intent(&self, scheduler: &SkillScheduler, raw_input: &str) -> IntentParseResult {
+    async fn parse_intent(
+        &self,
+        scheduler: &SkillScheduler,
+        raw_input: &str,
+        task_id: &str,
+    ) -> IntentParseResult {
         let prompt = build_intent_parser_prompt(raw_input);
-        match scheduler.get_llm().generate(&prompt).await {
-            Ok(response) => {
-                let json_str = crate::workflow::WorkflowExecutor::extract_json(&response);
+        let response = scheduler.generate_with_task(&prompt, task_id).await;
+        match response {
+            Ok(resp) => {
+                let json_str = crate::workflow::WorkflowExecutor::extract_json(&resp);
                 match serde_json::from_str::<IntentParseResult>(&json_str) {
                     Ok(result) => result,
                     Err(e) => IntentParseResult::fallback(raw_input),
@@ -30,6 +36,7 @@ impl SystemPipeline {
             Err(e) => IntentParseResult::fallback(raw_input),
         }
     }
+    
 }
 
 #[async_trait]
@@ -39,8 +46,9 @@ impl Pipeline for SystemPipeline {
         &self,
         scheduler: &SkillScheduler,
         raw_input: &str,
+        task_id: &str,
     ) -> anyhow::Result<IntentAnalysisResult> {
-        let parsed = self.parse_intent(scheduler, raw_input).await;
+        let parsed = self.parse_intent(scheduler, raw_input, task_id).await;
         Ok(IntentAnalysisResult {
             categories: parsed.skill_categories,
             clean_intent: parsed.clean_intent,
@@ -79,6 +87,7 @@ impl Pipeline for SystemPipeline {
         scheduler: &SkillScheduler,
         original_input: &str,
         json_output: &str,
+        task_id: &str,
     ) -> FormatResult {
         if json_output.is_empty() {
             return FormatResult {
@@ -87,7 +96,7 @@ impl Pipeline for SystemPipeline {
             };
         }
         let prompt = build_format_conversion_prompt(original_input, json_output);
-        let final_output = match scheduler.get_llm().generate(&prompt).await {
+        let final_output = match scheduler.generate_with_task(&prompt, task_id).await {
             Ok(resp) => resp,
             Err(e) => {
                 tracing::warn!("Response formatting failed: {}, returning original JSON", e);
