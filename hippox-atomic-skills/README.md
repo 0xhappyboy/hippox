@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="./assets/logo/logo-1.png" alt="Portal" width="100" height="100">
+    <img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/logo/logo-1.png" alt="Portal" width="100" height="100">
 </p>
 <h1 align="center">
     hippox-atomic-skills

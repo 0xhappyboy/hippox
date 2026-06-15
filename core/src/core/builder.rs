@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use langhub::types::ModelProvider;
 
-use crate::{
-    DockerConfig, Hippox, HippoxConfig, IdentityInformation, K8sConfig, MySQLConfig,
-    PostgreSQLConfig, RedisConfig, WorkflowMode,
-};
+use crate::{Hippox, HippoxConfig, IdentityInformation, WorkflowMode};
 
 /// Builder for creating Hippox instances
 pub struct HippoxBuilder {
@@ -55,36 +52,6 @@ impl HippoxBuilder {
     /// Set identity with a closure
     pub fn identity(mut self, f: impl FnOnce(&mut IdentityInformation)) -> Self {
         f(&mut self.config.identity_information);
-        self
-    }
-
-    /// Add a PostgreSQL instance
-    pub fn add_postgresql(mut self, config: PostgreSQLConfig) -> Self {
-        self.config.add_postgresql_instance(config);
-        self
-    }
-
-    /// Add a MySQL instance
-    pub fn add_mysql(mut self, config: MySQLConfig) -> Self {
-        self.config.add_mysql_instance(config);
-        self
-    }
-
-    /// Add a Redis instance
-    pub fn add_redis(mut self, config: RedisConfig) -> Self {
-        self.config.add_redis_instance(config);
-        self
-    }
-
-    /// Add a Docker instance
-    pub fn add_docker(mut self, config: DockerConfig) -> Self {
-        self.config.add_docker_instance(config);
-        self
-    }
-
-    /// Add a K8s instance
-    pub fn add_k8s(mut self, config: K8sConfig) -> Self {
-        self.config.add_k8s_instance(config);
         self
     }
 

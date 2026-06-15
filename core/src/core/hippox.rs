@@ -1,9 +1,7 @@
 //! Main Hippox core implementation
 
 use crate::core::tasks::NaturalLanguageTask;
-use crate::prompts::{
-    build_skill_md_prompt, generate_instances_registry, generate_skills_registry,
-};
+use crate::prompts::{build_skill_md_prompt, generate_skills_registry};
 use crate::skill_scheduler::SkillScheduler;
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
@@ -114,11 +112,6 @@ impl Hippox {
     /// Get current skills registry as JSON string
     pub fn get_skills_registry(&self) -> HippoxStringResult {
         HippoxResult::ok(generate_skills_registry())
-    }
-
-    /// Get current instances registry as JSON string
-    pub fn get_instances_registry(&self) -> HippoxStringResult {
-        HippoxResult::ok(generate_instances_registry())
     }
 
     /// Get identity information
