@@ -1,7 +1,7 @@
 //! Type definitions for workflow execution
 
-use crate::executors::SkillCall;
 use async_trait::async_trait;
+use hippox_atomic_skills::SkillCall;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;

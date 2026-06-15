@@ -36,7 +36,6 @@ fn get_param_u64(params: &HashMap<String, Value>, name: &str, default: u64) -> u
     params.get(name).and_then(|v| v.as_u64()).unwrap_or(default)
 }
 
-// ========== MySQL Query Skill ==========
 #[derive(Debug)]
 pub struct MysqlQuerySkill;
 
@@ -230,7 +229,6 @@ impl Skill for MysqlQuerySkill {
     }
 }
 
-/// MySQL Execute Skill
 #[derive(Debug)]
 pub struct MysqlExecuteSkill;
 
@@ -369,7 +367,6 @@ impl Skill for MysqlExecuteSkill {
     }
 }
 
-/// MySQL List Tables Skill
 #[derive(Debug)]
 pub struct MysqlListTablesSkill;
 

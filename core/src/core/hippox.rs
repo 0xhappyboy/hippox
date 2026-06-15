@@ -1,7 +1,6 @@
 //! Main Hippox core implementation
 
 use crate::core::tasks::NaturalLanguageTask;
-use crate::executors::Executor;
 use crate::prompts::{
     build_skill_md_prompt, generate_instances_registry, generate_skills_registry,
 };
@@ -13,6 +12,7 @@ use crate::{
     HippoxVoidResult, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
     WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
+use hippox_atomic_skills::{Executor, skill_registry};
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
 use serde_json::{Value, json};
@@ -376,13 +376,13 @@ impl Hippox {
 
     /// List all available atomic skills
     pub fn list_atomic_skills(&self) -> HippoxStringResult {
-        let skills = crate::executors::skill_registry::list_skills();
+        let skills = skill_registry::list_skills();
         if skills.is_empty() {
             return HippoxResult::ok(t!("skill.no_skills_available").to_string());
         }
         let mut result = String::new();
         for name in skills {
-            if let Some(skill) = crate::executors::skill_registry::get_skill(&name) {
+            if let Some(skill) = skill_registry::get_skill(&name) {
                 let emoji = match skill.category() {
                     "file" => "📁",
                     "net" => "🌐",
@@ -409,12 +409,12 @@ impl Hippox {
 
     /// Get all loaded atomic skill names
     pub fn get_atomic_skill_names(&self) -> HippoxBatchResult {
-        HippoxResult::ok(crate::executors::skill_registry::list_skills())
+        HippoxResult::ok(skill_registry::list_skills())
     }
 
     /// Check if there are any atomic skills available
     pub fn has_atomic_skills(&self) -> HippoxBoolResult {
-        HippoxResult::ok(!crate::executors::skill_registry::list_skills().is_empty())
+        HippoxResult::ok(!skill_registry::list_skills().is_empty())
     }
 
     /// Get the executor

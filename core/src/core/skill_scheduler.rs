@@ -9,9 +9,9 @@
 /// - Selecting appropriate skills based on user input
 /// - Executing skills with parameters
 /// - Falling back to general chat when no skill matches
-use crate::executors::skill_registry;
 use crate::t;
 use futures::future::ok;
+use hippox_atomic_skills::skill_registry;
 use langhub::LLMClient;
 use langhub::llms::LLMResult;
 use langhub::types::{ChatMessage, LangHubError};

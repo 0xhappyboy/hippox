@@ -1,8 +1,8 @@
 //! ReAct mode workflow execution
 
-use crate::executors::SkillCall;
 use crate::prompts::build_react_prompt;
 use crate::{SkillScheduler, t};
+use hippox_atomic_skills::SkillCall;
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::HashMap;

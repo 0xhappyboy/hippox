@@ -1,18 +1,16 @@
 //! Registry generation for skills and instances
 
-use crate::{
-    get_config,
-    skill_registry::{get_registry, get_skill, get_skills_by_categories, list_skills},
-};
+use crate::get_config;
+use hippox_atomic_skills::{get_skills_by_categories, skill_registry::{self, get_registry, get_skill, list_skills}};
 use serde_json::{Value, json};
 
 /// Generate skills registry (atomic skills metadata)
 pub fn generate_skills_registry() -> String {
-    let skills = crate::executors::skill_registry::list_skills();
+    let skills = skill_registry::list_skills();
     let registry: Vec<serde_json::Value> = skills
         .iter()
         .filter_map(|name| {
-            crate::executors::skill_registry::get_skill(name).map(|skill| {
+            skill_registry::get_skill(name).map(|skill| {
                 serde_json::json!({
                     "name": name,
                     "description": skill.description(),

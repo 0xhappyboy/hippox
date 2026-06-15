@@ -1,9 +1,9 @@
 //! Batch mode workflow execution
 
-use crate::executors::{Executor, SkillCall};
 use crate::prompts::build_batch_prompt;
 use crate::{SkillScheduler, t};
 use futures::future::join_all;
+use hippox_atomic_skills::SkillCall;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;

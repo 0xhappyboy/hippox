@@ -1,9 +1,9 @@
 //! Plan-and-Execute mode workflow execution
 
 use crate::SkillScheduler;
-use crate::executors::SkillCall;
 use crate::prompts::build_plan_prompt;
 use crate::t;
+use hippox_atomic_skills::SkillCall;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -1,9 +1,9 @@
 //! Chain mode workflow execution
 
 use crate::SkillScheduler;
-use crate::executors::{Executor, SkillCall};
 use crate::prompts::build_chain_prompt;
 use crate::t;
+use hippox_atomic_skills::SkillCall;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;

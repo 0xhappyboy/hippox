@@ -1,12 +1,13 @@
 //! Core WorkflowExecutor implementation
 
+use hippox_atomic_skills::Executor;
+
 use super::batch::execute_batch;
 use super::chain::execute_chain;
 use super::plan_and_execute::execute_plan_and_execute;
 use super::react::execute_react;
 use super::types::*;
 use crate::{execute_batch_with_categories, execute_chain_with_categories, execute_plan_and_execute_with_categories, execute_react_with_categories};
-use crate::executors::Executor;
 use crate::prompts::{build_react_prompt, build_skill_md_prompt};
 use crate::skill_scheduler::SkillScheduler;
 use std::sync::Arc;
