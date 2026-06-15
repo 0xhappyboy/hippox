@@ -25,6 +25,7 @@ tracing = "0.1.44"
 toml = "1.1.2"
 hippox-atomic-skills = "0.1.0"
 regex = "1.12.4"
+chrono = "0.4.45"
 
 [dev-dependencies]
 tempfile = "3.27.0"
