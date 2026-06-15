@@ -1,5 +1,7 @@
 #[cfg(feature = "blockchain")]
 pub mod blockchain;
+#[cfg(feature = "bluetooth")]
+pub mod bluetooth;
 #[cfg(feature = "db")]
 pub mod db;
 #[cfg(feature = "devops")]
@@ -55,6 +57,8 @@ pub use application_control::*;
 pub use audio_control::*;
 #[cfg(feature = "blockchain")]
 pub use blockchain::*;
+#[cfg(feature = "bluetooth")]
+pub use bluetooth;
 #[cfg(feature = "db")]
 pub use db::*;
 #[cfg(feature = "devops")]
