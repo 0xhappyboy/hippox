@@ -43,18 +43,6 @@ let hippox = Hippox::builder(ModelProvider::OpenAI)
         id.role = Some("assistant".to_string());
         id.personality = Some("friendly".to_string());
     })
-    .add_postgresql(
-        PostgreSQLConfig::new(
-            "main".to_string(),
-            Some("db".to_string()),
-            None,
-            "localhost".to_string(),
-            5432,
-            "mydb".to_string(),
-            "user".to_string(),
-            "password".to_string(),
-        )
-    )
     .build()
     .await?;
 
@@ -67,17 +55,6 @@ config.identity_information = IdentityInformation {
     personality: Some("friendly".to_string()),
     ..Default::default()
 };
-let pg_config = PostgreSQLConfig::new(
-    "main".to_string(),
-    Some("db".to_string()),
-    None,
-    "localhost".to_string(),
-    5432,
-    "mydb".to_string(),
-    "user".to_string(),
-    "password".to_string(),
-);
-config.add_postgresql_instance(pg_config);
 let hippox = Hippox::new(
     ModelProvider::OpenAI,
     Some("sk-xxx".to_string()),
