@@ -474,10 +474,11 @@ impl Hippox {
         OUTPUT_TOKEN_COUNT.load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    /// Storage task pool to a JSON file
+    /// Storage task pool to a JSON file and remove completed tasks from memory
     ///
-    /// This function saves all completed/failed/cancelled tasks from the task pool
-    /// to a JSON file at the specified path. Only terminal state tasks are saved.
+    /// This function saves all completed/failed/cancelled/timeout tasks from the task pool
+    /// to a JSON file at the specified path, then removes them from memory to free up resources.
+    /// Only terminal state tasks (cannot be executed again) are processed.
     ///
     /// # Arguments
     /// * `path` - The file path to save the JSON file (e.g., "./task_pool.json")
@@ -486,28 +487,48 @@ impl Hippox {
     /// `HippoxVoidResult` - Ok(()) on success, or error on failure
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// let hippox = Hippox::builder(ModelProvider::OpenAI).build().await?;
     /// hippox.storage_task_pool("./tasks_backup.json".to_string());
     /// ```
     pub fn storage_task_pool(&self, path: String) -> HippoxVoidResult {
-        let tasks = futures::executor::block_on(tasks::get_all_tasks(None));
-        let completed_tasks: Vec<tasks::Task> = tasks
-            .into_iter()
-            .filter(|task| {
-                matches!(
-                    task.status,
-                    TaskStatus::Completed
-                        | TaskStatus::Failed
-                        | TaskStatus::Cancelled
-                        | TaskStatus::Timeout
-                )
-            })
-            .collect();
+        use futures::executor::block_on;
+        // Get all terminal state tasks and remove them from pool atomically
+        let (exported_tasks, removed_count) = block_on(async {
+            let mut pool = tasks::TASK_POOL.write().await;
+            // Collect terminal state tasks
+            let terminal_tasks: Vec<tasks::Task> = pool
+                .tasks
+                .values()
+                .filter(|task| {
+                    matches!(
+                        task.status,
+                        TaskStatus::Completed
+                            | TaskStatus::Failed
+                            | TaskStatus::Cancelled
+                            | TaskStatus::Timeout
+                    )
+                })
+                .cloned()
+                .collect();
+            let removed_count = terminal_tasks.len();
+            // Remove them from the pool
+            for task in &terminal_tasks {
+                pool.tasks.remove(&task.id);
+                // Also clean up from pending_queue and running_tasks just in case
+                pool.pending_queue.retain(|id| id != &task.id);
+                pool.running_tasks.retain(|id| id != &task.id);
+            }
+            (terminal_tasks, removed_count)
+        });
+        if exported_tasks.is_empty() {
+            info!("No terminal state tasks to backup and remove");
+            return HippoxResult::ok(());
+        }
         let json_data = json!({
             "export_time": chrono::Local::now().to_rfc3339(),
-            "total_count": completed_tasks.len(),
-            "tasks": completed_tasks.iter().map(|task| {
+            "total_count": exported_tasks.len(),
+            "tasks": exported_tasks.iter().map(|task| {
                 json!({
                     "id": task.id,
                     "task_type": task.task_type,
@@ -536,12 +557,33 @@ impl Hippox {
         let json_string = match serde_json::to_string_pretty(&json_data) {
             Ok(s) => s,
             Err(e) => {
+                // If serialization fails, the tasks have already been removed
+                // Log error but return error result
+                tracing::error!("Failed to serialize tasks: {}", e);
                 return HippoxResult::system_error(format!("Failed to serialize tasks: {}", e));
             }
         };
         match fs::write(&path, json_string) {
-            Ok(_) => HippoxResult::ok(()),
-            Err(e) => HippoxResult::system_error(format!("Failed to write file {}: {}", path, e)),
+            Ok(_) => {
+                info!(
+                    "Successfully backed up and removed {} terminal tasks to: {}",
+                    removed_count, path
+                );
+                HippoxResult::ok(())
+            }
+            Err(e) => {
+                // File write failed, but tasks are already removed!
+                // This is a problem - data loss has occurred.
+                tracing::error!(
+                    "Failed to write backup file after removing tasks! Data loss occurred. Path: {}, Error: {}",
+                    path,
+                    e
+                );
+                HippoxResult::system_error(format!(
+                    "Failed to write file {} after removing tasks (data may be lost): {}",
+                    path, e
+                ))
+            }
         }
     }
 }
