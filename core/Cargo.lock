@@ -3062,53 +3062,27 @@ version = "0.5.6"
 dependencies = [
  "anyhow",
  "async-trait",
- "axum",
- "base64 0.22.1",
- "bzip2 0.6.1",
- "calamine",
- "chrono",
- "clipboard-win",
- "cron",
- "csv",
- "deadpool-postgres",
  "dotenvy",
- "flate2",
  "futures",
  "futures-util",
- "hex",
  "hippox-atomic-skills",
  "langhub",
- "lettre",
- "lopdf 0.40.0",
- "md5",
  "once_cell",
- "pdf-extract",
- "quick-xml 0.40.1",
- "rand 0.10.1",
  "regex",
- "reqwest 0.13.3",
- "rust-i18n",
- "rust_xlsxwriter",
  "serde",
  "serde_json",
- "serde_yaml",
- "sha2 0.11.0",
- "suppaftp",
- "sysinfo",
  "tempfile",
  "tokio",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
- "tracing-subscriber",
- "urlencoding",
- "uuid 1.23.1",
- "walkdir",
- "zip 8.6.0",
+ "uuid 1.23.3",
 ]
 
 [[package]]
 name = "hippox-atomic-skills"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4766249f93421e62340b892e779cdd110c62b9fdcd817ae418ab959c4847ea06"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3164,7 +3138,7 @@ dependencies = [
  "trust-dns-proto",
  "trust-dns-resolver",
  "urlencoding",
- "uuid 1.23.1",
+ "uuid 1.23.3",
  "walkdir",
  "whois-rust",
  "widestring",
@@ -6333,7 +6307,7 @@ dependencies = [
  "rkyv_derive",
  "seahash",
  "tinyvec",
- "uuid 1.23.1",
+ "uuid 1.23.3",
 ]
 
 [[package]]
@@ -7225,7 +7199,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
- "uuid 1.23.1",
+ "uuid 1.23.3",
 ]
 
 [[package]]
@@ -7306,7 +7280,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid 1.23.1",
+ "uuid 1.23.3",
  "whoami 1.6.1",
 ]
 
@@ -7345,7 +7319,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid 1.23.1",
+ "uuid 1.23.3",
  "whoami 1.6.1",
 ]
 
@@ -7372,7 +7346,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
- "uuid 1.23.1",
+ "uuid 1.23.3",
 ]
 
 [[package]]
@@ -8487,9 +8461,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.23.1"
+version = "1.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd74a9687298c6858e9b88ec8935ec45d22e8fd5e6394fa1bd4e99a87789c76"
+checksum = "144d6b123cef80b301b8f72a9e2ca4370ddec21950d0a103dd22c437006d2db7"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -9573,7 +9547,7 @@ dependencies = [
  "serde_repr",
  "tracing",
  "uds_windows",
- "uuid 1.23.1",
+ "uuid 1.23.3",
  "windows-sys 0.61.2",
  "winnow 1.0.3",
  "zbus_macros",
