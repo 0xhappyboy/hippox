@@ -171,36 +171,6 @@ pub struct HippoxConfig {
     pub lang: String,
     /// AI identity information (name, role, personality, etc.)
     pub identity_information: IdentityInformation,
-    /// PostgreSQL database instances (multiple)
-    pub postgresql_instances: HashMap<String, PostgreSQLConfig>,
-    /// MySQL database instances (multiple)
-    pub mysql_instances: HashMap<String, MySQLConfig>,
-    /// Redis instances (multiple)
-    pub redis_instances: HashMap<String, RedisConfig>,
-    /// SQLite instances (multiple)
-    pub sqlite_instances: HashMap<String, SQLiteConfig>,
-    /// Docker instances (multiple)
-    pub docker_instances: HashMap<String, DockerConfig>,
-    /// Kubernetes clusters (multiple)
-    pub k8s_instances: HashMap<String, K8sConfig>,
-    /// TCP connection instances (multiple)
-    pub tcp_instances: HashMap<String, TCPConfig>,
-    /// UDP connection instances (multiple)
-    pub udp_instances: HashMap<String, UDPConfig>,
-    /// FTP server instances (multiple)
-    pub ftp_instances: HashMap<String, FTPConfig>,
-    /// SMTP email instances (multiple)
-    pub smtp_instances: HashMap<String, SMTPConfig>,
-    /// Telegram bot instances (multiple)
-    pub telegram_instances: HashMap<String, TelegramConfig>,
-    /// DingTalk robot instances (multiple)
-    pub dingtalk_instances: HashMap<String, DingTalkConfig>,
-    /// Feishu webhook instances (multiple)
-    pub feishu_instances: HashMap<String, FeishuConfig>,
-    /// WeCom webhook instances (multiple)
-    pub wecom_instances: HashMap<String, WeComConfig>,
-    /// GitHub API instances (multiple)
-    pub github_instances: HashMap<String, GitHubConfig>,
 }
 ```
 

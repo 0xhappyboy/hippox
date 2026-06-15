@@ -172,36 +172,6 @@ pub struct HippoxConfig {
     pub lang: String,
     /// AI 身份信息（名称、角色、性格等）
     pub identity_information: IdentityInformation,
-    /// PostgreSQL 数据库实例（支持多个）
-    pub postgresql_instances: HashMap<String, PostgreSQLConfig>,
-    /// MySQL 数据库实例（支持多个）
-    pub mysql_instances: HashMap<String, MySQLConfig>,
-    /// Redis 实例（支持多个）
-    pub redis_instances: HashMap<String, RedisConfig>,
-    /// SQLite 实例（支持多个）
-    pub sqlite_instances: HashMap<String, SQLiteConfig>,
-    /// Docker 实例（支持多个）
-    pub docker_instances: HashMap<String, DockerConfig>,
-    /// Kubernetes 集群（支持多个）
-    pub k8s_instances: HashMap<String, K8sConfig>,
-    /// TCP 连接实例（支持多个）
-    pub tcp_instances: HashMap<String, TCPConfig>,
-    /// UDP 连接实例（支持多个）
-    pub udp_instances: HashMap<String, UDPConfig>,
-    /// FTP 服务器实例（支持多个）
-    pub ftp_instances: HashMap<String, FTPConfig>,
-    /// SMTP 邮件实例（支持多个）
-    pub smtp_instances: HashMap<String, SMTPConfig>,
-    /// Telegram 机器人实例（支持多个）
-    pub telegram_instances: HashMap<String, TelegramConfig>,
-    /// 钉钉机器人实例（支持多个）
-    pub dingtalk_instances: HashMap<String, DingTalkConfig>,
-    /// 飞书 webhook 实例（支持多个）
-    pub feishu_instances: HashMap<String, FeishuConfig>,
-    /// 企业微信 webhook 实例（支持多个）
-    pub wecom_instances: HashMap<String, WeComConfig>,
-    /// GitHub API 实例（支持多个）
-    pub github_instances: HashMap<String, GitHubConfig>,
 }
 ```
 
