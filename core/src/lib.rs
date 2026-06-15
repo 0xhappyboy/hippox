@@ -16,3 +16,13 @@ pub use crate::skill_scheduler::*;
 pub use crate::tasks::*;
 pub use crate::workflow::*;
 pub use langhub::types::ModelProvider;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        println!("8")
+    }
+}

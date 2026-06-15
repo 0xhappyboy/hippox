@@ -1213,6 +1213,290 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "speech_speak".to_string(),
         Arc::new(SpeechSpeakSkill) as Arc<dyn Skill>,
     );
+
+    // ==================== Keyboard Control Skills ====================
+    #[cfg(any(feature = "keyboard_control", feature = "all"))]
+    registry.insert(
+        "keyboard_control_press".to_string(),
+        Arc::new(super::skills::keyboard_control::KeyboardControlPressSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "keyboard_control", feature = "all"))]
+    registry.insert(
+        "keyboard_control_down".to_string(),
+        Arc::new(super::skills::keyboard_control::KeyboardControlDownSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "keyboard_control", feature = "all"))]
+    registry.insert(
+        "keyboard_control_up".to_string(),
+        Arc::new(super::skills::keyboard_control::KeyboardControlUpSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "keyboard_control", feature = "all"))]
+    registry.insert(
+        "keyboard_control_type_text".to_string(),
+        Arc::new(super::skills::keyboard_control::KeyboardControlTypeTextSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "keyboard_control", feature = "all"))]
+    registry.insert(
+        "keyboard_control_shortcut".to_string(),
+        Arc::new(super::skills::keyboard_control::KeyboardControlShortcutSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "keyboard_control", feature = "all"))]
+    registry.insert(
+        "keyboard_control_hotkey".to_string(),
+        Arc::new(super::skills::keyboard_control::KeyboardControlHotkeySkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "keyboard_control", feature = "all"))]
+    registry.insert(
+        "keyboard_control_modifier".to_string(),
+        Arc::new(super::skills::keyboard_control::KeyboardControlModifierSkill) as Arc<dyn Skill>,
+    );
+
+    // ==================== Mouse Control Skills ====================
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_position_get".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlPositionGetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_click".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlClickSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_double_click".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlDoubleClickSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_right_click".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlRightClickSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_move_to".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlMoveToSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_move_relative".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlMoveRelativeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_press".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlPressSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_release".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlReleaseSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_drag".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlDragSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_scroll".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlScrollSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_smooth_move".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlSmoothMoveSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "mouse_control", feature = "all"))]
+    registry.insert(
+        "mouse_control_get_cursor".to_string(),
+        Arc::new(super::skills::mouse_control::MouseControlGetCursorSkill) as Arc<dyn Skill>,
+    );
+
+    // ==================== Audio Control Skills ====================
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_volume_get".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlVolumeGetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_volume_set".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlVolumeSetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_volume_up".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlVolumeUpSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_volume_down".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlVolumeDownSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_mute".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlMuteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_unmute".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlUnmuteSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_output_device_list".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlOutputDeviceListSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_output_device_set".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlOutputDeviceSetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_input_device_list".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlInputDeviceListSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "audio_control", feature = "all"))]
+    registry.insert(
+        "audio_control_input_volume_set".to_string(),
+        Arc::new(super::skills::audio_control::AudioControlInputVolumeSetSkill) as Arc<dyn Skill>,
+    );
+
+    // ==================== Application Control Skills ====================
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_launch".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlLaunchSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_launch_with_args".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlLaunchWithArgsSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_launch_as_admin".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlLaunchAsAdminSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_close".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlCloseSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_is_running".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlIsRunningSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_wait_for_exit".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlWaitForExitSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_get_path".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlGetPathSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_wait_for".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlWaitForSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_restart".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlRestartSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_list_running".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlListRunningSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_install".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlInstallSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "application_control", feature = "all"))]
+    registry.insert(
+        "application_control_uninstall".to_string(),
+        Arc::new(super::skills::application_control::ApplicationControlUninstallSkill)
+            as Arc<dyn Skill>,
+    );
+
+    // ==================== Display Control Skills ====================
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_list".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlListSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_primary_get".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlPrimaryGetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_resolution_get".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlResolutionGetSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_resolution_set".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlResolutionSetSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_scale_get".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlScaleGetSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_orientation_get".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlOrientationGetSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_orientation_set".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlOrientationSetSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_refresh_rate_get".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlRefreshRateGetSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_brightness_get".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlBrightnessGetSkill)
+            as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "display_control", feature = "all"))]
+    registry.insert(
+        "display_control_brightness_set".to_string(),
+        Arc::new(super::skills::display_control::DisplayControlBrightnessSetSkill)
+            as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 

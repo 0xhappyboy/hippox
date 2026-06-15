@@ -35,13 +35,30 @@ pub mod time;
 #[cfg(feature = "window_control")]
 pub mod window_control;
 
+#[cfg(feature = "application_control")]
+pub mod application_control;
+#[cfg(feature = "audio_control")]
+pub mod audio_control;
+#[cfg(feature = "display_control")]
+pub mod display_control;
+#[cfg(feature = "keyboard_control")]
+pub mod keyboard_control;
+#[cfg(feature = "mouse_control")]
+pub mod mouse_control;
+
 // Re-exports
+#[cfg(feature = "application_control")]
+pub use application_control::*;
+#[cfg(feature = "audio_control")]
+pub use audio_control::*;
 #[cfg(feature = "blockchain")]
 pub use blockchain::*;
 #[cfg(feature = "db")]
 pub use db::*;
 #[cfg(feature = "devops")]
 pub use devops::*;
+#[cfg(feature = "display_control")]
+pub use display_control::*;
 #[cfg(feature = "document")]
 pub use document::*;
 #[cfg(feature = "file")]
@@ -50,12 +67,16 @@ pub use file::*;
 pub use have_head_browser::*;
 #[cfg(feature = "helloworld")]
 pub use helloworld::HelloWorldSkill;
+#[cfg(feature = "keyboard_control")]
+pub use keyboard_control::*;
 #[cfg(feature = "math")]
 pub use math::*;
 #[cfg(feature = "media")]
 pub use media::*;
 #[cfg(feature = "message")]
 pub use message::*;
+#[cfg(feature = "mouse_control")]
+pub use mouse_control::*;
 #[cfg(feature = "net")]
 pub use net::*;
 #[cfg(feature = "operating_system")]
