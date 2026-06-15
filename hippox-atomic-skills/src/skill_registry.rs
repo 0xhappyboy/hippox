@@ -1624,6 +1624,171 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         );
     }
 
+    // ==================== Bluetooth Control Skills ====================
+    #[cfg(any(feature = "bluetooth", feature = "all"))]
+    {
+        use crate::skills::*;
+        registry.insert(
+            "bluetooth_turn_on".to_string(),
+            Arc::new(BluetoothTurnOnSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_turn_off".to_string(),
+            Arc::new(BluetoothTurnOffSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_scan".to_string(),
+            Arc::new(BluetoothScanSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_pairable".to_string(),
+            Arc::new(BluetoothPairableSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_pair".to_string(),
+            Arc::new(BluetoothPairSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_unpair".to_string(),
+            Arc::new(BluetoothUnpairSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_list_paired".to_string(),
+            Arc::new(BluetoothListPairedSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_connect".to_string(),
+            Arc::new(BluetoothConnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_disconnect".to_string(),
+            Arc::new(BluetoothDisconnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_send_file".to_string(),
+            Arc::new(BluetoothSendFileSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_receive_file".to_string(),
+            Arc::new(BluetoothReceiveFileSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_serial".to_string(),
+            Arc::new(BluetoothSerialSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_scan_services".to_string(),
+            Arc::new(BluetoothScanServicesSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_ble_read".to_string(),
+            Arc::new(BluetoothBleReadSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_ble_write".to_string(),
+            Arc::new(BluetoothBleWriteSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_ble_notify".to_string(),
+            Arc::new(BluetoothBleNotifySkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_adapter_status".to_string(),
+            Arc::new(BluetoothAdapterStatusSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_set_device_name".to_string(),
+            Arc::new(BluetoothSetDeviceNameSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_get_mac_address".to_string(),
+            Arc::new(BluetoothGetMacAddressSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_reject_pairing".to_string(),
+            Arc::new(BluetoothRejectPairingSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_confirm_pin".to_string(),
+            Arc::new(BluetoothConfirmPinSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_set_discoverable_timeout".to_string(),
+            Arc::new(BluetoothSetDiscoverableTimeoutSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_get_connected_devices".to_string(),
+            Arc::new(BluetoothGetConnectedDevicesSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_device_info".to_string(),
+            Arc::new(BluetoothDeviceInfoSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_audio_connect".to_string(),
+            Arc::new(BluetoothAudioConnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_audio_disconnect".to_string(),
+            Arc::new(BluetoothAudioDisconnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_hid_connect".to_string(),
+            Arc::new(BluetoothHidConnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_trust_device".to_string(),
+            Arc::new(BluetoothTrustDeviceSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_delete_device".to_string(),
+            Arc::new(BluetoothDeleteDeviceSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_le_advertise_start".to_string(),
+            Arc::new(BluetoothLeAdvertiseStartSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_le_advertise_stop".to_string(),
+            Arc::new(BluetoothLeAdvertiseStopSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_le_scan_filter".to_string(),
+            Arc::new(BluetoothLeScanFilterSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_battery_get".to_string(),
+            Arc::new(BluetoothBatteryGetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_rssi_get".to_string(),
+            Arc::new(BluetoothRssiGetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_firmware_version".to_string(),
+            Arc::new(BluetoothFirmwareVersionSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_rename_device".to_string(),
+            Arc::new(BluetoothRenameDeviceSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_profile_list".to_string(),
+            Arc::new(BluetoothProfileListSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_priority_set".to_string(),
+            Arc::new(BluetoothPrioritySetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_auto_connect_toggle".to_string(),
+            Arc::new(BluetoothAutoConnectToggleSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "bluetooth_set_receive_directory".to_string(),
+            Arc::new(BluetoothSetReceiveDirectorySkill) as Arc<dyn Skill>,
+        );
+    }
     RwLock::new(registry)
 });
 
