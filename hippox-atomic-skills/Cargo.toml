@@ -131,6 +131,7 @@ default = [
     "audio_control",
     "application_control",
     "display_control",
+    "wifi",
 ]
 all = [
     "blockchain",
@@ -156,7 +157,9 @@ all = [
     "audio_control",
     "application_control",
     "display_control",
+    "wifi",
 ]
+wifi = []
 display_control = []
 keyboard_control = []
 mouse_control = []

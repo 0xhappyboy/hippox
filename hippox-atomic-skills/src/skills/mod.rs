@@ -32,6 +32,8 @@ pub mod terminal_commands;
 pub mod text;
 #[cfg(feature = "time")]
 pub mod time;
+#[cfg(feature = "wifi")]
+pub mod wifi;
 #[cfg(feature = "window_control")]
 pub mod window_control;
 
@@ -91,5 +93,7 @@ pub use terminal_commands::*;
 pub use text::*;
 #[cfg(feature = "time")]
 pub use time::*;
+#[cfg(feature = "wifi")]
+pub use wifi::*;
 #[cfg(feature = "window_control")]
 pub use window_control::*;

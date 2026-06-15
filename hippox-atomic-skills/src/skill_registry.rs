@@ -1497,6 +1497,133 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         Arc::new(super::skills::display_control::DisplayControlBrightnessSetSkill)
             as Arc<dyn Skill>,
     );
+
+    #[cfg(any(feature = "wifi", feature = "all"))]
+    {
+        use crate::skills::*;
+
+        registry.insert(
+            "wifi_scan".to_string(),
+            Arc::new(WifiScanSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_list_connections".to_string(),
+            Arc::new(WifiListConnectionsSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_connect".to_string(),
+            Arc::new(WifiConnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_disconnect".to_string(),
+            Arc::new(WifiDisconnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_status".to_string(),
+            Arc::new(WifiStatusSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_forget".to_string(),
+            Arc::new(WifiForgetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_turn_on".to_string(),
+            Arc::new(WifiTurnOnSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_turn_off".to_string(),
+            Arc::new(WifiTurnOffSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_hotspot_create".to_string(),
+            Arc::new(WifiHotspotCreateSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_hotspot_stop".to_string(),
+            Arc::new(WifiHotspotStopSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_get_saved_passwords".to_string(),
+            Arc::new(WifiGetSavedPasswordsSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_get_interface_list".to_string(),
+            Arc::new(WifiGetInterfaceListSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_set_interface_power".to_string(),
+            Arc::new(WifiSetInterfacePowerSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_get_channel".to_string(),
+            Arc::new(WifiGetChannelSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_get_noise_level".to_string(),
+            Arc::new(WifiGetNoiseLevelSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_wps_connect".to_string(),
+            Arc::new(WifiWpsConnectSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_analyze_quality".to_string(),
+            Arc::new(WifiAnalyzeQualitySkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_connect_hidden".to_string(),
+            Arc::new(WifiConnectHiddenSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_auto_connect_toggle".to_string(),
+            Arc::new(WifiAutoConnectToggleSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_roaming_toggle".to_string(),
+            Arc::new(WifiRoamingToggleSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_ping_gateway".to_string(),
+            Arc::new(WifiPingGatewaySkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_band_preference_set".to_string(),
+            Arc::new(WifiBandPreferenceSetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_band_preference_get".to_string(),
+            Arc::new(WifiBandPreferenceGetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_mac_address_set".to_string(),
+            Arc::new(WifiMacAddressSetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_mac_address_get".to_string(),
+            Arc::new(WifiMacAddressGetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_dns_set".to_string(),
+            Arc::new(WifiDnsSetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_proxy_set".to_string(),
+            Arc::new(WifiProxySetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_priority_set".to_string(),
+            Arc::new(WifiPrioritySetSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_export_config".to_string(),
+            Arc::new(WifiExportConfigSkill) as Arc<dyn Skill>,
+        );
+        registry.insert(
+            "wifi_import_config".to_string(),
+            Arc::new(WifiImportConfigSkill) as Arc<dyn Skill>,
+        );
+    }
+
     RwLock::new(registry)
 });
 
