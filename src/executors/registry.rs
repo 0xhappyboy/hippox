@@ -9,8 +9,48 @@ use crate::executors::Skill;
 use crate::executors::skills::BitcoinWalletSkill;
 #[cfg(any(feature = "blockchain", feature = "all"))]
 use crate::executors::skills::EvmWalletSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserBackSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserClickSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserCloseSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserExecuteJsSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserFindElementSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserForwardSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserGetTextSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserGetTitleSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserGetUrlSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserNavigateSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserRefreshSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserScreenshotSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserScrollSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserTabCloseSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserTabNewSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserTabSwitchSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserTypeSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::HaveHeadBrowserWaitSkill;
 #[cfg(any(feature = "blockchain", feature = "all"))]
 use crate::executors::skills::SolanaWalletSkill;
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
+use crate::executors::skills::have_head_browser::HaveHeadBrowserElementExistsSkill;
+#[cfg(any(feature = "browser", feature = "all"))]
+use crate::executors::skills::have_head_browser::*;
 use crate::executors::types::SkillMetadata;
 use once_cell::sync::Lazy;
 use serde_json::Value;
@@ -942,6 +982,102 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         "odt_read".to_string(),
         Arc::new(super::skills::document::OdtReadSkill) as Arc<dyn Skill>,
     );
+    // ==================== Headful Browser Skills ====================
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_navigate".to_string(),
+        Arc::new(HaveHeadBrowserNavigateSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_click".to_string(),
+        Arc::new(HaveHeadBrowserClickSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_type".to_string(),
+        Arc::new(HaveHeadBrowserTypeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_get_text".to_string(),
+        Arc::new(HaveHeadBrowserGetTextSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_screenshot".to_string(),
+        Arc::new(HaveHeadBrowserScreenshotSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_wait".to_string(),
+        Arc::new(HaveHeadBrowserWaitSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_execute_js".to_string(),
+        Arc::new(HaveHeadBrowserExecuteJsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_get_url".to_string(),
+        Arc::new(HaveHeadBrowserGetUrlSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_get_title".to_string(),
+        Arc::new(HaveHeadBrowserGetTitleSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_back".to_string(),
+        Arc::new(HaveHeadBrowserBackSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_forward".to_string(),
+        Arc::new(HaveHeadBrowserForwardSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_refresh".to_string(),
+        Arc::new(HaveHeadBrowserRefreshSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_tab_new".to_string(),
+        Arc::new(HaveHeadBrowserTabNewSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_tab_close".to_string(),
+        Arc::new(HaveHeadBrowserTabCloseSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_tab_switch".to_string(),
+        Arc::new(HaveHeadBrowserTabSwitchSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_find_element".to_string(),
+        Arc::new(HaveHeadBrowserFindElementSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_element_exists".to_string(),
+        Arc::new(HaveHeadBrowserElementExistsSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_scroll".to_string(),
+        Arc::new(HaveHeadBrowserScrollSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "have_head_browser", feature = "all"))]
+    registry.insert(
+        "have_head_browser_close".to_string(),
+        Arc::new(HaveHeadBrowserCloseSkill) as Arc<dyn Skill>,
+    );
     RwLock::new(registry)
 });
 
@@ -1245,12 +1381,10 @@ pub fn get_skill_categories() -> Vec<(String, usize)> {
     let registry = get_registry();
     let mut category_counts: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
-
     for skill in registry.values() {
         let cat = skill.category().to_string();
         *category_counts.entry(cat).or_insert(0) += 1;
     }
-
     let mut result: Vec<(String, usize)> = category_counts.into_iter().collect();
     result.sort_by(|a, b| a.0.cmp(&b.0));
     result

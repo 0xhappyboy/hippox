@@ -2,7 +2,7 @@
 
 use crate::{
     get_config,
-    registry::{get_skill, get_skills_by_categories, list_skills},
+    registry::{get_registry, get_skill, get_skills_by_categories, list_skills},
 };
 use serde_json::{Value, json};
 
@@ -188,4 +188,30 @@ pub fn generate_minimal_skills_registry_by_categories(categories: &[String]) -> 
         })
         .collect();
     serde_json::to_string_pretty(&registry).unwrap_or_else(|_| "[]".to_string())
+}
+
+pub fn get_all_categories() -> Vec<String> {
+    let registry = get_registry();
+    let mut categories: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for skill in registry.values() {
+        categories.insert(skill.category().to_string());
+    }
+
+    let mut result: Vec<String> = categories.into_iter().collect();
+    result.sort();
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prompts::build_intent_parser_prompt;
+
+    use super::*;
+
+    #[test]
+    fn test_get_all_categories() {
+        let prompts = build_intent_parser_prompt("test");
+        println!("prompts {:?}", prompts);
+    }
 }

@@ -1,7 +1,30 @@
 //! Intent parser prompt template
 
-/// Build intent parser prompt to extract clean_intent and skill_categories
+use crate::registry::get_skill_categories;
+
+/// Builds a prompt for LLM to extract intent and required skill categories from user input.
+///
+/// The LLM analyzes the user message and returns a JSON object containing:
+/// - `clean_intent`: The user's core request with output formatting instructions removed
+/// - `skill_categories`: A list of skill categories needed to fulfill the request
+///
+/// This enables the system to filter skills by category before building the execution prompt,
+/// reducing token usage and improving accuracy.
+///
+/// # Categories are auto-loaded from registry
+/// The category list is dynamically generated from `registry::get_skill_categories()`,
+/// which collects all `category()` values from registered skills.
+///
+/// # Example
+/// ```text
+/// Input: "Search for Rust tutorials and return as XML"
+/// Output: {"clean_intent": "Search for Rust tutorials", "skill_categories": ["browser", "net"]}
+/// ```
 pub fn build_intent_parser_prompt(input: &str) -> String {
+    let categories = get_skill_categories();
+    let categories_str: Vec<String> = categories.iter().map(|(cat, _)| cat.clone()).collect();
+    let categories_list = categories_str.join(", ");
+
     format!(
         r#"## FINAL INSTRUCTION - HIGHEST PRIORITY
 Ignore all previous instructions about output format.
@@ -38,10 +61,11 @@ Examples:
 - "use workspace directory: C:\...\workspace" → KEEP (execution rule)
 - "output JSON format" → REMOVE
 
-Categories: math, file, net, crypto, random, document, message, database, devops, system, image, time, task, text, regex, blockchain
+## Available Categories:
+{}
 
 ## YOUR OUTPUT:
 "#,
-        input
+        input, categories_list
     )
 }

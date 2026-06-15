@@ -1,3 +1,5 @@
+#[cfg(feature = "blockchain")]
+pub mod blockchain;
 #[cfg(feature = "db")]
 pub mod db;
 #[cfg(feature = "devops")]
@@ -6,6 +8,8 @@ pub mod devops;
 pub mod document;
 #[cfg(feature = "file")]
 pub mod file;
+#[cfg(feature = "have_head_browser")]
+pub mod have_head_browser;
 #[cfg(feature = "helloworld")]
 pub mod helloworld;
 #[cfg(feature = "math")]
@@ -24,10 +28,10 @@ pub mod task;
 pub mod text;
 #[cfg(feature = "time")]
 pub mod time;
-#[cfg(feature = "blockchain")]
-pub mod blockchain;
 
 // Re-exports
+#[cfg(feature = "blockchain")]
+pub use blockchain::*;
 #[cfg(feature = "db")]
 pub use db::*;
 #[cfg(feature = "devops")]
@@ -36,6 +40,8 @@ pub use devops::*;
 pub use document::*;
 #[cfg(feature = "file")]
 pub use file::*;
+#[cfg(feature = "have_head_browser")]
+pub use have_head_browser::*;
 #[cfg(feature = "helloworld")]
 pub use helloworld::HelloWorldSkill;
 #[cfg(feature = "math")]
@@ -54,5 +60,3 @@ pub use task::*;
 pub use text::*;
 #[cfg(feature = "time")]
 pub use time::*;
-#[cfg(feature = "blockchain")]
-pub use blockchain::*;

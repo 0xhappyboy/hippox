@@ -26,6 +26,7 @@ default = [
     "task",
     "time",
     "text",
+    "have_head_browser",
 ]
 all = [
     "blockchain",
@@ -42,7 +43,9 @@ all = [
     "task",
     "time",
     "text",
+    "have_head_browser",
 ]
+have_head_browser = []
 blockchain = []
 text = []
 db = []
@@ -135,6 +138,7 @@ winapi = { version = "0.3.9", features = [
 evm-client = "0.1.7"
 ethers = "2.0.14"
 scraper = "0.27.0"
+headless_chrome = "1.0.22"
 
 [dev-dependencies]
 tempfile = "3.27.0"
