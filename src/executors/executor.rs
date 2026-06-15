@@ -30,7 +30,7 @@ use std::sync::Arc;
 /// - Invalid JSON input during parsing
 /// - Unknown skill name (not found in registry)
 /// - Skill execution failure (delegated to the skill itself)
-use crate::{executors::{Skill, SkillCall, registry}, registry::get_registry};
+use crate::{executors::{Skill, SkillCall, skill_registry}, skill_registry::get_registry};
 use anyhow::Result;
 use serde_json::Value;
 
@@ -234,7 +234,7 @@ impl Executor {
     /// # }
     /// ```
     pub async fn execute(&self, call: &SkillCall) -> Result<String> {
-        let skill = registry::get_skill(&call.action)
+        let skill = skill_registry::get_skill(&call.action)
             .ok_or_else(|| anyhow::anyhow!("Unknown skill: {}", call.action))?;
         skill.execute(&call.parameters).await
     }

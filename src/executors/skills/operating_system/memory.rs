@@ -18,22 +18,22 @@ use crate::executors::{
     types::{Skill, SkillParameter},
 };
 
-/// Get detailed information about a specific process
+/// Get basic information about a specific process (PID, name, parent PID)
 #[derive(Debug)]
-pub struct ProcessInfoSkill;
+pub struct ProcessBasicInfoSkill;
 
 #[async_trait::async_trait]
-impl Skill for ProcessInfoSkill {
+impl Skill for ProcessBasicInfoSkill {
     fn name(&self) -> &str {
-        "process_info"
+        "process_basic_info"
     }
 
     fn description(&self) -> &str {
-        "Get detailed information about a specific process by PID"
+        "Get basic information about a specific process by PID (name, parent PID)"
     }
 
     fn usage_hint(&self) -> &str {
-        "Use this skill after process_list to get detailed info about a specific process"
+        "Use this skill after process_list to get basic info about a specific process"
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -50,7 +50,7 @@ impl Skill for ProcessInfoSkill {
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "process_info",
+            "action": "process_basic_info",
             "parameters": {
                 "pid": 1234
             }
@@ -62,7 +62,7 @@ impl Skill for ProcessInfoSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -171,7 +171,7 @@ impl Skill for MemoryReadSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -302,7 +302,7 @@ impl Skill for MemoryScanSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -396,7 +396,7 @@ impl Skill for ModuleBaseSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -91,7 +91,7 @@ impl Skill for ProcessListSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -209,7 +209,7 @@ impl Skill for ProcessKillSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -337,7 +337,7 @@ impl Skill for ProcessKillByNameSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -454,7 +454,7 @@ impl Skill for ProcessIsRunningSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -551,7 +551,7 @@ impl Skill for ProcessGetPidSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -648,7 +648,7 @@ impl Skill for ProcessInfoSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -718,7 +718,7 @@ mod tests {
     async fn test_process_is_running() {
         let skill = ProcessIsRunningSkill;
         let mut params = HashMap::new();
-        params.insert("name".to_string(), json!("system"));
+        params.insert("name".to_string(), json!("operating_system"));
         let result = skill.execute(&params).await;
         assert!(result.is_ok());
     }

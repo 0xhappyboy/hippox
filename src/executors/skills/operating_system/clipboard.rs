@@ -50,7 +50,7 @@ impl Skill for ClipboardGetSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {

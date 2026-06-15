@@ -9,7 +9,7 @@
 /// - Selecting appropriate skills based on user input
 /// - Executing skills with parameters
 /// - Falling back to general chat when no skill matches
-use crate::executors::registry;
+use crate::executors::skill_registry;
 use crate::t;
 use futures::future::ok;
 use langhub::LLMClient;
@@ -57,7 +57,7 @@ impl SkillScheduler {
     /// # Returns
     /// A formatted string containing the skill registry in JSON format
     pub fn get_skills_prompt(&self) -> String {
-        let registry_json = registry::generate_skill_registry_table_json_str();
+        let registry_json = skill_registry::generate_skill_registry_table_json_str();
         format!("## Available Skills (JSON Registry)\n{}", registry_json)
     }
 
@@ -73,7 +73,7 @@ impl SkillScheduler {
     /// # Returns
     /// Some(skill_name) if a skill is selected, None otherwise
     pub async fn select_skill(&self, user_input: &str) -> anyhow::Result<Option<String>> {
-        if registry::list_skills().is_empty() {
+        if skill_registry::list_skills().is_empty() {
             return Ok(None);
         }
         let skills_prompt = self.get_skills_prompt();
@@ -88,7 +88,7 @@ impl SkillScheduler {
         let skill_name = response.trim();
         if skill_name == "none" || skill_name.is_empty() {
             Ok(None)
-        } else if registry::has_skill(skill_name) {
+        } else if skill_registry::has_skill(skill_name) {
             Ok(Some(skill_name.to_string()))
         } else {
             Ok(None)
@@ -111,7 +111,7 @@ impl SkillScheduler {
         conversation_history: &str,
     ) -> anyhow::Result<String> {
         println!("{}", t!("skill.executing", skill_name));
-        let skill = registry::get_skill(skill_name)
+        let skill = skill_registry::get_skill(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
         let mut parameters = HashMap::new();
         parameters.insert("input".to_string(), Value::String(user_input.to_string()));
@@ -136,7 +136,7 @@ impl SkillScheduler {
         conversation_history: &str,
     ) -> anyhow::Result<String> {
         println!("{}", t!("skill.executing", skill_name));
-        let skill = registry::get_skill(skill_name)
+        let skill = skill_registry::get_skill(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
         skill.execute(parameters).await
     }
@@ -157,7 +157,7 @@ impl SkillScheduler {
         skill_name: &str,
         messages: Vec<ChatMessage>,
     ) -> anyhow::Result<String> {
-        let skill = registry::get_skill(skill_name)
+        let skill = skill_registry::get_skill(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
         let mut parameters = HashMap::new();
         // Extract content from the last user message
@@ -221,13 +221,13 @@ impl SkillScheduler {
     /// # Returns
     /// A formatted string listing all skills with their emoji categories
     pub fn list_skills(&self) -> String {
-        let skills = registry::list_skills();
+        let skills = skill_registry::list_skills();
         if skills.is_empty() {
             return t!("skill.no_skills_available").to_string();
         }
         let mut result = String::new();
         for name in skills {
-            if let Some(skill) = registry::get_skill(&name) {
+            if let Some(skill) = skill_registry::get_skill(&name) {
                 let emoji = match skill.category() {
                     "file" => "📁",
                     "net" => "🌐",
@@ -257,7 +257,7 @@ impl SkillScheduler {
     /// # Returns
     /// A vector of skill names
     pub fn get_skill_names(&self) -> Vec<String> {
-        registry::list_skills()
+        skill_registry::list_skills()
     }
 
     /// Check if any skills are available
@@ -265,7 +265,7 @@ impl SkillScheduler {
     /// # Returns
     /// true if at least one skill is registered, false otherwise
     pub fn has_skills(&self) -> bool {
-        !registry::list_skills().is_empty()
+        !skill_registry::list_skills().is_empty()
     }
 
     /// Get a reference to the LLM client

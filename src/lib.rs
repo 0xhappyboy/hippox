@@ -10,7 +10,7 @@ mod workflow;
 
 pub use crate::config::*;
 pub use crate::core::*;
-pub use crate::executors::registry;
+pub use crate::executors::skill_registry;
 pub use crate::pipeline::*;
 pub use crate::skill_scheduler::*;
 pub use crate::tasks::*;

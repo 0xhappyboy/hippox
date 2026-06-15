@@ -49,8 +49,12 @@ use crate::executors::skills::HaveHeadBrowserWaitSkill;
 use crate::executors::skills::SolanaWalletSkill;
 #[cfg(any(feature = "have_head_browser", feature = "all"))]
 use crate::executors::skills::have_head_browser::HaveHeadBrowserElementExistsSkill;
-#[cfg(any(feature = "browser", feature = "all"))]
+#[cfg(any(feature = "have_head_browser", feature = "all"))]
 use crate::executors::skills::have_head_browser::*;
+#[cfg(any(feature = "operating_system", feature = "all"))]
+use crate::executors::skills::operating_system::*;
+#[cfg(any(feature = "window_control", feature = "all"))]
+use crate::executors::skills::window_control::*;
 use crate::executors::types::SkillMetadata;
 use once_cell::sync::Lazy;
 use serde_json::Value;
@@ -313,168 +317,174 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
         Arc::new(super::skills::ftp::FtpDeleteSkill) as Arc<dyn Skill>,
     );
     // ==================== OS Management Skills ====================
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_reboot".to_string(),
-        Arc::new(super::skills::os::OsRebootSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsRebootSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_shutdown".to_string(),
-        Arc::new(super::skills::os::OsShutdownSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsShutdownSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_sleep".to_string(),
-        Arc::new(super::skills::os::OsSleepSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsSleepSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_lock".to_string(),
-        Arc::new(super::skills::os::OsLockSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsLockSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_logout".to_string(),
-        Arc::new(super::skills::os::OsLogoutSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsLogoutSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_hibernate".to_string(),
-        Arc::new(super::skills::os::OsHibernateSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsHibernateSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_get_uptime".to_string(),
-        Arc::new(super::skills::os::OsGetUptimeSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsGetUptimeSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_get_load_average".to_string(),
-        Arc::new(super::skills::os::OsGetLoadAverageSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsGetLoadAverageSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_get_hostname".to_string(),
-        Arc::new(super::skills::os::OsGetHostnameSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsGetHostnameSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_get_time".to_string(),
-        Arc::new(super::skills::os::OsGetTimeSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsGetTimeSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_set_time".to_string(),
-        Arc::new(super::skills::os::OsSetTimeSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsSetTimeSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_get_user".to_string(),
-        Arc::new(super::skills::os::OsGetUserSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsGetUserSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_disk_usage".to_string(),
-        Arc::new(super::skills::os::OsDiskUsageSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsDiskUsageSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_memory_info".to_string(),
-        Arc::new(super::skills::os::OsMemoryInfoSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsMemoryInfoSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_cpu_info".to_string(),
-        Arc::new(super::skills::os::OsCpuInfoSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsCpuInfoSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_network_info".to_string(),
-        Arc::new(super::skills::os::OsNetworkInfoSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsNetworkInfoSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_battery_info".to_string(),
-        Arc::new(super::skills::os::OsBatteryInfoSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsBatteryInfoSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "os_notification".to_string(),
-        Arc::new(super::skills::os::OsNotificationSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::OsNotificationSkill) as Arc<dyn Skill>,
     );
     // ==================== Process Skills ====================
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "process_list".to_string(),
-        Arc::new(super::skills::process::ProcessListSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::ProcessListSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "process_kill".to_string(),
-        Arc::new(super::skills::process::ProcessKillSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::ProcessKillSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "process_kill_by_name".to_string(),
-        Arc::new(super::skills::process::ProcessKillByNameSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::ProcessKillByNameSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "process_is_running".to_string(),
-        Arc::new(super::skills::process::ProcessIsRunningSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::ProcessIsRunningSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "process_get_pid".to_string(),
-        Arc::new(super::skills::process::ProcessGetPidSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::ProcessGetPidSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "process_info".to_string(),
-        Arc::new(super::skills::process::ProcessInfoSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::ProcessInfoSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "operating_system", feature = "all"))]
+    registry.insert(
+        "process_basic_info".to_string(),
+        Arc::new(super::skills::operating_system::ProcessBasicInfoSkill) as Arc<dyn Skill>,
     );
     // ==================== System Skills ====================
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "system_systeminfo".to_string(),
-        Arc::new(super::skills::SystemInfoSkill) as Arc<dyn Skill>,
+        Arc::new(SystemInfoSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
-    registry.insert(
-        "exec_command".to_string(),
-        Arc::new(super::skills::ExecCommandSkill) as Arc<dyn Skill>,
-    );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "port_scan".to_string(),
         Arc::new(super::skills::PortScanSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "port_lookup".to_string(),
         Arc::new(super::skills::PortLookupSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "port_test".to_string(),
         Arc::new(super::skills::PortTestSkill) as Arc<dyn Skill>,
     );
     // ==================== Clipboard Skills ====================
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "clipboard_get".to_string(),
-        Arc::new(super::skills::system::clipboard::ClipboardGetSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::clipboard::ClipboardGetSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "clipboard_set".to_string(),
-        Arc::new(super::skills::system::clipboard::ClipboardSetSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::clipboard::ClipboardSetSkill) as Arc<dyn Skill>,
     );
-    #[cfg(any(feature = "system", feature = "all"))]
+    #[cfg(any(feature = "operating_system", feature = "all"))]
     registry.insert(
         "clipboard_clear".to_string(),
-        Arc::new(super::skills::system::clipboard::ClipboardClearSkill) as Arc<dyn Skill>,
+        Arc::new(super::skills::operating_system::clipboard::ClipboardClearSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Terminal Commands ====================
+    #[cfg(any(feature = "terminal_commands", feature = "all"))]
+    registry.insert(
+        "exec_command".to_string(),
+        Arc::new(crate::executors::skills::ExecCommandSkill) as Arc<dyn Skill>,
     );
     // ==================== Document Skills ====================
     #[cfg(any(feature = "document", feature = "all"))]
@@ -1077,6 +1087,123 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     registry.insert(
         "have_head_browser_close".to_string(),
         Arc::new(HaveHeadBrowserCloseSkill) as Arc<dyn Skill>,
+    );
+
+    // ==================== Window Control Skills ====================
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_minimize".to_string(),
+        Arc::new(super::skills::window_control::WindowControlMinimizeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_maximize".to_string(),
+        Arc::new(super::skills::window_control::WindowControlMaximizeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_restore".to_string(),
+        Arc::new(super::skills::window_control::WindowControlRestoreSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_resize".to_string(),
+        Arc::new(super::skills::window_control::WindowControlResizeSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_move".to_string(),
+        Arc::new(super::skills::window_control::WindowControlMoveSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_close".to_string(),
+        Arc::new(super::skills::window_control::WindowControlCloseSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_kill".to_string(),
+        Arc::new(super::skills::window_control::WindowControlKillSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_bring_to_top".to_string(),
+        Arc::new(super::skills::window_control::WindowControlBringToTopSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_send_to_back".to_string(),
+        Arc::new(super::skills::window_control::WindowControlSendToBackSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_set_always_on_top".to_string(),
+        Arc::new(super::skills::window_control::WindowControlSetAlwaysOnTopSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_get_title".to_string(),
+        Arc::new(super::skills::window_control::WindowControlGetTitleSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_get_process".to_string(),
+        Arc::new(super::skills::window_control::WindowControlGetProcessSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_screenshot".to_string(),
+        Arc::new(super::skills::window_control::WindowControlScreenshotSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_ocr_region".to_string(),
+        Arc::new(super::skills::window_control::WindowControlOcrRegionSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_list".to_string(),
+        Arc::new(super::skills::window_control::WindowControlListSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_find".to_string(),
+        Arc::new(super::skills::window_control::WindowControlFindSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_activate".to_string(),
+        Arc::new(super::skills::window_control::WindowControlActivateSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_get_position".to_string(),
+        Arc::new(super::skills::window_control::WindowControlGetPositionSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_get_focus".to_string(),
+        Arc::new(super::skills::window_control::WindowControlGetFocusSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_get_selected".to_string(),
+        Arc::new(super::skills::window_control::WindowControlGetSelectedSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_send_keys".to_string(),
+        Arc::new(super::skills::window_control::WindowControlSendKeysSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_send_shortcut".to_string(),
+        Arc::new(super::skills::window_control::WindowControlSendShortcutSkill) as Arc<dyn Skill>,
+    );
+    #[cfg(any(feature = "window_control", feature = "all"))]
+    registry.insert(
+        "window_control_wait_for_focus".to_string(),
+        Arc::new(super::skills::window_control::WindowControlWaitForFocusSkill) as Arc<dyn Skill>,
     );
     RwLock::new(registry)
 });

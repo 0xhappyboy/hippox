@@ -90,7 +90,7 @@ impl Skill for ExecCommandSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "terminal_commands"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

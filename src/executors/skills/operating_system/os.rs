@@ -81,7 +81,7 @@ impl Skill for OsRebootSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -181,7 +181,7 @@ impl Skill for OsShutdownSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -259,7 +259,7 @@ impl Skill for OsSleepSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -318,7 +318,7 @@ impl Skill for OsLockSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -381,7 +381,7 @@ impl Skill for OsLogoutSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -445,7 +445,7 @@ impl Skill for OsHibernateSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -507,7 +507,7 @@ impl Skill for OsGetUptimeSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -576,7 +576,7 @@ impl Skill for OsGetLoadAverageSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -629,7 +629,7 @@ impl Skill for OsGetHostnameSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -832,7 +832,7 @@ impl Skill for OsGetUserSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -897,7 +897,7 @@ impl Skill for OsDiskUsageSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -967,7 +967,7 @@ impl Skill for OsMemoryInfoSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1021,7 +1021,7 @@ impl Skill for OsCpuInfoSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1084,7 +1084,7 @@ impl Skill for OsNetworkInfoSkill {
     }
 
     fn category(&self) -> &str {
-        "net"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1164,7 +1164,7 @@ impl Skill for OsBatteryInfoSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1295,7 +1295,7 @@ impl Skill for OsNotificationSkill {
     }
 
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -376,13 +376,13 @@ impl Hippox {
 
     /// List all available atomic skills
     pub fn list_atomic_skills(&self) -> HippoxStringResult {
-        let skills = crate::executors::registry::list_skills();
+        let skills = crate::executors::skill_registry::list_skills();
         if skills.is_empty() {
             return HippoxResult::ok(t!("skill.no_skills_available").to_string());
         }
         let mut result = String::new();
         for name in skills {
-            if let Some(skill) = crate::executors::registry::get_skill(&name) {
+            if let Some(skill) = crate::executors::skill_registry::get_skill(&name) {
                 let emoji = match skill.category() {
                     "file" => "📁",
                     "net" => "🌐",
@@ -409,12 +409,12 @@ impl Hippox {
 
     /// Get all loaded atomic skill names
     pub fn get_atomic_skill_names(&self) -> HippoxBatchResult {
-        HippoxResult::ok(crate::executors::registry::list_skills())
+        HippoxResult::ok(crate::executors::skill_registry::list_skills())
     }
 
     /// Check if there are any atomic skills available
     pub fn has_atomic_skills(&self) -> HippoxBoolResult {
-        HippoxResult::ok(!crate::executors::registry::list_skills().is_empty())
+        HippoxResult::ok(!crate::executors::skill_registry::list_skills().is_empty())
     }
 
     /// Get the executor

@@ -22,11 +22,13 @@ default = [
     "media",
     "message",
     "net",
-    "system",
+    "operating_system",
     "task",
     "time",
     "text",
     "have_head_browser",
+    "terminal_commands",
+    "window_control",
 ]
 all = [
     "blockchain",
@@ -39,12 +41,15 @@ all = [
     "media",
     "message",
     "net",
-    "system",
+    "operating_system",
     "task",
     "time",
     "text",
     "have_head_browser",
+    "terminal_commands",
+    "window_control",
 ]
+window_control = []
 have_head_browser = []
 blockchain = []
 text = []
@@ -57,9 +62,10 @@ math = []
 media = []
 message = []
 net = []
-system = []
+operating_system = []
 task = []
 time = []
+terminal_commands = []
 
 [dependencies]
 langhub = "0.3.2"
@@ -139,6 +145,20 @@ evm-client = "0.1.7"
 ethers = "2.0.14"
 scraper = "0.27.0"
 headless_chrome = "1.0.22"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_Graphics_Gdi",
+] }
+widestring = "1.0"
+xcap = "0.9.6"
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-app-kit = "0.2"
+core-graphics = "0.23"
 
 [dev-dependencies]
 tempfile = "3.27.0"

@@ -2,17 +2,17 @@
 
 use crate::{
     get_config,
-    registry::{get_registry, get_skill, get_skills_by_categories, list_skills},
+    skill_registry::{get_registry, get_skill, get_skills_by_categories, list_skills},
 };
 use serde_json::{Value, json};
 
 /// Generate skills registry (atomic skills metadata)
 pub fn generate_skills_registry() -> String {
-    let skills = crate::executors::registry::list_skills();
+    let skills = crate::executors::skill_registry::list_skills();
     let registry: Vec<serde_json::Value> = skills
         .iter()
         .filter_map(|name| {
-            crate::executors::registry::get_skill(name).map(|skill| {
+            crate::executors::skill_registry::get_skill(name).map(|skill| {
                 serde_json::json!({
                     "name": name,
                     "description": skill.description(),

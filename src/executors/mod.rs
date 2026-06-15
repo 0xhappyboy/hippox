@@ -1,6 +1,6 @@
 pub mod common;
 pub mod executor;
-pub mod registry;
+pub mod skill_registry;
 pub mod skills;
 pub mod types;
 

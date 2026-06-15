@@ -90,7 +90,7 @@ impl Skill for SystemInfoSkill {
 
     /// Returns the category classification for this skill.
     fn category(&self) -> &str {
-        "system"
+        "operating_system"
     }
 
     /// Executes the system information retrieval based on the provided parameters.

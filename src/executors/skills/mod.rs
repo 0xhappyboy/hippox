@@ -20,14 +20,18 @@ pub mod media;
 pub mod message;
 #[cfg(feature = "net")]
 pub mod net;
-#[cfg(feature = "system")]
-pub mod system;
+#[cfg(feature = "operating_system")]
+pub mod operating_system;
 #[cfg(feature = "task")]
 pub mod task;
+#[cfg(feature = "terminal_commands")]
+pub mod terminal_commands;
 #[cfg(feature = "task")]
 pub mod text;
 #[cfg(feature = "time")]
 pub mod time;
+#[cfg(feature = "window_control")]
+pub mod window_control;
 
 // Re-exports
 #[cfg(feature = "blockchain")]
@@ -52,11 +56,15 @@ pub use media::*;
 pub use message::*;
 #[cfg(feature = "net")]
 pub use net::*;
-#[cfg(feature = "system")]
-pub use system::*;
+#[cfg(feature = "operating_system")]
+pub use operating_system::*;
 #[cfg(feature = "task")]
 pub use task::*;
+#[cfg(feature = "terminal_commands")]
+pub use terminal_commands::*;
 #[cfg(feature = "task")]
 pub use text::*;
 #[cfg(feature = "time")]
 pub use time::*;
+#[cfg(feature = "window_control")]
+pub use window_control::*;

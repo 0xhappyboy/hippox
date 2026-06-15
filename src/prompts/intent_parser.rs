@@ -1,6 +1,6 @@
 //! Intent parser prompt template
 
-use crate::registry::get_skill_categories;
+use crate::skill_registry::get_skill_categories;
 
 /// Builds a prompt for LLM to extract intent and required skill categories from user input.
 ///
