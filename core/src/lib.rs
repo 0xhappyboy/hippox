@@ -1,4 +1,5 @@
 #![allow(warnings)]
+mod common;
 mod config;
 mod core;
 mod i18n;
@@ -7,6 +8,7 @@ mod prompts;
 mod tasks;
 mod workflow;
 
+pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::core::*;
 pub use crate::pipeline::*;
@@ -14,13 +16,3 @@ pub use crate::skill_scheduler::*;
 pub use crate::tasks::*;
 pub use crate::workflow::*;
 pub use langhub::types::ModelProvider;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test() {
-        println!("8")
-    }
-}
