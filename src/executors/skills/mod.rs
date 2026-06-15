@@ -22,6 +22,8 @@ pub mod message;
 pub mod net;
 #[cfg(feature = "operating_system")]
 pub mod operating_system;
+#[cfg(feature = "speech_speak")]
+pub mod speech_speak;
 #[cfg(feature = "task")]
 pub mod task;
 #[cfg(feature = "terminal_commands")]
@@ -58,6 +60,8 @@ pub use message::*;
 pub use net::*;
 #[cfg(feature = "operating_system")]
 pub use operating_system::*;
+#[cfg(feature = "speech_speak")]
+pub use speech_speak::*;
 #[cfg(feature = "task")]
 pub use task::*;
 #[cfg(feature = "terminal_commands")]

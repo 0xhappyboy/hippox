@@ -53,6 +53,8 @@ use crate::executors::skills::have_head_browser::HaveHeadBrowserElementExistsSki
 use crate::executors::skills::have_head_browser::*;
 #[cfg(any(feature = "operating_system", feature = "all"))]
 use crate::executors::skills::operating_system::*;
+#[cfg(any(feature = "speech_speak", feature = "all"))]
+use crate::executors::skills::speech_speak::*;
 #[cfg(any(feature = "window_control", feature = "all"))]
 use crate::executors::skills::window_control::*;
 use crate::executors::types::SkillMetadata;
@@ -1204,6 +1206,12 @@ static SKILL_REGISTRY: Lazy<RwLock<HashMap<String, Arc<dyn Skill>>>> = Lazy::new
     registry.insert(
         "window_control_wait_for_focus".to_string(),
         Arc::new(super::skills::window_control::WindowControlWaitForFocusSkill) as Arc<dyn Skill>,
+    );
+    // ==================== Speech Skills ====================
+    #[cfg(any(feature = "speech_speak", feature = "all"))]
+    registry.insert(
+        "speech_speak".to_string(),
+        Arc::new(SpeechSpeakSkill) as Arc<dyn Skill>,
     );
     RwLock::new(registry)
 });

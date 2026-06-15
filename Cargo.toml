@@ -29,6 +29,7 @@ default = [
     "have_head_browser",
     "terminal_commands",
     "window_control",
+    "speech_speak",
 ]
 all = [
     "blockchain",
@@ -48,7 +49,9 @@ all = [
     "have_head_browser",
     "terminal_commands",
     "window_control",
+    "speech_speak",
 ]
+speech_speak = []
 window_control = []
 have_head_browser = []
 blockchain = []
