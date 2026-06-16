@@ -4,10 +4,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content,
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path, write_file_content,
 };
+use crate::{file_exists, validate_path};
 
 #[derive(Debug)]
 pub struct OdsReadSkill;
@@ -94,8 +94,6 @@ impl Skill for OdsReadSkill {
             anyhow::bail!("ODS file not found: {}", path);
         }
 
-        use quick_xml::Reader;
-        use quick_xml::events::Event;
         use std::fs::File;
         use zip::ZipArchive;
         let file = File::open(&validated_path)?;
@@ -208,8 +206,6 @@ impl Skill for OdtReadSkill {
         if !file_exists(&validated_path.to_string_lossy()) {
             anyhow::bail!("ODT file not found: {}", path);
         }
-        use quick_xml::Reader;
-        use quick_xml::events::Event;
         use std::fs::File;
         use zip::ZipArchive;
         let file = File::open(&validated_path)?;

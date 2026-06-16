@@ -3,10 +3,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content,
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path, write_file_content,
 };
+use crate::{ensure_dir, file_exists, read_file_content, validate_path, write_file_content};
 
 #[derive(Debug)]
 pub struct TextReadSkill;

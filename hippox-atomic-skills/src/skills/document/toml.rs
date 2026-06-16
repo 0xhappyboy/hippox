@@ -3,10 +3,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content,
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path, write_file_content,
 };
+use crate::{ensure_dir, file_exists, read_file_content, validate_path, write_file_content};
 
 #[derive(Debug)]
 pub struct TomlReadSkill;
@@ -250,7 +250,7 @@ impl Skill for TomlValidateSkill {
         }
         let content = read_file_content(&validated_path.to_string_lossy())?;
         match toml::from_str::<toml::Value>(&content) {
-            Ok(_) => Ok("✓ TOML is valid".to_string()),
+            Ok(_) => Ok("TOML is valid".to_string()),
             Err(e) => anyhow::bail!("Invalid TOML: {}", e),
         }
     }

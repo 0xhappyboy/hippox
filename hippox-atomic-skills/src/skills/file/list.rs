@@ -5,11 +5,11 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 
-use super::common::{list_directory, validate_path};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{list_directory, validate_path};
 
 #[derive(Debug)]
 pub struct ListDirectorySkill;

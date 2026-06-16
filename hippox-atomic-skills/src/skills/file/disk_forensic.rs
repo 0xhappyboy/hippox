@@ -4,11 +4,11 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::{perform_forensic_analysis, validate_path};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{perform_forensic_analysis, validate_path};
 
 #[derive(Debug)]
 pub struct DiskForensicSkill;

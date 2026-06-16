@@ -4,11 +4,11 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::{file_exists, scan_file_for_viruses, validate_path};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{file_exists, scan_file_for_viruses, validate_path};
 
 /// Common virus signatures (hex patterns)
 /// In production, this would be a much larger database
@@ -128,11 +128,7 @@ impl Skill for VirusScanSkill {
         let mut clean_count = 0;
 
         for result in results {
-            let status = if result.infected {
-                "INFECTED"
-            } else {
-                "CLEAN"
-            };
+            let status = if result.infected { "INFECTED" } else { "CLEAN" };
             if result.infected {
                 infected_count += 1;
             } else {

@@ -4,10 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::detect_phishing;
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
+    SkillCategory, operating_system_security::common::detect_phishing, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -68,11 +66,7 @@ impl Skill for PhishingDetectSkill {
         output.push_str(&format!("URL: {}\n", result.url));
         output.push_str(&format!(
             "Phishing: {}\n",
-            if result.is_phishing {
-                "Yes"
-            } else {
-                "No"
-            }
+            if result.is_phishing { "Yes" } else { "No" }
         ));
         output.push_str(&format!("Confidence: {:.0}%\n", result.confidence * 100.0));
         output.push_str(&format!(

@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::{
+use crate::{
     calculate_all_hashes, calculate_md5, calculate_sha1, calculate_sha256, calculate_sha512,
     file_exists, validate_path,
 };

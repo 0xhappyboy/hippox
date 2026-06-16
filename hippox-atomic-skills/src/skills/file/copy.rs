@@ -5,10 +5,8 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 
-use super::common::{copy_directory, copy_file, ensure_dir, validate_path};
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
+    SkillCategory, copy_directory, copy_file, ensure_dir, types::{Skill, SkillParameter}, validate_path
 };
 
 #[derive(Debug)]
@@ -104,18 +102,14 @@ impl Skill for CopyFileSkill {
             .get("recursive")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-
         let validated_source = validate_path(source, None)?;
         let validated_dest = validate_path(destination, None)?;
-
         if !validated_source.exists() {
             anyhow::bail!("Source not found: {}", source);
         }
-
         if let Some(parent) = validated_dest.parent() {
             ensure_dir(&parent.to_string_lossy())?;
         }
-
         if move_file {
             // If destination exists, remove it first (for move)
             if validated_dest.exists() {

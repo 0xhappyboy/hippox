@@ -3,9 +3,11 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content,
+    ensure_dir, file_exists, read_file_content, validate_path, write_file_content,
+};
+use crate::{
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path, write_file_content,
 };
 
 #[derive(Debug)]
@@ -326,7 +328,7 @@ impl Skill for HtmlValidateSkill {
         if !has_head {
             warnings.push("Missing <head> tag");
         }
-        let mut output = String::from("✓ HTML parsed successfully\n");
+        let mut output = String::from("HTML parsed successfully\n");
         output.push_str(&format!("  Title: {}\n", get_title(&document)));
         if warnings.is_empty() {
             output.push_str("  Structure: Complete\n");

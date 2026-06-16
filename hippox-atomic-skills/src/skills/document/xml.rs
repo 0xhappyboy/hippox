@@ -3,10 +3,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, file_exists, read_file_content,
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path,
 };
+use crate::{file_exists, read_file_content, validate_path};
 
 #[derive(Debug)]
 pub struct XmlParseSkill;
@@ -213,7 +213,6 @@ impl Skill for XmlToJsonSkill {
     }
 }
 
-// Helper function for simple XML to JSON conversion
 fn xml_to_json(xml: &str, xpath: Option<&str>) -> Result<String> {
     let value = xml_to_json_value(xml)?;
     Ok(serde_json::to_string_pretty(&value)?)

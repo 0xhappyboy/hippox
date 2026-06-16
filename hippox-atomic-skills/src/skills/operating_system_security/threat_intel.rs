@@ -4,10 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::query_threat_intel;
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
+    SkillCategory, operating_system_security::common::query_threat_intel, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]

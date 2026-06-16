@@ -3,10 +3,10 @@ use quick_xml::{Reader, events::Event};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+use crate::{file_exists, validate_path};
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content,
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path, write_file_content,
 };
 
 #[derive(Debug)]
@@ -93,8 +93,6 @@ impl Skill for PptxReadSkill {
         if !file_exists(&validated_path.to_string_lossy()) {
             anyhow::bail!("PPTX file not found: {}", path);
         }
-        use quick_xml::Reader;
-        use quick_xml::events::Event;
         use std::fs::File;
         use zip::ZipArchive;
         let file = File::open(&validated_path)?;

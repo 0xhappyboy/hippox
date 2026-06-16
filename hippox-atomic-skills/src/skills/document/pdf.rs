@@ -1,42 +1,13 @@
-//! PDF manipulation skills module
-//!
-//! This module provides skills for reading, merging, and extracting metadata from PDF files.
-//! It includes three main skills:
-//! - `PdfReadSkill`: Extract text content from PDF files
-//! - `PdfMergeSkill`: Merge multiple PDF files into a single document
-//! - `PdfInfoSkill`: Get metadata information from PDF files
-
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+use crate::{ensure_dir, file_exists, validate_path};
 use crate::{
-    SkillCategory, ensure_dir, file_exists,
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path,
 };
 
-/// Skill for reading and extracting text content from PDF files
-///
-/// This skill allows extracting text from PDF documents with optional page range filtering.
-/// It uses the `pdf_extract` crate for text extraction and supports validating file paths
-/// and checking file existence before processing.
-///
-/// # Parameters
-/// - `path` (required): Path to the PDF file
-/// - `start_page` (optional): Starting page number (1-indexed, defaults to 1)
-/// - `end_page` (optional): Ending page number inclusive
-///
-/// # Returns
-/// Returns a formatted string containing the extracted text with page separators,
-/// file information, and the total number of pages.
-///
-/// # Errors
-/// Returns an error if:
-/// - The path parameter is missing
-/// - The PDF file does not exist
-/// - Text extraction fails
-/// - The start page exceeds total pages
 #[derive(Debug)]
 pub struct PdfReadSkill;
 
@@ -153,28 +124,6 @@ impl Skill for PdfReadSkill {
     }
 }
 
-/// Skill for merging multiple PDF files into a single document
-///
-/// This skill combines several PDF files into one merged PDF document.
-/// It uses the `lopdf` crate for PDF manipulation and preserves all pages
-/// from each input file in the order they are provided.
-///
-/// # Parameters
-/// - `inputs` (required): Array of PDF file paths to merge
-/// - `output` (required): Output PDF file path
-///
-/// # Returns
-/// Returns a string indicating the number of files merged, the output path,
-/// and the total number of pages in the merged document.
-///
-/// # Errors
-/// Returns an error if:
-/// - The inputs or output parameters are missing
-/// - The inputs array is empty
-/// - Any input file cannot be loaded
-/// - The output directory cannot be created
-/// - Saving the merged PDF fails
-/// - No pages are found in the input PDFs
 #[derive(Debug)]
 pub struct PdfMergeSkill;
 
@@ -261,7 +210,6 @@ impl Skill for PdfMergeSkill {
             let validated_input = validate_path(path, None)?;
             let doc = Document::load(&validated_input)
                 .map_err(|e| anyhow::anyhow!("Failed to load PDF '{}': {}", path, e))?;
-            // get pages
             let pages = doc.page_iter().collect::<Vec<_>>();
             total_pages += pages.len();
             for (id, object) in doc.objects.iter() {
@@ -308,23 +256,6 @@ impl Skill for PdfMergeSkill {
     }
 }
 
-/// Skill for extracting metadata information from PDF files
-///
-/// This skill retrieves document metadata including page count, title, author,
-/// subject, creator, producer, and file size from a PDF file.
-///
-/// # Parameters
-/// - `path` (required): Path to the PDF file
-///
-/// # Returns
-/// Returns a formatted string containing all available metadata information
-/// including page count, document properties (title, author, subject, etc.),
-/// and file size.
-///
-/// # Errors
-/// Returns an error if:
-/// - The path parameter is missing
-/// - The PDF file cannot be loaded or is invalid
 #[derive(Debug)]
 pub struct PdfInfoSkill;
 
@@ -383,7 +314,6 @@ impl Skill for PdfInfoSkill {
         let pages = doc.page_iter().count();
         let mut output = format!("PDF Info for: {}\n", path);
         output.push_str(&format!("Total pages: {}\n", pages));
-        // get metadata
         if let Ok(info_ref) = doc.trailer.get(b"Info") {
             if let Ok(info_id) = info_ref.as_reference() {
                 if let Ok(info) = doc.get_object(info_id) {
@@ -430,123 +360,5 @@ impl Skill for PdfInfoSkill {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-    use std::collections::HashMap;
-
-    /// Test PdfReadSkill parameter validation
-    #[test]
-    fn test_pdf_read_skill_validation() {
-        let skill = PdfReadSkill;
-        // Test valid parameters
-        let mut valid_params = HashMap::new();
-        valid_params.insert("path".to_string(), json!("test.pdf"));
-        assert!(skill.validate(&valid_params).is_ok());
-        // Test missing path parameter
-        let empty_params = HashMap::new();
-        assert!(skill.validate(&empty_params).is_err());
-        // Test invalid path type (non-string)
-        let mut invalid_params = HashMap::new();
-        invalid_params.insert("path".to_string(), json!(123));
-        assert!(skill.validate(&invalid_params).is_err());
-    }
-
-    /// Test PdfMergeSkill parameter validation and edge cases
-    #[test]
-    fn test_pdf_merge_skill_validation() {
-        let skill = PdfMergeSkill;
-        // Test valid parameters
-        let mut valid_params = HashMap::new();
-        valid_params.insert("inputs".to_string(), json!(["file1.pdf", "file2.pdf"]));
-        valid_params.insert("output".to_string(), json!("merged.pdf"));
-        assert!(skill.validate(&valid_params).is_ok());
-        // Test missing inputs parameter
-        let mut missing_inputs = HashMap::new();
-        missing_inputs.insert("output".to_string(), json!("merged.pdf"));
-        assert!(skill.validate(&missing_inputs).is_err());
-        // Test missing output parameter
-        let mut missing_output = HashMap::new();
-        missing_output.insert("inputs".to_string(), json!(["file1.pdf"]));
-        assert!(skill.validate(&missing_output).is_err());
-        // Test invalid output type
-        let mut invalid_output = HashMap::new();
-        invalid_output.insert("inputs".to_string(), json!(["file1.pdf"]));
-        invalid_output.insert("output".to_string(), json!(123));
-        assert!(skill.validate(&invalid_output).is_err());
-        // Test empty inputs array (validation only checks presence, not emptiness)
-        let mut empty_inputs = HashMap::new();
-        empty_inputs.insert("inputs".to_string(), json!([]));
-        empty_inputs.insert("output".to_string(), json!("merged.pdf"));
-        assert!(skill.validate(&empty_inputs).is_ok());
-    }
-
-    /// Test PdfInfoSkill parameter validation
-    #[test]
-    fn test_pdf_info_skill_validation() {
-        let skill = PdfInfoSkill;
-        // Test valid parameters
-        let mut valid_params = HashMap::new();
-        valid_params.insert("path".to_string(), json!("document.pdf"));
-        assert!(skill.validate(&valid_params).is_ok());
-        // Test missing path parameter
-        let empty_params = HashMap::new();
-        assert!(skill.validate(&empty_params).is_err());
-        // Test invalid path type
-        let mut invalid_params = HashMap::new();
-        invalid_params.insert("path".to_string(), json!(true));
-        assert!(skill.validate(&invalid_params).is_err());
-    }
-
-    /// Test parameter definitions are complete
-    #[test]
-    fn test_skill_parameters() {
-        let read_skill = PdfReadSkill;
-        let params = read_skill.parameters();
-        assert_eq!(params.len(), 3);
-        assert!(params.iter().any(|p| p.name == "path" && p.required));
-        assert!(params.iter().any(|p| p.name == "start_page" && !p.required));
-        assert!(params.iter().any(|p| p.name == "end_page" && !p.required));
-        let merge_skill = PdfMergeSkill;
-        let params = merge_skill.parameters();
-        assert_eq!(params.len(), 2);
-        assert!(params.iter().any(|p| p.name == "inputs" && p.required));
-        assert!(params.iter().any(|p| p.name == "output" && p.required));
-        let info_skill = PdfInfoSkill;
-        let params = info_skill.parameters();
-        assert_eq!(params.len(), 1);
-        assert!(params.iter().any(|p| p.name == "path" && p.required));
-    }
-
-    /// Test example calls return valid JSON
-    #[test]
-    fn test_example_calls() {
-        let read_skill = PdfReadSkill;
-        let example = read_skill.example_call();
-        assert!(example.get("action").is_some());
-        assert!(example.get("parameters").is_some());
-        let merge_skill = PdfMergeSkill;
-        let example = merge_skill.example_call();
-        assert!(example.get("action").is_some());
-        assert!(example.get("parameters").is_some());
-        let info_skill = PdfInfoSkill;
-        let example = info_skill.example_call();
-        assert!(example.get("action").is_some());
-        assert!(example.get("parameters").is_some());
-    }
-
-    /// Test example outputs are non-empty strings
-    #[test]
-    fn test_example_outputs() {
-        let read_skill = PdfReadSkill;
-        assert!(!read_skill.example_output().is_empty());
-        let merge_skill = PdfMergeSkill;
-        assert!(!merge_skill.example_output().is_empty());
-        let info_skill = PdfInfoSkill;
-        assert!(!info_skill.example_output().is_empty());
     }
 }

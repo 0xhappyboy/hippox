@@ -4,10 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::check_security_policies;
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
+    SkillCategory, operating_system_security::common::check_security_policies, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]

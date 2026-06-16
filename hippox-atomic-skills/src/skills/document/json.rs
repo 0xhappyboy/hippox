@@ -3,9 +3,11 @@ use serde_json::{Value, from_str, json, to_string_pretty};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content,
+    ensure_dir, file_exists, read_file_content, validate_path, write_file_content,
+};
+use crate::{
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path, write_file_content,
 };
 
 #[derive(Debug)]
@@ -313,7 +315,7 @@ impl Skill for JsonValidateSkill {
         let content = read_file_content(&validated_path.to_string_lossy())?;
         match from_str::<Value>(&content) {
             Ok(json_value) => {
-                let mut output = format!("✓ JSON is valid\n");
+                let mut output = format!("JSON is valid\n");
                 output.push_str(&format!("  Type: {}\n", json_type_name(&json_value)));
                 if let Some(schema_path) = parameters.get("schema_path").and_then(|v| v.as_str()) {
                     let schema_validated_path = validate_path(schema_path, None)?;
@@ -324,12 +326,11 @@ impl Skill for JsonValidateSkill {
                         if let Err(e) = validate_json_schema(&json_value, &schema) {
                             anyhow::bail!("Schema validation failed: {}", e);
                         }
-                        output.push_str("  ✓ Schema validation passed\n");
+                        output.push_str("  Schema validation passed\n");
                     } else {
-                        output.push_str(&format!("  ⚠ Schema file not found: {}\n", schema_path));
+                        output.push_str(&format!("  Schema file not found: {}\n", schema_path));
                     }
                 }
-
                 Ok(output)
             }
             Err(e) => anyhow::bail!("Invalid JSON: {}", e),

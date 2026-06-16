@@ -4,10 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::{query_cve, query_cves_by_keyword};
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
+    SkillCategory, operating_system_security::common::{query_cve, query_cves_by_keyword}, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -94,11 +92,7 @@ impl Skill for CveQuerySkill {
                 ));
                 result.push_str(&format!(
                     "Exploit Available: {}\n",
-                    if cve.exploit_available {
-                        "Yes"
-                    } else {
-                        "No"
-                    }
+                    if cve.exploit_available { "Yes" } else { "No" }
                 ));
                 result.push_str("Affected Products:\n");
                 for product in &cve.affected_products {

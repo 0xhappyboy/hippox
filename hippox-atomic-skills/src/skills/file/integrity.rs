@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use super::common::{IntegrityResult, calculate_file_integrity_hash, file_exists, validate_path};
+use crate::{IntegrityResult, calculate_file_integrity_hash, file_exists, validate_path};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},

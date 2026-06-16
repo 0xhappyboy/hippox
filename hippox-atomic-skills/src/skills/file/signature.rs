@@ -4,11 +4,11 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::{file_exists, validate_path, verify_file_signature};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{file_exists, validate_path, verify_file_signature};
 
 #[derive(Debug)]
 pub struct FileSignatureSkill;

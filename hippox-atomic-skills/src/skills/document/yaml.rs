@@ -3,10 +3,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content,
+    SkillCategory,
     types::{Skill, SkillParameter},
-    validate_path, write_file_content,
 };
+use crate::{ensure_dir, file_exists, read_file_content, validate_path, write_file_content};
 
 #[derive(Debug)]
 pub struct YamlReadSkill;
@@ -279,7 +279,7 @@ impl Skill for YamlValidateSkill {
                     serde_yaml::Value::Mapping(_) => "mapping/object",
                     serde_yaml::Value::Tagged(_) => "tagged",
                 };
-                Ok(format!("✓ YAML is valid\n  Root type: {}", type_name))
+                Ok(format!("YAML is valid\n  Root type: {}", type_name))
             }
             Err(e) => anyhow::bail!("Invalid YAML: {}", e),
         }

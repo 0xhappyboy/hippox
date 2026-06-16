@@ -6,11 +6,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use super::common::{ensure_dir, pack_logs, validate_path};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{ensure_dir, pack_logs, validate_path};
 
 #[derive(Debug)]
 pub struct LogPackSkill;

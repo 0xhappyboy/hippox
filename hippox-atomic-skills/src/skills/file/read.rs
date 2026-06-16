@@ -4,11 +4,11 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::{file_exists, read_file_content, validate_path};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{file_exists, read_file_content, validate_path};
 
 #[derive(Debug)]
 pub struct ReadFileSkill;

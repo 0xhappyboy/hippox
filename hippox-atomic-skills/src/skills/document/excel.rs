@@ -3,11 +3,12 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, ensure_dir, file_exists,
-    types::{Skill, SkillParameter},
-    validate_path,
+    ensure_dir, file_exists, read_file_content, validate_path, write_file_content,
 };
-
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 #[derive(Debug)]
 pub struct ExcelReadSkill;
 
@@ -104,10 +105,8 @@ impl Skill for ExcelReadSkill {
         if !file_exists(&validated_path.to_string_lossy()) {
             anyhow::bail!("Excel file not found: {}", path);
         }
-        // Use calamine to read Excel
         use calamine::{Reader, Xlsx, open_workbook};
         let mut workbook: Xlsx<_> = open_workbook(&validated_path)?;
-        // Get sheet by name or index
         let sheet_names = workbook.sheet_names().to_vec();
         let sheet_name = if let Ok(idx) = sheet_param.parse::<usize>() {
             if idx < sheet_names.len() {
@@ -271,7 +270,7 @@ impl Skill for ExcelWriteSkill {
         if let Some(parent) = validated_path.parent() {
             ensure_dir(&parent.to_string_lossy())?;
         }
-        use rust_xlsxwriter::{Format, Workbook};
+        use rust_xlsxwriter::Workbook;
         let mut workbook = Workbook::new();
         let worksheet = workbook.add_worksheet();
         for (col, header) in headers.iter().enumerate() {

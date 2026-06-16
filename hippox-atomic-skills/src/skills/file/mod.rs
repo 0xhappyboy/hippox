@@ -8,7 +8,6 @@
 //! - Forensic operations: disk forensic analysis, log packing
 
 pub mod archive;
-pub mod common;
 pub mod copy;
 pub mod delete;
 pub mod disk_forensic;
@@ -21,9 +20,7 @@ pub mod signature;
 pub mod virus_scan;
 pub mod write;
 
-// Re-export all skills
 pub use archive::*;
-pub use common::*;
 pub use copy::*;
 pub use delete::*;
 pub use disk_forensic::*;

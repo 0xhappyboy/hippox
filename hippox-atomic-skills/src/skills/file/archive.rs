@@ -32,8 +32,7 @@
 //! let result = skill.execute(&params).await?;
 //! ```
 
-use crate::SkillCategory;
-use crate::skills::{file_exists, validate_path};
+use crate::{SkillCategory, file_exists, validate_path};
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use bzip2::Compression as BzCompression;

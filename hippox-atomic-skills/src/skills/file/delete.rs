@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::fs;
 
 use crate::{
-    SkillCategory, skills::validate_path, types::{Skill, SkillParameter}
+    SkillCategory,
+    types::{Skill, SkillParameter}, validate_path,
 };
 
 #[derive(Debug)]

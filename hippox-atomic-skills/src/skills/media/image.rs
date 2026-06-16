@@ -35,9 +35,11 @@ use std::fs;
 use std::path::Path;
 
 use crate::{
-    SkillCategory, file_exists,
+    SkillCategory,
     types::{Skill, SkillParameter},
 };
+
+use crate::file_exists;
 
 /// Resize an image to specified dimensions
 ///
