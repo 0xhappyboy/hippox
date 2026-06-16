@@ -38,8 +38,6 @@ mod keyboard_register;
 mod math_register;
 #[cfg(any(feature = "media", feature = "all"))]
 mod media_register;
-#[cfg(any(feature = "social_platform", feature = "all"))]
-mod socialplatform_register;
 #[cfg(any(feature = "mouse_control", feature = "all"))]
 mod mouse_register;
 #[cfg(any(feature = "net", feature = "all"))]
@@ -48,6 +46,10 @@ mod net_register;
 mod os_register;
 #[cfg(any(feature = "operating_system", feature = "all"))]
 mod process_register;
+#[cfg(any(feature = "scheduler_task", feature = "all"))]
+mod scheduled_task_register;
+#[cfg(any(feature = "social_platform", feature = "all"))]
+mod socialplatform_register;
 #[cfg(any(feature = "speech_speak", feature = "all"))]
 mod speech_register;
 #[cfg(any(feature = "terminal_commands", feature = "all"))]

@@ -7,6 +7,8 @@ use crate::registry::SkillCategory;
 use crate::registry::cryptography_register;
 #[cfg(any(feature = "email", feature = "all"))]
 use crate::registry::email_register;
+#[cfg(any(feature = "scheduler_task", feature = "all"))]
+use crate::registry::scheduled_task_register;
 #[cfg(any(feature = "time", feature = "all"))]
 use crate::registry::time_register;
 use once_cell::sync::Lazy;
@@ -154,6 +156,8 @@ static SKILL_REGISTRY: Lazy<RwLock<SkillRegistryMap>> = Lazy::new(|| {
     time_register::register(&mut registry);
     #[cfg(any(feature = "email", feature = "all"))]
     email_register::register(&mut registry);
+    #[cfg(any(feature = "scheduler_task", feature = "all"))]
+    scheduled_task_register::register(&mut registry);
 
     RwLock::new(registry)
 });
