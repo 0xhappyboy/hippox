@@ -111,15 +111,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     // Submit task, returns task_id immediately
     let task_id = hippox.submit("Calculate 15 * 3", None);
-    // Poll until task completes
-    let result = loop {
-        if let Some(task) = hippox.get_task(&task_id) {
-            if let Some(output) = task.final_output {
-                break output;
-            }
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    };
+    let result = hippox.wait_task(&task_id).await?;
     println!("Result: {}", result);
     Ok(())
 }

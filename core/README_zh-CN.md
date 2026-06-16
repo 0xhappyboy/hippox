@@ -112,14 +112,7 @@ async fn main() -> anyhow::Result<()> {
     // Submit task, returns task_id immediately
     let task_id = hippox.submit("Calculate 15 * 3", None);
     // Poll until task completes
-    let result = loop {
-        if let Some(task) = hippox.get_task(&task_id) {
-            if let Some(output) = task.final_output {
-                break output;
-            }
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    };
+    let result = hippox.wait_task(&task_id).await?;
     println!("Result: {}", result);
     Ok(())
 }
@@ -136,7 +129,7 @@ async fn main() -> anyhow::Result<()> {
 - 调用 `execute()` 方法
 - 任务在当前线程中立即开始执行
 - 代码暂停等待，直到任务完成
-- 直接返回 `String` 类型的结果
+- 直接返回 `HippoxStringResult` 类型的结果
 
 ##### 3. 适用场景
 

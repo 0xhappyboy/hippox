@@ -10,7 +10,7 @@ use crate::{
     HippoxVoidResult, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
     WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
-use hippox_atomic_skills::{Executor, skill_registry};
+use hippox_atomic_skills::{Executor, SkillCategory, get_all_skills, list_skills_names};
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
 use serde_json::{Value, json};
@@ -213,6 +213,23 @@ impl Hippox {
     }
 
     /// Execute natural language directly without task pool, returning the result asynchronously.
+    ///
+    /// Note: This function uses the task pool **only** for token counting via `TaskStateUpdater`.
+    /// The actual execution logic runs synchronously in the current thread, not through
+    /// the background execution engine.
+    ///
+    /// # Example
+    /// ```
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let result = hippox.execute("What is the weather today?", None).await?;
+    /// println!("{}", result);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Compare with [`submit()`](Self::submit):
+    /// - `execute()`: Blocks until completion, returns result directly
+    /// - `submit()`: Returns task ID immediately, use [`wait_task()`](Self::wait_task) to get result
     pub async fn execute(
         &self,
         input: &str,
@@ -292,11 +309,80 @@ impl Hippox {
         };
         {
             let mut pool = tasks::TASK_POOL.write().await;
+            // Remove temporary tasks from the task pool.
             pool.tasks.remove(&temp_task_id);
         }
         INPUT_TOKEN_COUNT.fetch_add(input_tokens, std::sync::atomic::Ordering::Relaxed);
         OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, std::sync::atomic::Ordering::Relaxed);
         HippoxResult::ok_with_tokens(final_output, input_tokens, output_tokens)
+    }
+
+    /// Wait for a task to complete and return its result
+    ///
+    /// This function blocks until the specified task completes, then returns
+    /// the final output (including token usage) similar to `execute()`.
+    ///
+    /// # Arguments
+    /// * `task_id` - The task ID returned from `submit()`
+    ///
+    /// # Returns
+    /// The final output of the task as a HippoxStringResult with token usage
+    ///
+    /// # Example
+    /// ```
+    /// let task_id = hippox.submit("Help me organize my folders", None)?;
+    /// let result = hippox.wait_task(&task_id).await?;
+    /// println!("Result: {}", result);
+    /// ```
+    pub async fn wait_task(&self, task_id: &str) -> HippoxStringResult {
+        use std::time::Duration;
+        use tokio::time::sleep;
+        // Poll task status until terminal state
+        loop {
+            let status = match tasks::get_task_status(task_id).await {
+                Some(s) => s,
+                None => {
+                    return HippoxResult::system_error(format!("Task not found: {}", task_id));
+                }
+            };
+            match status {
+                TaskStatus::Completed => {
+                    // Get the task and extract result
+                    if let Some(task) = tasks::get_task(task_id).await {
+                        let output = task.final_output.unwrap_or_default();
+                        return HippoxResult::ok_with_tokens(
+                            output,
+                            task.input_token_count,
+                            task.output_token_count,
+                        );
+                    } else {
+                        return HippoxResult::system_error(format!(
+                            "Task completed but data not found: {}",
+                            task_id
+                        ));
+                    }
+                }
+                TaskStatus::Failed => {
+                    if let Some(task) = tasks::get_task(task_id).await {
+                        let error = task.error.unwrap_or_else(|| "Unknown error".to_string());
+                        return HippoxResult::system_error(format!("Task failed: {}", error));
+                    } else {
+                        return HippoxResult::system_error(format!("Task failed: {}", task_id));
+                    }
+                }
+                TaskStatus::Cancelled => {
+                    return HippoxResult::system_error(format!("Task was cancelled: {}", task_id));
+                }
+                TaskStatus::Timeout => {
+                    return HippoxResult::system_error(format!("Task timed out: {}", task_id));
+                }
+                TaskStatus::Pending | TaskStatus::Running | TaskStatus::Paused => {
+                    // Wait before polling again (with backoff)
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            }
+        }
     }
 
     /// heartbeat
@@ -368,46 +454,33 @@ impl Hippox {
     }
 
     /// List all available atomic skills
+    /// List all available atomic skills
     pub fn list_atomic_skills(&self) -> HippoxStringResult {
-        let skills = skill_registry::list_skills();
+        let skills = get_all_skills();
         if skills.is_empty() {
             return HippoxResult::ok(t!("skill.no_skills_available").to_string());
         }
         let mut result = String::new();
-        for name in skills {
-            if let Some(skill) = skill_registry::get_skill(&name) {
-                let emoji = match skill.category() {
-                    "file" => "📁",
-                    "net" => "🌐",
-                    "math" => "🔢",
-                    "time" => "🕐",
-                    "system" => "💻",
-                    "db" => "🗄️",
-                    "devops" => "🚀",
-                    "document" => "📄",
-                    "message" => "💬",
-                    "task" => "⏰",
-                    _ => "⚙️",
-                };
-                result.push_str(&format!(
-                    "   {} - **{}**: {}\n",
-                    emoji,
-                    name,
-                    skill.description()
-                ));
-            }
+        for skill in skills {
+            let emoji = skill.category().icon();
+            result.push_str(&format!(
+                "   {} - **{}**: {}\n",
+                emoji,
+                skill.name(),
+                skill.description()
+            ));
         }
         HippoxResult::ok(result)
     }
 
     /// Get all loaded atomic skill names
     pub fn get_atomic_skill_names(&self) -> HippoxBatchResult {
-        HippoxResult::ok(skill_registry::list_skills())
+        HippoxResult::ok(list_skills_names())
     }
 
     /// Check if there are any atomic skills available
     pub fn has_atomic_skills(&self) -> HippoxBoolResult {
-        HippoxResult::ok(!skill_registry::list_skills().is_empty())
+        HippoxResult::ok(!list_skills_names().is_empty())
     }
 
     /// Get the executor
