@@ -57,7 +57,7 @@ use crate::registry::process_register;
 #[cfg(any(feature = "social_platform", feature = "all"))]
 use crate::registry::socialplatform_register;
 #[cfg(any(feature = "speech_speak", feature = "all"))]
-use crate::registry::speech_register;
+use crate::registry::speech_speak_register;
 #[cfg(any(feature = "terminal_commands", feature = "all"))]
 use crate::registry::terminal_register;
 #[cfg(any(feature = "text", feature = "all"))]
@@ -73,35 +73,6 @@ pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill
 /// Global, lazily-initialized, thread-safe registry of all available skills.
 static SKILL_REGISTRY: Lazy<RwLock<SkillRegistryMap>> = Lazy::new(|| {
     let mut registry: SkillRegistryMap = HashMap::new();
-    // Initialize all category maps
-    for category in [
-        SkillCategory::Basic,
-        SkillCategory::File,
-        SkillCategory::Math,
-        SkillCategory::Net,
-        SkillCategory::Os,
-        SkillCategory::Process,
-        SkillCategory::Document,
-        SkillCategory::SocialPlatform,
-        SkillCategory::Db,
-        SkillCategory::Text,
-        SkillCategory::Devops,
-        SkillCategory::Media,
-        SkillCategory::Blockchain,
-        SkillCategory::HaveHeadBrowser,
-        SkillCategory::Window,
-        SkillCategory::Speech,
-        SkillCategory::Keyboard,
-        SkillCategory::Mouse,
-        SkillCategory::Audio,
-        SkillCategory::Application,
-        SkillCategory::Display,
-        SkillCategory::Wifi,
-        SkillCategory::Bluetooth,
-        SkillCategory::Terminal,
-    ] {
-        registry.insert(category, HashMap::new());
-    }
     #[cfg(any(feature = "helloworld", feature = "all"))]
     basic_register::register(&mut registry);
     #[cfg(any(feature = "file", feature = "all"))]
@@ -133,7 +104,7 @@ static SKILL_REGISTRY: Lazy<RwLock<SkillRegistryMap>> = Lazy::new(|| {
     #[cfg(any(feature = "window_control", feature = "all"))]
     window_register::register(&mut registry);
     #[cfg(any(feature = "speech_speak", feature = "all"))]
-    speech_register::register(&mut registry);
+    speech_speak_register::register(&mut registry);
     #[cfg(any(feature = "keyboard_control", feature = "all"))]
     keyboard_register::register(&mut registry);
     #[cfg(any(feature = "mouse_control", feature = "all"))]
@@ -204,6 +175,26 @@ pub fn get_registry() -> std::sync::RwLockReadGuard<'static, SkillRegistryMap> {
 /// ```
 pub fn get_registry_mut() -> std::sync::RwLockWriteGuard<'static, SkillRegistryMap> {
     SKILL_REGISTRY.write().unwrap()
+}
+
+/// Get all category names that have at least one registered skill.
+///
+/// # Returns
+/// A vector of category names (machine-readable strings) sorted alphabetically.
+///
+/// # Examples
+/// ```
+/// let categories = get_all_categorys();
+/// println!("Available categories: {:?}", categories);
+/// ```
+pub fn get_all_categorys() -> Vec<String> {
+    let registry = get_registry();
+    let mut result: Vec<String> = registry
+        .keys()
+        .map(|category| category.name().to_string())
+        .collect();
+    result.sort();
+    result
 }
 
 /// Register a new skill dynamically at runtime.
@@ -570,15 +561,18 @@ pub fn generate_skill_registry_table_json_str() -> String {
 /// use your_crate::core::get_skills_by_category;
 /// use your_crate::registry::SkillCategory;
 ///
-/// let basic_skills = get_skills_by_category(SkillCategory::Basic);
+/// let basic_skills = get_skills_by_category("basic");
 /// for skill in basic_skills {
 ///     println!("Found basic skill: {}", skill.name());
 /// }
 /// ```
-pub fn get_skills_by_category(category: SkillCategory) -> Vec<Arc<dyn Skill>> {
+pub fn get_skills_by_category(category: &str) -> Vec<Arc<dyn Skill>> {
+    let Some(cat_enum) = SkillCategory::from_str(category) else {
+        return Vec::new();
+    };
     let registry = get_registry();
     registry
-        .get(&category)
+        .get(&cat_enum)
         .map(|map| map.values().cloned().collect())
         .unwrap_or_default()
 }
@@ -599,15 +593,16 @@ pub fn get_skills_by_category(category: SkillCategory) -> Vec<Arc<dyn Skill>> {
 /// let skills = get_skills_by_category_list(&category);
 /// println!("Found {} skills", skills.len());
 /// ```
-pub fn get_skills_by_category_list(categorys: &[String]) -> Vec<Arc<dyn Skill>> {
+pub fn get_skills_by_category_list(categories: &[String]) -> Vec<Arc<dyn Skill>> {
     let registry = get_registry();
     let mut result = Vec::new();
-    for category_map in registry.values() {
-        for skill in category_map.values() {
-            let skill_category = skill.category().name();
-            if categorys.iter().any(|cat| cat == skill_category) {
-                result.push(skill.clone());
-            }
+    let enums: Vec<SkillCategory> = categories
+        .iter()
+        .filter_map(|cat| SkillCategory::from_str(cat))
+        .collect();
+    for cat_enum in enums {
+        if let Some(skill_map) = registry.get(&cat_enum) {
+            result.extend(skill_map.values().cloned());
         }
     }
     result

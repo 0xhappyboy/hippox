@@ -51,7 +51,7 @@ mod scheduled_task_register;
 #[cfg(any(feature = "social_platform", feature = "all"))]
 mod socialplatform_register;
 #[cfg(any(feature = "speech_speak", feature = "all"))]
-mod speech_register;
+mod speech_speak_register;
 #[cfg(any(feature = "terminal_commands", feature = "all"))]
 mod terminal_register;
 #[cfg(any(feature = "text", feature = "all"))]

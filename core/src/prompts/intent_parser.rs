@@ -1,6 +1,6 @@
 //! Intent parser prompt template
 
-use hippox_atomic_skills::skill_registry::get_skill_categories;
+use hippox_atomic_skills::get_skill_category_name_and_describe;
 
 /// Builds a prompt for LLM to extract intent and required skill categories from user input.
 ///
@@ -21,7 +21,7 @@ use hippox_atomic_skills::skill_registry::get_skill_categories;
 /// Output: {"clean_intent": "Search for Rust tutorials", "skill_categories": ["browser", "net"]}
 /// ```
 pub fn build_intent_parser_prompt(input: &str) -> String {
-    let categories = get_skill_categories();
+    let categories = get_skill_category_name_and_describe();
     let categories_str: Vec<String> = categories.iter().map(|(cat, _)| cat.clone()).collect();
     let categories_list = categories_str.join(", ");
 

@@ -66,7 +66,59 @@ pub enum SkillCategory {
 }
 
 impl SkillCategory {
+    /// Convert string to SkillCategory enum
+    ///
+    /// # Arguments
+    /// * `s` - Category name string (e.g., "basic", "file", "math")
+    ///
+    /// # Returns
+    /// `Some(SkillCategory)` if the string matches a category name, otherwise `None`
+    ///
+    /// # Examples
+    /// ```
+    /// let category = SkillCategory::from_str("basic");
+    /// assert_eq!(category, Some(SkillCategory::Basic));
+    /// ```
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "basic" => Some(SkillCategory::Basic),
+            "file" => Some(SkillCategory::File),
+            "math" => Some(SkillCategory::Math),
+            "net" => Some(SkillCategory::Net),
+            "os" => Some(SkillCategory::Os),
+            "process" => Some(SkillCategory::Process),
+            "document" => Some(SkillCategory::Document),
+            "social_platform" => Some(SkillCategory::SocialPlatform),
+            "db" => Some(SkillCategory::Db),
+            "text" => Some(SkillCategory::Text),
+            "devops" => Some(SkillCategory::Devops),
+            "media" => Some(SkillCategory::Media),
+            "blockchain" => Some(SkillCategory::Blockchain),
+            "have_head_browser" => Some(SkillCategory::HaveHeadBrowser),
+            "window" => Some(SkillCategory::Window),
+            "speech" => Some(SkillCategory::Speech),
+            "keyboard" => Some(SkillCategory::Keyboard),
+            "mouse" => Some(SkillCategory::Mouse),
+            "audio" => Some(SkillCategory::Audio),
+            "application" => Some(SkillCategory::Application),
+            "display" => Some(SkillCategory::Display),
+            "wifi" => Some(SkillCategory::Wifi),
+            "bluetooth" => Some(SkillCategory::Bluetooth),
+            "terminal" => Some(SkillCategory::Terminal),
+            _ => None,
+        }
+    }
+
     /// Get the string representation of the category
+    ///
+    /// # Returns
+    /// The category name as a string
+    ///
+    /// # Examples
+    /// ```
+    /// let name = SkillCategory::Basic.name();
+    /// assert_eq!(name, "basic");
+    /// ```
     pub fn name(&self) -> &'static str {
         match self {
             SkillCategory::Basic => "basic",

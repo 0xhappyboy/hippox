@@ -1,24 +1,25 @@
 //! Registry generation for skills and instances
 
 use crate::get_config;
-use hippox_atomic_skills::{get_skills_by_categories, skill_registry::{self, get_registry, get_skill, list_skills}};
+use hippox_atomic_skills::{
+    get_all_categorys, get_all_skills, get_registry, get_skill_by_name, get_skills_by_category,
+    get_skills_by_category_list, list_skills_names,
+};
 use serde_json::{Value, json};
 
 /// Generate skills registry (atomic skills metadata)
 pub fn generate_skills_registry() -> String {
-    let skills = skill_registry::list_skills();
+    let skills = get_all_skills();
     let registry: Vec<serde_json::Value> = skills
         .iter()
-        .filter_map(|name| {
-            skill_registry::get_skill(name).map(|skill| {
-                serde_json::json!({
-                    "name": name,
-                    "description": skill.description(),
-                    "category": skill.category(),
-                    "parameters": skill.parameters(),
-                    "example_call": skill.example_call(),
-                    "example_output": skill.example_output(),
-                })
+        .map(|skill| {
+            serde_json::json!({
+                "name": skill.name(),
+                "description": skill.description(),
+                "category": skill.category().name(),
+                "parameters": skill.parameters(),
+                "example_call": skill.example_call(),
+                "example_output": skill.example_output(),
             })
         })
         .collect();
@@ -30,7 +31,7 @@ pub fn generate_skills_registry_by_categories(categories: &[String]) -> String {
     if categories.is_empty() {
         return "[]".to_string();
     }
-    let skills = get_skills_by_categories(categories);
+    let skills = get_skills_by_category_list(categories);
     let registry: Vec<serde_json::Value> = skills
         .iter()
         .map(|skill| {
@@ -49,16 +50,14 @@ pub fn generate_skills_registry_by_categories(categories: &[String]) -> String {
 
 /// Generate minimal skills registry (only name, desc, category) - for ultra-low token usage
 pub fn generate_minimal_skills_registry() -> String {
-    let skills = list_skills();
+    let skills = get_all_skills();
     let registry: Vec<serde_json::Value> = skills
         .iter()
-        .filter_map(|name| {
-            get_skill(name).map(|skill| {
-                serde_json::json!({
-                    "name": name,
-                    "desc": skill.description(),
-                    "category": skill.category(),
-                })
+        .map(|skill| {
+            serde_json::json!({
+                "name": skill.name(),
+                "desc": skill.description(),
+                "category": skill.category().name(),
             })
         })
         .collect();
@@ -70,7 +69,7 @@ pub fn generate_minimal_skills_registry_by_categories(categories: &[String]) -> 
     if categories.is_empty() {
         return "[]".to_string();
     }
-    let skills = get_skills_by_categories(categories);
+    let skills = get_skills_by_category_list(categories);
     let registry: Vec<serde_json::Value> = skills
         .iter()
         .map(|skill| {
@@ -85,16 +84,7 @@ pub fn generate_minimal_skills_registry_by_categories(categories: &[String]) -> 
 }
 
 pub fn get_all_categories() -> Vec<String> {
-    let registry = get_registry();
-    let mut categories: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-    for skill in registry.values() {
-        categories.insert(skill.category().to_string());
-    }
-
-    let mut result: Vec<String> = categories.into_iter().collect();
-    result.sort();
-    result
+    get_all_categorys()
 }
 
 #[cfg(test)]

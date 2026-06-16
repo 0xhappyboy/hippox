@@ -11,13 +11,16 @@
 /// - Falling back to general chat when no skill matches
 use crate::t;
 use futures::future::ok;
-use hippox_atomic_skills::skill_registry;
 use langhub::LLMClient;
 use langhub::llms::LLMResult;
 use langhub::types::{ChatMessage, LangHubError};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
+
+use hippox_atomic_skills::{
+    generate_skill_registry_table_json_str, get_skill_by_name, has_skill, list_skills_names,
+};
 
 /// Skill execution scheduler
 ///
@@ -57,7 +60,7 @@ impl SkillScheduler {
     /// # Returns
     /// A formatted string containing the skill registry in JSON format
     pub fn get_skills_prompt(&self) -> String {
-        let registry_json = skill_registry::generate_skill_registry_table_json_str();
+        let registry_json = generate_skill_registry_table_json_str();
         format!("## Available Skills (JSON Registry)\n{}", registry_json)
     }
 
@@ -73,7 +76,7 @@ impl SkillScheduler {
     /// # Returns
     /// Some(skill_name) if a skill is selected, None otherwise
     pub async fn select_skill(&self, user_input: &str) -> anyhow::Result<Option<String>> {
-        if skill_registry::list_skills().is_empty() {
+        if list_skills_names().is_empty() {
             return Ok(None);
         }
         let skills_prompt = self.get_skills_prompt();
@@ -88,7 +91,7 @@ impl SkillScheduler {
         let skill_name = response.trim();
         if skill_name == "none" || skill_name.is_empty() {
             Ok(None)
-        } else if skill_registry::has_skill(skill_name) {
+        } else if has_skill(skill_name) {
             Ok(Some(skill_name.to_string()))
         } else {
             Ok(None)
@@ -111,7 +114,7 @@ impl SkillScheduler {
         conversation_history: &str,
     ) -> anyhow::Result<String> {
         println!("{}", t!("skill.executing", skill_name));
-        let skill = skill_registry::get_skill(skill_name)
+        let skill = get_skill_by_name(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
         let mut parameters = HashMap::new();
         parameters.insert("input".to_string(), Value::String(user_input.to_string()));
@@ -136,7 +139,7 @@ impl SkillScheduler {
         conversation_history: &str,
     ) -> anyhow::Result<String> {
         println!("{}", t!("skill.executing", skill_name));
-        let skill = skill_registry::get_skill(skill_name)
+        let skill = get_skill_by_name(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
         skill.execute(parameters).await
     }
@@ -157,7 +160,7 @@ impl SkillScheduler {
         skill_name: &str,
         messages: Vec<ChatMessage>,
     ) -> anyhow::Result<String> {
-        let skill = skill_registry::get_skill(skill_name)
+        let skill = get_skill_by_name(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
         let mut parameters = HashMap::new();
         // Extract content from the last user message
@@ -221,26 +224,14 @@ impl SkillScheduler {
     /// # Returns
     /// A formatted string listing all skills with their emoji categories
     pub fn list_skills(&self) -> String {
-        let skills = skill_registry::list_skills();
+        let skills = list_skills_names();
         if skills.is_empty() {
             return t!("skill.no_skills_available").to_string();
         }
         let mut result = String::new();
         for name in skills {
-            if let Some(skill) = skill_registry::get_skill(&name) {
-                let emoji = match skill.category() {
-                    "file" => "📁",
-                    "net" => "🌐",
-                    "math" => "🔢",
-                    "time" => "🕐",
-                    "system" => "💻",
-                    "db" => "🗄️",
-                    "devops" => "🚀",
-                    "document" => "📄",
-                    "message" => "💬",
-                    "task" => "⏰",
-                    _ => "⚙️",
-                };
+            if let Some(skill) = get_skill_by_name(&name) {
+                let emoji = skill.category().icon();
                 result.push_str(&format!(
                     "   {} - **{}**: {}\n",
                     emoji,
@@ -257,7 +248,7 @@ impl SkillScheduler {
     /// # Returns
     /// A vector of skill names
     pub fn get_skill_names(&self) -> Vec<String> {
-        skill_registry::list_skills()
+        list_skills_names()
     }
 
     /// Check if any skills are available
@@ -265,7 +256,7 @@ impl SkillScheduler {
     /// # Returns
     /// true if at least one skill is registered, false otherwise
     pub fn has_skills(&self) -> bool {
-        !skill_registry::list_skills().is_empty()
+        !list_skills_names().is_empty()
     }
 
     /// Get a reference to the LLM client
@@ -304,7 +295,10 @@ impl SkillScheduler {
         if let Some(usage) = result.extract_usage() {
             if let Some(updater) = crate::tasks::get_state_updater(task_id).await {
                 updater
-                    .add_token_usage_global(usage.prompt_tokens as u64, usage.completion_tokens as u64)
+                    .add_token_usage_global(
+                        usage.prompt_tokens as u64,
+                        usage.completion_tokens as u64,
+                    )
                     .await;
             }
         }
@@ -321,7 +315,10 @@ impl SkillScheduler {
         if let Some(usage) = result.extract_usage() {
             if let Some(updater) = crate::tasks::get_state_updater(task_id).await {
                 updater
-                    .add_token_usage_global(usage.prompt_tokens as u64, usage.completion_tokens as u64)
+                    .add_token_usage_global(
+                        usage.prompt_tokens as u64,
+                        usage.completion_tokens as u64,
+                    )
                     .await;
             }
         }
