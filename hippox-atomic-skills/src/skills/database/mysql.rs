@@ -53,7 +53,7 @@ impl Skill for MysqlQuerySkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -247,7 +247,7 @@ impl Skill for MysqlExecuteSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -386,7 +386,7 @@ impl Skill for MysqlListTablesSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

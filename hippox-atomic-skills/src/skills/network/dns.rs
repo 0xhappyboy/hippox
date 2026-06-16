@@ -112,7 +112,7 @@ impl Skill for DnsLookupSkill {
 
     /// Returns the category of this skill for organizational purposes
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     /// Executes a DNS lookup query with the provided parameters
@@ -264,7 +264,7 @@ impl Skill for ReverseDnsSkill {
 
     /// Returns the category of this skill for organizational purposes
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     /// Executes a reverse DNS lookup for the given IP address
@@ -396,7 +396,7 @@ impl Skill for DnsBatchLookupSkill {
 
     /// Returns the category of this skill for organizational purposes
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     /// Executes batch DNS lookups for multiple domains
@@ -526,7 +526,7 @@ impl Skill for DnsTestSkill {
 
     /// Returns the category of this skill for organizational purposes
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     /// Executes a DNS server performance test

@@ -84,7 +84,7 @@ impl Skill for OsRebootSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -184,7 +184,7 @@ impl Skill for OsShutdownSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -262,7 +262,7 @@ impl Skill for OsSleepSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -321,7 +321,7 @@ impl Skill for OsLockSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -384,7 +384,7 @@ impl Skill for OsLogoutSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -448,7 +448,7 @@ impl Skill for OsHibernateSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -510,7 +510,7 @@ impl Skill for OsGetUptimeSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -579,7 +579,7 @@ impl Skill for OsGetLoadAverageSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -632,7 +632,7 @@ impl Skill for OsGetHostnameSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -696,7 +696,7 @@ impl Skill for OsGetUserSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -761,7 +761,7 @@ impl Skill for OsDiskUsageSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -831,7 +831,7 @@ impl Skill for OsMemoryInfoSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -885,7 +885,7 @@ impl Skill for OsCpuInfoSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -948,7 +948,7 @@ impl Skill for OsNetworkInfoSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1028,7 +1028,7 @@ impl Skill for OsBatteryInfoSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1159,7 +1159,7 @@ impl Skill for OsNotificationSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -1,9 +1,4 @@
 use anyhow::Result;
-use reqwest::Client;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use serde_json::Value;
-use std::collections::HashMap;
-
 /// Math common module
 ///
 /// This module provides reusable mathematical utilities that can be used by math-related skills.

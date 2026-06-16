@@ -44,7 +44,7 @@ impl Skill for SqliteQuerySkill {
         "Use this skill when the user needs to query data from SQLite database"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -184,7 +184,7 @@ impl Skill for SqliteExecuteSkill {
         "Use this skill when the user needs to modify data in SQLite database"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -282,7 +282,7 @@ impl Skill for SqliteListTablesSkill {
         "Use this skill when the user needs to see available tables in the SQLite database"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

@@ -90,7 +90,7 @@ impl Skill for SystemInfoSkill {
 
     /// Returns the category classification for this skill.
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     /// Executes the system information retrieval based on the provided parameters.
@@ -373,7 +373,7 @@ use super::*;
         assert_eq!(skill.name(), "system_info");
         assert!(!skill.description().is_empty());
         assert!(!skill.usage_hint().is_empty());
-        assert_eq!(skill.category(), SkillCategory::Os);
+        assert_eq!(skill.category(), SkillCategory::OperatingSystem);
         assert!(!skill.example_output().is_empty());
         let params = skill.parameters();
         assert_eq!(params.len(), 1);

@@ -54,7 +54,7 @@ impl Skill for RedisSetSkill {
         "Use this skill when the user needs to store data in Redis"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -170,7 +170,7 @@ impl Skill for RedisGetSkill {
         "Use this skill when the user needs to retrieve data from Redis"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -266,7 +266,7 @@ impl Skill for RedisDelSkill {
         "Use this skill when the user needs to delete data from Redis"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -363,7 +363,7 @@ impl Skill for RedisKeysSkill {
         "Use this skill when the user needs to list keys in Redis"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -459,7 +459,7 @@ impl Skill for RedisHSetSkill {
         "Use this skill when the user needs to store structured data in Redis"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -575,7 +575,7 @@ impl Skill for RedisHGetSkill {
         "Use this skill when the user needs to retrieve structured data from Redis"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

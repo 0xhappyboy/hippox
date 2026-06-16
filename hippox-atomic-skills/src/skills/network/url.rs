@@ -104,7 +104,7 @@ impl Skill for ReadUrlSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -1,6 +1,6 @@
 #[cfg(feature = "blockchain")]
 pub mod blockchain;
-#[cfg(feature = "db")]
+#[cfg(feature = "database")]
 pub mod database;
 #[cfg(feature = "devops")]
 pub mod devops;
@@ -18,8 +18,8 @@ pub mod helloworld;
 pub mod math;
 #[cfg(feature = "media")]
 pub mod media;
-#[cfg(feature = "net")]
-pub mod net;
+#[cfg(feature = "network")]
+pub mod network;
 #[cfg(feature = "operating_system")]
 pub mod operating_system;
 #[cfg(feature = "operating_system_services")]
@@ -55,10 +55,14 @@ pub mod display_control;
 pub mod keyboard_control;
 #[cfg(feature = "mouse_control")]
 pub mod mouse_control;
+#[cfg(feature = "operating_system_memory")]
+pub mod operating_system_memory;
+#[cfg(feature = "operating_system_process")]
+pub mod operating_system_process;
 #[cfg(feature = "operating_system_security")]
 pub mod operating_system_security;
 
-// Re-exports
+// ===================================== Re-exports =====================================
 #[cfg(feature = "application_control")]
 pub use application_control::*;
 #[cfg(feature = "audio_control")]
@@ -69,7 +73,7 @@ pub use blockchain::*;
 pub use bluetooth::*;
 #[cfg(feature = "cryptography")]
 pub use cryptography::*;
-#[cfg(feature = "db")]
+#[cfg(feature = "database")]
 pub use database::*;
 #[cfg(feature = "devops")]
 pub use devops::*;
@@ -93,10 +97,14 @@ pub use math::*;
 pub use media::*;
 #[cfg(feature = "mouse_control")]
 pub use mouse_control::*;
-#[cfg(feature = "net")]
-pub use net::*;
+#[cfg(feature = "network")]
+pub use network::*;
 #[cfg(feature = "operating_system")]
 pub use operating_system::*;
+#[cfg(feature = "operating_system_memory")]
+pub use operating_system_memory::*;
+#[cfg(feature = "operating_system_process")]
+pub use operating_system_process::*;
 #[cfg(feature = "operating_system_security")]
 pub use operating_system_security::*;
 #[cfg(feature = "operating_system_services")]

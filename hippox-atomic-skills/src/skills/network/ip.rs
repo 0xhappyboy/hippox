@@ -91,7 +91,7 @@ impl Skill for IpInfoSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -240,7 +240,7 @@ impl Skill for IpValidateSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -335,7 +335,7 @@ impl Skill for IpRangeSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -444,7 +444,7 @@ impl Skill for LocalIpSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

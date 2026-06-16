@@ -44,7 +44,7 @@ impl Skill for TcpSendSkill {
         "Use this skill when the user needs to send raw data over TCP socket to a server"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -231,7 +231,7 @@ impl Skill for TcpReceiveSkill {
         "Use this skill when the user needs to listen on a TCP port and receive data"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

@@ -6,10 +6,10 @@ use std::sync::Arc;
 use crate::{SkillCategory, SkillRegistryMap};
 
 pub fn register(registry: &mut SkillRegistryMap) {
-    let category = SkillCategory::Db;
+    let category = SkillCategory::Database;
     let map = registry.entry(category).or_insert_with(HashMap::new);
 
-    #[cfg(any(feature = "db", feature = "all"))]
+    #[cfg(any(feature = "database", feature = "all"))]
     {
         use crate::skills::mysql::*;
         use crate::skills::postgresql::*;

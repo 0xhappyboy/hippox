@@ -11,7 +11,6 @@ pub fn register(registry: &mut SkillRegistryMap) {
     #[cfg(any(feature = "speech_speak", feature = "all"))]
     {
         use crate::skills::speech_speak::*;
-        
         map.insert("speech_speak".to_string(), Arc::new(SpeechSpeakSkill));
     }
 }

@@ -65,7 +65,7 @@ impl Skill for PostgresQuerySkill {
         "Use this skill when the user needs to query data from PostgreSQL database"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -251,7 +251,7 @@ impl Skill for PostgresExecuteSkill {
         "Use this skill when the user needs to modify data in PostgreSQL database"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -390,7 +390,7 @@ impl Skill for PostgresListTablesSkill {
         "Use this skill when the user needs to see available tables in the database"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Db
+        SkillCategory::Database
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

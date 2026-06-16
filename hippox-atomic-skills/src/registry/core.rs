@@ -7,6 +7,8 @@ use crate::registry::SkillCategory;
 use crate::registry::cryptography_register;
 #[cfg(any(feature = "email", feature = "all"))]
 use crate::registry::email_register;
+#[cfg(any(feature = "network", feature = "all"))]
+use crate::registry::network_register;
 #[cfg(any(feature = "scheduler_task", feature = "all"))]
 use crate::registry::scheduled_tasks_register;
 #[cfg(any(feature = "time", feature = "all"))]
@@ -30,8 +32,8 @@ use crate::registry::blockchain_register;
 use crate::registry::bluetooth_register;
 #[cfg(any(feature = "have_head_browser", feature = "all"))]
 use crate::registry::browser_register;
-#[cfg(any(feature = "db", feature = "all"))]
-use crate::registry::db_register;
+#[cfg(any(feature = "database", feature = "all"))]
+use crate::registry::database_register;
 #[cfg(any(feature = "devops", feature = "all"))]
 use crate::registry::devops_register;
 #[cfg(any(feature = "display_control", feature = "all"))]
@@ -48,16 +50,16 @@ use crate::registry::math_register;
 use crate::registry::media_register;
 #[cfg(any(feature = "mouse_control", feature = "all"))]
 use crate::registry::mouse_register;
-#[cfg(any(feature = "net", feature = "all"))]
-use crate::registry::net_register;
+#[cfg(any(feature = "operating_system_memory", feature = "all"))]
+use crate::registry::operating_system_memory_register;
+#[cfg(any(feature = "operating_system_process", feature = "all"))]
+use crate::registry::operating_system_process_register;
+#[cfg(any(feature = "operating_system", feature = "all"))]
+use crate::registry::operating_system_register;
 #[cfg(any(feature = "operating_system_security", feature = "all"))]
 use crate::registry::operating_system_security_register;
 #[cfg(any(feature = "operating_system_services", feature = "all"))]
 use crate::registry::operating_system_services_register;
-#[cfg(any(feature = "operating_system", feature = "all"))]
-use crate::registry::os_register;
-#[cfg(any(feature = "operating_system", feature = "all"))]
-use crate::registry::process_register;
 #[cfg(any(feature = "social_platform", feature = "all"))]
 use crate::registry::socialplatform_register;
 #[cfg(any(feature = "speech_speak", feature = "all"))]
@@ -83,18 +85,16 @@ static SKILL_REGISTRY: Lazy<RwLock<SkillRegistryMap>> = Lazy::new(|| {
     file_register::register(&mut registry);
     #[cfg(any(feature = "math", feature = "all"))]
     math_register::register(&mut registry);
-    #[cfg(any(feature = "net", feature = "all"))]
-    net_register::register(&mut registry);
+    #[cfg(any(feature = "network", feature = "all"))]
+    network_register::register(&mut registry);
     #[cfg(any(feature = "operating_system", feature = "all"))]
-    os_register::register(&mut registry);
-    #[cfg(any(feature = "operating_system", feature = "all"))]
-    process_register::register(&mut registry);
+    operating_system_register::register(&mut registry);
     #[cfg(any(feature = "document", feature = "all"))]
     document_register::register(&mut registry);
     #[cfg(any(feature = "social_platform", feature = "all"))]
     socialplatform_register::register(&mut registry);
-    #[cfg(any(feature = "db", feature = "all"))]
-    db_register::register(&mut registry);
+    #[cfg(any(feature = "database", feature = "all"))]
+    database_register::register(&mut registry);
     #[cfg(any(feature = "text", feature = "all"))]
     text_register::register(&mut registry);
     #[cfg(any(feature = "devops", feature = "all"))]
@@ -139,6 +139,10 @@ static SKILL_REGISTRY: Lazy<RwLock<SkillRegistryMap>> = Lazy::new(|| {
     operating_system_security_register::register(&mut registry);
     #[cfg(any(feature = "scheduled_tasks", feature = "all"))]
     scheduled_tasks_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_process", feature = "all"))]
+    operating_system_process_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_memory", feature = "all"))]
+    operating_system_memory_register::register(&mut registry);
 
     RwLock::new(registry)
 });

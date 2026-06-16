@@ -36,7 +36,7 @@ impl Skill for FtpUploadSkill {
         "Use this skill when the user needs to upload files to an FTP server"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -193,7 +193,7 @@ impl Skill for FtpDownloadSkill {
         "Use this skill when the user needs to download files from an FTP server"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -337,7 +337,7 @@ impl Skill for FtpListSkill {
         "Use this skill when the user needs to see what files are in an FTP directory"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -466,7 +466,7 @@ impl Skill for FtpDeleteSkill {
         "Use this skill when the user needs to delete files on an FTP server"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

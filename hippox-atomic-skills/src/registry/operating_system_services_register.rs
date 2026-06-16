@@ -12,7 +12,6 @@ pub fn register(registry: &mut SkillRegistryMap) {
         use crate::skills::{
             ServiceAllSkill, ServiceConfigPathSkill, ServiceCopySkill, ServiceDependenciesSkill, ServiceDisableSkill, ServiceEnableSkill, ServiceEnabledListSkill, ServiceEnvSkill, ServiceExportSkill, ServiceFailureActionSkill, ServiceFailureCountSkill, ServiceHistorySkill, ServiceImportSkill, ServiceListSkill, ServiceLockSkill, ServiceLogsSkill, ServiceMaskSkill, ServiceMaskedListSkill, ServicePidSkill, ServiceRecentSkill, ServiceReloadSkill, ServiceRenameSkill, ServiceResetFailureCountSkill, ServiceResourcesSkill, ServiceRestartSkill, ServiceReverseDependenciesSkill, ServiceRunningSkill, ServiceSearchSkill, ServiceSecuritySkill, ServiceSetEnvSkill, ServiceSetTimeoutSkill, ServiceStartSkill, ServiceStartTypeSkill, ServiceStatusSkill, ServiceStdoutSkill, ServiceStopSkill, ServiceUnlockSkill, ServiceUnmaskSkill, ServiceUptimeSkill, ServiceUserSkill
         };
-
         map.insert("service_list".to_string(), Arc::new(ServiceListSkill));
         map.insert("service_start".to_string(), Arc::new(ServiceStartSkill));
         map.insert("service_stop".to_string(), Arc::new(ServiceStopSkill));

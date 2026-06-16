@@ -20,8 +20,8 @@ mod bluetooth_register;
 mod browser_register;
 #[cfg(any(feature = "cryptography", feature = "all"))]
 mod cryptography_register;
-#[cfg(any(feature = "db", feature = "all"))]
-mod db_register;
+#[cfg(any(feature = "database", feature = "all"))]
+mod database_register;
 #[cfg(any(feature = "devops", feature = "all"))]
 mod devops_register;
 #[cfg(any(feature = "display_control", feature = "all"))]
@@ -40,16 +40,18 @@ mod math_register;
 mod media_register;
 #[cfg(any(feature = "mouse_control", feature = "all"))]
 mod mouse_register;
-#[cfg(any(feature = "net", feature = "all"))]
-mod net_register;
+#[cfg(any(feature = "network", feature = "all"))]
+mod network_register;
+#[cfg(any(feature = "operating_system_memory", feature = "all"))]
+mod operating_system_memory_register;
+#[cfg(any(feature = "operating_system_process", feature = "all"))]
+mod operating_system_process_register;
+#[cfg(any(feature = "operating_system", feature = "all"))]
+mod operating_system_register;
 #[cfg(any(feature = "operating_system_security", feature = "all"))]
 mod operating_system_security_register;
 #[cfg(any(feature = "operating_system_services", feature = "all"))]
 mod operating_system_services_register;
-#[cfg(any(feature = "operating_system", feature = "all"))]
-mod os_register;
-#[cfg(any(feature = "operating_system", feature = "all"))]
-mod process_register;
 #[cfg(any(feature = "scheduled_tasks", feature = "all"))]
 mod scheduled_tasks_register;
 #[cfg(any(feature = "social_platform", feature = "all"))]

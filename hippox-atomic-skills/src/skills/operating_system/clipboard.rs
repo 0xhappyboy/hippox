@@ -53,7 +53,7 @@ impl Skill for ClipboardGetSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -142,7 +142,7 @@ impl Skill for ClipboardSetSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -236,7 +236,7 @@ impl Skill for ClipboardClearSkill {
     }
 
     fn category(&self) -> SkillCategory {
-        SkillCategory::Os
+        SkillCategory::OperatingSystem
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -278,9 +278,9 @@ mod tests {
         assert_eq!(get_skill.name(), "clipboard_get");
         assert_eq!(set_skill.name(), "clipboard_set");
         assert_eq!(clear_skill.name(), "clipboard_clear");
-        assert_eq!(get_skill.category(), SkillCategory::Os);
-        assert_eq!(set_skill.category(), SkillCategory::Os);
-        assert_eq!(clear_skill.category(), SkillCategory::Os);
+        assert_eq!(get_skill.category(), SkillCategory::OperatingSystem);
+        assert_eq!(set_skill.category(), SkillCategory::OperatingSystem);
+        assert_eq!(clear_skill.category(), SkillCategory::OperatingSystem);
     }
 
     #[test]

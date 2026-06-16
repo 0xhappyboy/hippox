@@ -123,7 +123,7 @@ getrandom = "0.4.2"
 [features]
 default = [
     "blockchain",
-    "db",
+    "database",
     "devops",
     "document",
     "file",
@@ -131,7 +131,7 @@ default = [
     "math",
     "media",
     "social_platform",
-    "net",
+    "network",
     "operating_system",
     "task",
     "time",
@@ -153,10 +153,12 @@ default = [
     "operating_system_services",
     "operating_system_security",
     "scheduled_tasks",
+    "operating_system_process",
+    "operating_system_memory",
 ]
 all = [
     "blockchain",
-    "db",
+    "database",
     "devops",
     "document",
     "file",
@@ -164,7 +166,7 @@ all = [
     "math",
     "media",
     "social_platform",
-    "net",
+    "network",
     "operating_system",
     "task",
     "time",
@@ -186,8 +188,13 @@ all = [
     "operating_system_services",
     "operating_system_security",
     "scheduled_tasks",
+    "operating_system_process",
+    "operating_system_memory",
 ]
+operating_system_memory = []
 scheduled_tasks = []
+operating_system = []
+operating_system_process = []
 operating_system_security = []
 operating_system_services = []
 cryptography = []
@@ -205,7 +212,7 @@ window_control = []
 have_head_browser = []
 blockchain = []
 text = []
-db = []
+database = []
 devops = []
 document = []
 file = []
@@ -213,8 +220,7 @@ helloworld = []
 math = []
 media = []
 social_platform = []
-net = []
-operating_system = []
+network = []
 task = []
 time = []
 terminal_commands = []

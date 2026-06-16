@@ -12,17 +12,19 @@ pub enum SkillCategory {
     /// Mathematical operations, statistics, unit conversion, random numbers, hashing
     Math,
     /// HTTP requests, DNS lookup, Ping, TCP/UDP communication, FTP
-    Net,
+    Network,
     /// System information, power management, environment variables, clipboard
-    Os,
+    OperatingSystem,
     /// Process listing, start, terminate, monitoring
-    Process,
+    OperatingSystemProcess,
+    /// Process memory reading, scanning, module base address
+    OperatingSystemMemory,
     /// Markdown, CSV, XML, Excel, PDF, JSON, YAML, TOML
     Document,
     /// DingTalk, Feishu, WeChat Work, Telegram
     SocialPlatform,
     /// PostgreSQL, MySQL, Redis, SQLite
-    Db,
+    Database,
     /// Text comparison, sorting, deduplication, filtering, regex
     Text,
     /// Kubernetes, Docker, GitHub
@@ -86,12 +88,13 @@ impl SkillCategory {
             "basic" => Some(SkillCategory::Basic),
             "file" => Some(SkillCategory::File),
             "math" => Some(SkillCategory::Math),
-            "net" => Some(SkillCategory::Net),
-            "os" => Some(SkillCategory::Os),
-            "process" => Some(SkillCategory::Process),
+            "network" => Some(SkillCategory::Network),
+            "operating_system" => Some(SkillCategory::OperatingSystem),
+            "operating_system_process" => Some(SkillCategory::OperatingSystemProcess),
+            "operating_system_memory" => Some(SkillCategory::OperatingSystemMemory),
             "document" => Some(SkillCategory::Document),
             "social_platform" => Some(SkillCategory::SocialPlatform),
-            "db" => Some(SkillCategory::Db),
+            "database" => Some(SkillCategory::Database),
             "text" => Some(SkillCategory::Text),
             "devops" => Some(SkillCategory::Devops),
             "media" => Some(SkillCategory::Media),
@@ -128,12 +131,13 @@ impl SkillCategory {
             SkillCategory::Basic => "basic",
             SkillCategory::File => "file",
             SkillCategory::Math => "math",
-            SkillCategory::Net => "net",
-            SkillCategory::Os => "operating_system",
-            SkillCategory::Process => "process",
+            SkillCategory::Network => "network",
+            SkillCategory::OperatingSystem => "operating_system",
+            SkillCategory::OperatingSystemProcess => "operating_system_process",
+            SkillCategory::OperatingSystemMemory => "operating_system_memory",
             SkillCategory::Document => "document",
             SkillCategory::SocialPlatform => "social_platform",
-            SkillCategory::Db => "database",
+            SkillCategory::Database => "database",
             SkillCategory::Text => "text",
             SkillCategory::Devops => "devops",
             SkillCategory::Media => "media",
@@ -165,12 +169,13 @@ impl SkillCategory {
             SkillCategory::Basic => "Basic Skills",
             SkillCategory::File => "File System",
             SkillCategory::Math => "Mathematics",
-            SkillCategory::Net => "Network",
-            SkillCategory::Os => "Operating System",
-            SkillCategory::Process => "Process Management",
+            SkillCategory::Network => "Network",
+            SkillCategory::OperatingSystem => "Operating System",
+            SkillCategory::OperatingSystemProcess => "Operating System Process Management",
+            SkillCategory::OperatingSystemMemory => "Operating System Process Memory Operations",
             SkillCategory::Document => "Document Processing",
             SkillCategory::SocialPlatform => "Social Platform",
-            SkillCategory::Db => "Database",
+            SkillCategory::Database => "Database",
             SkillCategory::Text => "Text Processing",
             SkillCategory::Devops => "DevOps",
             SkillCategory::Media => "Media Processing",
@@ -206,20 +211,25 @@ impl SkillCategory {
             SkillCategory::Math => {
                 "Mathematical calculations, statistics, unit conversion, random generation, hashing"
             }
-            SkillCategory::Net => {
+            SkillCategory::Network => {
                 "HTTP requests, DNS lookup, Ping, TCP/UDP communication, FTP operations"
             }
-            SkillCategory::Os => {
+            SkillCategory::OperatingSystem => {
                 "System information, power management, environment variables, clipboard operations"
             }
-            SkillCategory::Process => "Process listing, starting, terminating, and monitoring",
+            SkillCategory::OperatingSystemProcess => {
+                "Process listing, starting, terminating, and monitoring"
+            }
+            SkillCategory::OperatingSystemMemory => {
+                "Low-level process memory access for debugging, reverse engineering, and security analysis"
+            }
             SkillCategory::Document => {
                 "Markdown, CSV, XML, Excel, PDF, JSON, YAML, TOML document processing"
             }
             SkillCategory::SocialPlatform => {
                 "Send notifications via DingTalk, Feishu, WeChat Work, Telegram"
             }
-            SkillCategory::Db => "Database operations for PostgreSQL, MySQL, Redis, SQLite",
+            SkillCategory::Database => "Database operations for PostgreSQL, MySQL, Redis, SQLite",
             SkillCategory::Text => {
                 "Text comparison, sorting, deduplication, filtering, regex operations"
             }
@@ -277,12 +287,13 @@ impl SkillCategory {
             SkillCategory::Basic => "🧪",
             SkillCategory::File => "📁",
             SkillCategory::Math => "🔢",
-            SkillCategory::Net => "🌐",
-            SkillCategory::Os => "💻",
-            SkillCategory::Process => "⚙️",
+            SkillCategory::Network => "🌐",
+            SkillCategory::OperatingSystem => "💻",
+            SkillCategory::OperatingSystemProcess => "⚙️",
+            SkillCategory::OperatingSystemMemory => "🧠",
             SkillCategory::Document => "📄",
             SkillCategory::SocialPlatform => "📱",
-            SkillCategory::Db => "🗄️",
+            SkillCategory::Database => "🗄️",
             SkillCategory::Text => "📝",
             SkillCategory::Devops => "🚀",
             SkillCategory::Media => "🎨",
@@ -314,12 +325,13 @@ impl SkillCategory {
             SkillCategory::Basic => 100,
             SkillCategory::File => 10,
             SkillCategory::Math => 20,
-            SkillCategory::Net => 30,
-            SkillCategory::Os => 40,
-            SkillCategory::Process => 41,
+            SkillCategory::Network => 30,
+            SkillCategory::OperatingSystem => 40,
+            SkillCategory::OperatingSystemProcess => 41,
+            SkillCategory::OperatingSystemMemory => 43,
             SkillCategory::Document => 50,
             SkillCategory::SocialPlatform => 55,
-            SkillCategory::Db => 70,
+            SkillCategory::Database => 70,
             SkillCategory::Text => 80,
             SkillCategory::Devops => 90,
             SkillCategory::Media => 110,
@@ -363,12 +375,13 @@ impl SkillCategory {
             Basic.metadata(),
             File.metadata(),
             Math.metadata(),
-            Net.metadata(),
-            Os.metadata(),
-            Process.metadata(),
+            Network.metadata(),
+            OperatingSystem.metadata(),
+            OperatingSystemProcess.metadata(),
+            OperatingSystemMemory.metadata(),
             Document.metadata(),
             SocialPlatform.metadata(),
-            Db.metadata(),
+            Database.metadata(),
             Text.metadata(),
             Devops.metadata(),
             Media.metadata(),

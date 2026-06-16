@@ -36,7 +36,7 @@ impl Skill for UdpSendSkill {
         "Use this skill when the user needs to send UDP datagram to a server"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -148,7 +148,7 @@ impl Skill for UdpReceiveSkill {
         "Use this skill when the user needs to listen for UDP packets"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -281,7 +281,7 @@ impl Skill for UdpBroadcastSkill {
         "Use this skill when the user needs to send a broadcast message to all hosts on the network"
     }
     fn category(&self) -> SkillCategory {
-        SkillCategory::Net
+        SkillCategory::Network
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

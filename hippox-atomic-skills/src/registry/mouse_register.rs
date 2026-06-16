@@ -11,7 +11,6 @@ pub fn register(registry: &mut SkillRegistryMap) {
     #[cfg(any(feature = "mouse_control", feature = "all"))]
     {
         use crate::skills::mouse_control::*;
-        
         map.insert("mouse_control_position_get".to_string(), Arc::new(MouseControlPositionGetSkill));
         map.insert("mouse_control_click".to_string(), Arc::new(MouseControlClickSkill));
         map.insert("mouse_control_double_click".to_string(), Arc::new(MouseControlDoubleClickSkill));
