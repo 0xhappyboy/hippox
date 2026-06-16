@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::{find_window, get_window_rect};
+use super::common::{find_window, get_window_rect};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlGetPositionSkill;
@@ -60,17 +60,20 @@ impl Skill for WindowControlGetPositionSkill {
         "Window position: x=100, y=200, width=800, height=600".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        
+
         let window_id = find_window(title, process)?;
         let rect = get_window_rect(window_id)?;
-        
-        Ok(format!("Window position: x={}, y={}, width={}, height={}", rect.x, rect.y, rect.width, rect.height))
+
+        Ok(format!(
+            "Window position: x={}, y={}, width={}, height={}",
+            rect.x, rect.y, rect.width, rect.height
+        ))
     }
 }

@@ -51,7 +51,7 @@ use zip::read::ZipArchive;
 use zip::write::FileOptions;
 
 use crate::types::{Skill, SkillParameter};
-use crate::{file_exists, validate_path};
+use crate::{SkillCategory, file_exists, validate_path};
 
 /// Skill for creating ZIP archives from files and directories.
 ///
@@ -155,8 +155,8 @@ impl Skill for ArchiveZipCreateSkill {
         "Successfully created ZIP archive at /home/user/backup.zip containing 15 files".to_string()
     }
 
-    fn category(&self) -> &str {
-        "archive"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -357,8 +357,8 @@ impl Skill for ArchiveZipExtractSkill {
             .to_string()
     }
 
-    fn category(&self) -> &str {
-        "archive"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -515,8 +515,8 @@ impl Skill for ArchiveTarCreateSkill {
             .to_string()
     }
 
-    fn category(&self) -> &str {
-        "archive"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -766,8 +766,8 @@ impl Skill for ArchiveTarExtractSkill {
             .to_string()
     }
 
-    fn category(&self) -> &str {
-        "archive"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -955,8 +955,8 @@ impl Skill for ArchiveCompressSkill {
         "Successfully compressed /home/user/data.txt to /home/user/data.txt.gz (original size: 1024 bytes, compressed size: 512 bytes, ratio: 50.0%)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "archive"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

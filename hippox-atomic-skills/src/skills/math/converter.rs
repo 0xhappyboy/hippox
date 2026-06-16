@@ -3,9 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    format_number,
-    types::{Skill, SkillParameter},
-    validate_number,
+    SkillCategory, format_number, types::{Skill, SkillParameter}, validate_number
 };
 
 #[derive(Debug)]
@@ -97,8 +95,8 @@ impl Skill for UnitConverterSkill {
         "100 km = 62.14 miles".to_string()
     }
 
-    fn category(&self) -> &str {
-        "math"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Math
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

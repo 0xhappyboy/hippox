@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlUninstallSkill;
@@ -49,8 +49,8 @@ impl Skill for ApplicationControlUninstallSkill {
         "Package firefox uninstalled successfully".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

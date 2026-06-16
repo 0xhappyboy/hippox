@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothBleNotifySkill;
@@ -41,7 +41,9 @@ impl Skill for BluetoothBleNotifySkill {
                 description: "UUID of the characteristic to subscribe to".to_string(),
                 required: true,
                 default: None,
-                example: Some(Value::String("00002a37-0000-1000-8000-00805f9b34fb".to_string())),
+                example: Some(Value::String(
+                    "00002a37-0000-1000-8000-00805f9b34fb".to_string(),
+                )),
                 enum_values: None,
             },
             SkillParameter {
@@ -71,8 +73,8 @@ impl Skill for BluetoothBleNotifySkill {
         "Notifications enabled for characteristic".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -80,26 +82,26 @@ impl Skill for BluetoothBleNotifySkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         let characteristic_uuid = parameters
             .get("characteristic_uuid")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'characteristic_uuid' parameter"))?;
-        
+
         let enable = parameters
             .get("enable")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| anyhow::anyhow!("Missing 'enable' parameter"))?;
-        
+
         let action = if enable { "notify" } else { "unnotify" };
-        
+
         #[cfg(target_os = "linux")]
         {
             Command::new("bluetoothctl")
                 .args([action, mac_address, characteristic_uuid])
                 .output()?;
         }
-        
+
         if enable {
             Ok("Notifications enabled for characteristic".to_string())
         } else {

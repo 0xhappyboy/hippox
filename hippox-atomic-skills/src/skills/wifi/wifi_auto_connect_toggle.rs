@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiAutoConnectToggleSkill;
@@ -60,8 +60,8 @@ impl Skill for WifiAutoConnectToggleSkill {
         "Auto-connect for WiFi disabled".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -69,15 +69,22 @@ impl Skill for WifiAutoConnectToggleSkill {
             .get("enabled")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| anyhow::anyhow!("Missing 'enabled' parameter"))?;
-        let _ssid = parameters
-            .get("ssid")
-            .and_then(|v| v.as_str());
+        let _ssid = parameters.get("ssid").and_then(|v| v.as_str());
         #[cfg(target_os = "windows")]
         {
             let value = if enabled { "yes" } else { "no" };
             if let Some(ssid) = _ssid {
                 Command::new("netsh")
-                    .args(["wlan", "set", "profile", "parameter", "name=", ssid, "connectionmode=", value])
+                    .args([
+                        "wlan",
+                        "set",
+                        "profile",
+                        "parameter",
+                        "name=",
+                        ssid,
+                        "connectionmode=",
+                        value,
+                    ])
                     .output()?;
             } else {
                 // For all profiles
@@ -91,7 +98,16 @@ impl Skill for WifiAutoConnectToggleSkill {
                             let profile = profile.trim();
                             if !profile.is_empty() {
                                 let _ = Command::new("netsh")
-                                    .args(["wlan", "set", "profile", "parameter", "name=", profile, "connectionmode=", value])
+                                    .args([
+                                        "wlan",
+                                        "set",
+                                        "profile",
+                                        "parameter",
+                                        "name=",
+                                        profile,
+                                        "connectionmode=",
+                                        value,
+                                    ])
                                     .output();
                             }
                         }
@@ -104,14 +120,30 @@ impl Skill for WifiAutoConnectToggleSkill {
             let value = if enabled { "yes" } else { "no" };
             if let Some(ssid) = _ssid {
                 Command::new("nmcli")
-                    .args(["connection", "modify", ssid, "802-11-wireless.mode", "infrastructure"])
+                    .args([
+                        "connection",
+                        "modify",
+                        ssid,
+                        "802-11-wireless.mode",
+                        "infrastructure",
+                    ])
                     .output()?;
                 Command::new("nmcli")
-                    .args(["connection", "modify", ssid, "connection.autoconnect", value])
+                    .args([
+                        "connection",
+                        "modify",
+                        ssid,
+                        "connection.autoconnect",
+                        value,
+                    ])
                     .output()?;
             } else {
                 Command::new("nmcli")
-                    .args(["networking", "connectivity", if enabled { "on" } else { "off" }])
+                    .args([
+                        "networking",
+                        "connectivity",
+                        if enabled { "on" } else { "off" },
+                    ])
                     .output()?;
             }
         }

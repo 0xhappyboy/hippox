@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothSetReceiveDirectorySkill;
@@ -25,17 +25,15 @@ impl Skill for BluetoothSetReceiveDirectorySkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "directory".to_string(),
-                param_type: "string".to_string(),
-                description: "Path to the directory for received files".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("/home/user/Downloads/Bluetooth".to_string())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "directory".to_string(),
+            param_type: "string".to_string(),
+            description: "Path to the directory for received files".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("/home/user/Downloads/Bluetooth".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,8 +49,8 @@ impl Skill for BluetoothSetReceiveDirectorySkill {
         "Receive directory set to: /home/user/Downloads/Bluetooth".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -60,18 +58,21 @@ impl Skill for BluetoothSetReceiveDirectorySkill {
             .get("directory")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'directory' parameter"))?;
-        
+
         // Create directory if it doesn't exist
         if !Path::new(directory).exists() {
             std::fs::create_dir_all(directory)?;
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             // Configure obexftp directory
-            std::fs::write("/etc/bluetooth/obexd.conf", format!("[General]\nDirectory={}\n", directory))?;
+            std::fs::write(
+                "/etc/bluetooth/obexd.conf",
+                format!("[General]\nDirectory={}\n", directory),
+            )?;
         }
-        
+
         Ok(format!("Receive directory set to: {}", directory))
     }
 }

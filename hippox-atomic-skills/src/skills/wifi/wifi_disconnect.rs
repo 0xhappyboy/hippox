@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::{disconnect_wifi, get_wifi_status};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiDisconnectSkill;
@@ -38,8 +38,8 @@ impl Skill for WifiDisconnectSkill {
         "Disconnected from WiFi network: MyWiFi".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -49,6 +49,9 @@ impl Skill for WifiDisconnectSkill {
             return Ok("Already disconnected from WiFi".to_string());
         }
         disconnect_wifi()?;
-        Ok(format!("Disconnected from WiFi network: {}", current_ssid.unwrap()))
+        Ok(format!(
+            "Disconnected from WiFi network: {}",
+            current_ssid.unwrap()
+        ))
     }
 }

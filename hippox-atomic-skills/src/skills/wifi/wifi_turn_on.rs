@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::wifi_on;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiTurnOnSkill;
@@ -38,8 +38,8 @@ impl Skill for WifiTurnOnSkill {
         "WiFi turned on".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {

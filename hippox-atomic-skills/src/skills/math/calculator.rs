@@ -3,8 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    types::{Skill, SkillParameter},
-    {format_number, validate_number},
+    SkillCategory, format_number, types::{Skill, SkillParameter}, validate_number
 };
 
 /// Mathematical expression evaluator with support for:
@@ -78,8 +77,8 @@ impl Skill for CalculatorSkill {
         "14.00".to_string()
     }
 
-    fn category(&self) -> &str {
-        "math"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Math
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

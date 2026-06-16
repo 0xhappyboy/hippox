@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiBandPreferenceSetSkill;
@@ -25,22 +25,20 @@ impl Skill for WifiBandPreferenceSetSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "band".to_string(),
-                param_type: "string".to_string(),
-                description: "Preferred band: '2.4', '5', '6', or 'auto'".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("5".to_string())),
-                enum_values: Some(vec![
-                    "2.4".to_string(),
-                    "5".to_string(),
-                    "6".to_string(),
-                    "auto".to_string(),
-                ]),
-            },
-        ]
+        vec![SkillParameter {
+            name: "band".to_string(),
+            param_type: "string".to_string(),
+            description: "Preferred band: '2.4', '5', '6', or 'auto'".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("5".to_string())),
+            enum_values: Some(vec![
+                "2.4".to_string(),
+                "5".to_string(),
+                "6".to_string(),
+                "auto".to_string(),
+            ]),
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -56,8 +54,8 @@ impl Skill for WifiBandPreferenceSetSkill {
         "WiFi band preference set to: 5GHz".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::set_output_device;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct AudioControlOutputDeviceSetSkill;
@@ -26,17 +26,15 @@ impl Skill for AudioControlOutputDeviceSetSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "device_id".to_string(),
-                param_type: "string".to_string(),
-                description: "Device ID from output device list".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("headphones".to_string())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "device_id".to_string(),
+            param_type: "string".to_string(),
+            description: "Device ID from output device list".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("headphones".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -52,17 +50,16 @@ impl Skill for AudioControlOutputDeviceSetSkill {
         "Output device set to headphones".to_string()
     }
 
-    fn category(&self) -> &str {
-        "audio_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Audio
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let device_id = parameters.get("device_id")
+        let device_id = parameters
+            .get("device_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'device_id' parameter"))?;
-        
         set_output_device(device_id)?;
-        
         Ok(format!("Output device set to {}", device_id))
     }
 }

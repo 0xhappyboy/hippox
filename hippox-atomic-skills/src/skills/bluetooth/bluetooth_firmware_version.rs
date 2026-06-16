@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothFirmwareVersionSkill;
@@ -25,17 +25,15 @@ impl Skill for BluetoothFirmwareVersionSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "mac_address".to_string(),
-                param_type: "string".to_string(),
-                description: "MAC address of the device".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("AA:BB:CC:DD:EE:FF".to_string())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "mac_address".to_string(),
+            param_type: "string".to_string(),
+            description: "MAC address of the device".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("AA:BB:CC:DD:EE:FF".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,8 +49,8 @@ impl Skill for BluetoothFirmwareVersionSkill {
         "Firmware version: 1.2.3".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -60,13 +58,13 @@ impl Skill for BluetoothFirmwareVersionSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         #[cfg(target_os = "linux")]
         {
             let output = Command::new("bluetoothctl")
                 .args(["info", mac_address])
                 .output()?;
-            
+
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
                 if line.contains("Firmware") || line.contains("Version") {
@@ -76,7 +74,10 @@ impl Skill for BluetoothFirmwareVersionSkill {
                 }
             }
         }
-        
-        Ok(format!("Firmware version not available for {}", mac_address))
+
+        Ok(format!(
+            "Firmware version not available for {}",
+            mac_address
+        ))
     }
 }

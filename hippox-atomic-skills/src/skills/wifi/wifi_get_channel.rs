@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_wifi_status;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiGetChannelSkill;
@@ -38,17 +38,17 @@ impl Skill for WifiGetChannelSkill {
         "Current channel: 6 (2.4GHz)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let status = get_wifi_status()?;
-        
+
         if !status.connected {
             return Ok("Not connected to WiFi".to_string());
         }
-        
+
         if let Some(channel) = status.channel {
             let freq = if channel <= 14 {
                 "2.4GHz"

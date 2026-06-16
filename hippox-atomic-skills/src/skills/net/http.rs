@@ -1,6 +1,5 @@
 use crate::{
-    execute, parse_config,
-    types::{Skill, SkillParameter},
+    SkillCategory, execute, parse_config, types::{Skill, SkillParameter}
 };
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -96,9 +95,9 @@ impl Skill for HttpRequestSkill {
     fn example_output(&self) -> String {
         "HTTP 200:\n{\"full_name\": \"rust-lang/rust\", ...}".to_string()
     }
-
-    fn category(&self) -> &str {
-        "net"
+    
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

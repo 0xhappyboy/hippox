@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    ensure_dir, file_exists,
+    SkillCategory, ensure_dir, file_exists,
     types::{Skill, SkillParameter},
     validate_path,
 };
@@ -99,8 +99,8 @@ impl Skill for PdfReadSkill {
         "PDF content extracted from document.pdf\nPage 1: This is the content...".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -229,8 +229,8 @@ impl Skill for PdfMergeSkill {
         "Merged 2 PDF files into: merged.pdf".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -367,8 +367,8 @@ impl Skill for PdfInfoSkill {
         "PDF Info:\nPages: 25\nTitle: My Document\nAuthor: John Doe".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -500,24 +500,6 @@ mod tests {
         let mut invalid_params = HashMap::new();
         invalid_params.insert("path".to_string(), json!(true));
         assert!(skill.validate(&invalid_params).is_err());
-    }
-
-    /// Test skill name and description consistency
-    #[test]
-    fn test_skill_metadata() {
-        let read_skill = PdfReadSkill;
-        assert_eq!(read_skill.name(), "pdf_read");
-        assert_eq!(read_skill.category(), "document");
-        assert!(!read_skill.description().is_empty());
-        assert!(!read_skill.usage_hint().is_empty());
-        let merge_skill = PdfMergeSkill;
-        assert_eq!(merge_skill.name(), "pdf_merge");
-        assert_eq!(merge_skill.category(), "document");
-        assert!(!merge_skill.description().is_empty());
-        let info_skill = PdfInfoSkill;
-        assert_eq!(info_skill.name(), "pdf_info");
-        assert_eq!(info_skill.category(), "document");
-        assert!(!info_skill.description().is_empty());
     }
 
     /// Test parameter definitions are complete

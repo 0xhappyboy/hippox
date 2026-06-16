@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_volume;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct AudioControlVolumeGetSkill;
@@ -39,8 +39,8 @@ impl Skill for AudioControlVolumeGetSkill {
         "Current volume: 65%".to_string()
     }
 
-    fn category(&self) -> &str {
-        "audio_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Audio
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {

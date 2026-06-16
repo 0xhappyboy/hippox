@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    ensure_dir, file_exists, read_file_content,
+    SkillCategory, ensure_dir, file_exists, read_file_content,
     types::{Skill, SkillParameter},
     validate_path, write_file_content,
 };
@@ -71,8 +71,8 @@ impl Skill for OdsReadSkill {
         "Sheet: Sheet1\nRow 1: [Value1, Value2]\nRow 2: [Value3, Value4]".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -195,8 +195,8 @@ impl Skill for OdtReadSkill {
         "Document content extracted from OpenDocument text file...".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -242,7 +242,7 @@ impl Skill for OdtReadSkill {
 
 fn parse_ods_content(xml: &str, limit: usize) -> Result<(Vec<Vec<Vec<String>>>, Vec<String>)> {
     let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true); 
+    reader.config_mut().trim_text(true);
     let mut sheets = Vec::new();
     let mut sheet_names = Vec::new();
     let mut current_sheet = Vec::new();
@@ -255,32 +255,30 @@ fn parse_ods_content(xml: &str, limit: usize) -> Result<(Vec<Vec<Vec<String>>>, 
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(ref e)) => {
-                match e.name().as_ref() {
-                    b"table:table" => {
-                        in_table = true;
-                        for attr in e.attributes() {
-                            if let Ok(attr) = attr {
-                                if attr.key.as_ref() == b"table:name" {
-                                    if let Ok(name) = attr.unescape_value() {
-                                        current_sheet_name = name.to_string();
-                                    }
+            Ok(Event::Start(ref e)) => match e.name().as_ref() {
+                b"table:table" => {
+                    in_table = true;
+                    for attr in e.attributes() {
+                        if let Ok(attr) = attr {
+                            if attr.key.as_ref() == b"table:name" {
+                                if let Ok(name) = attr.unescape_value() {
+                                    current_sheet_name = name.to_string();
                                 }
                             }
                         }
-                        current_sheet.clear();
                     }
-                    b"table:table-row" => {
-                        in_row = true;
-                        current_row.clear();
-                    }
-                    b"table:table-cell" => {
-                        in_cell = true;
-                        cell_value.clear();
-                    }
-                    _ => {}
+                    current_sheet.clear();
                 }
-            }
+                b"table:table-row" => {
+                    in_row = true;
+                    current_row.clear();
+                }
+                b"table:table-cell" => {
+                    in_cell = true;
+                    cell_value.clear();
+                }
+                _ => {}
+            },
             Ok(Event::Text(e)) => {
                 if in_cell {
                     if let Ok(text) = e.decode() {

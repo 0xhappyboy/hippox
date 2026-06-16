@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::Read;
 
 use super::common::connect_wifi;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiImportConfigSkill;
@@ -65,8 +65,8 @@ impl Skill for WifiImportConfigSkill {
         "Imported 3 WiFi networks from: ./wifi_backup.json".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

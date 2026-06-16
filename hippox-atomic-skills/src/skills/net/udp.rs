@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
 
-use crate::{Skill, SkillParameter};
+use crate::{Skill, SkillCategory, SkillParameter};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -35,8 +35,8 @@ impl Skill for UdpSendSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to send UDP datagram to a server"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -147,8 +147,8 @@ impl Skill for UdpReceiveSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to listen for UDP packets"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -280,8 +280,8 @@ impl Skill for UdpBroadcastSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to send a broadcast message to all hosts on the network"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

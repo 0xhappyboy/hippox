@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::pair_device;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothPairSkill;
@@ -29,7 +29,8 @@ impl Skill for BluetoothPairSkill {
             SkillParameter {
                 name: "mac_address".to_string(),
                 param_type: "string".to_string(),
-                description: "MAC address of the device to pair with (format: XX:XX:XX:XX:XX:XX)".to_string(),
+                description: "MAC address of the device to pair with (format: XX:XX:XX:XX:XX:XX)"
+                    .to_string(),
                 required: true,
                 default: None,
                 example: Some(Value::String("AA:BB:CC:DD:EE:FF".to_string())),
@@ -60,8 +61,8 @@ impl Skill for BluetoothPairSkill {
         "Paired with device: AA:BB:CC:DD:EE:FF".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -69,9 +70,9 @@ impl Skill for BluetoothPairSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         pair_device(mac_address)?;
-        
+
         Ok(format!("Paired with device: {}", mac_address))
     }
 }

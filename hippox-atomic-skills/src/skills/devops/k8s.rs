@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::types::{Skill, SkillParameter};
-use crate::{ExecOptions, exec_async, exec_with_stdin_async};
+use crate::{ExecOptions, SkillCategory, exec_async, exec_with_stdin_async};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -78,8 +78,8 @@ impl Skill for K8sGetPodsSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when you need to see running pods, check pod status, or find pod names in a k8s cluster"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -223,8 +223,8 @@ impl Skill for K8sDescribePodSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to debug pod issues, check pod events, or get detailed pod configuration"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -318,8 +318,8 @@ impl Skill for K8sGetLogsSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to debug pod issues, check application logs, or monitor pod output"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -480,8 +480,8 @@ impl Skill for K8sExecSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to run commands inside pods for debugging, maintenance, or diagnostics"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -632,8 +632,8 @@ impl Skill for K8sGetDeploymentsSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to check deployment status, replicas, and rollout history"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -765,8 +765,8 @@ impl Skill for K8sScaleDeploymentSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to scale applications up or down based on load"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -877,8 +877,8 @@ impl Skill for K8sRestartDeploymentSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to restart applications after config changes or to recover from issues"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -974,8 +974,8 @@ impl Skill for K8sGetNodesSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to check node health, capacity, and resource utilization"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -1080,8 +1080,8 @@ impl Skill for K8sGetNamespacesSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to see available namespaces and their status"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -1183,8 +1183,8 @@ impl Skill for K8sApplyYamlSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to create or update k8s resources from manifests"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -1282,8 +1282,8 @@ impl Skill for K8sDeleteResourceSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to remove unwanted resources from the cluster"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

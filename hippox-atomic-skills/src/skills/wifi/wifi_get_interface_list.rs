@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::list_interfaces;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiGetInterfaceListSkill;
@@ -38,17 +38,17 @@ impl Skill for WifiGetInterfaceListSkill {
         "Found 1 interface:\n1. wlan0 (MAC: 00:11:22:33:44:55, State: connected)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let interfaces = list_interfaces()?;
-        
+
         if interfaces.is_empty() {
             return Ok("No wireless interfaces found".to_string());
         }
-        
+
         let mut result = format!("Found {} interface(s):\n", interfaces.len());
         for (i, iface) in interfaces.iter().enumerate() {
             result.push_str(&format!(
@@ -60,7 +60,7 @@ impl Skill for WifiGetInterfaceListSkill {
                 if iface.is_default { " [DEFAULT]" } else { "" }
             ));
         }
-        
+
         Ok(result)
     }
 }

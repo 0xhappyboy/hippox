@@ -2061,14 +2061,12 @@ mod registry_test {
 pub fn get_skills_by_categories(categories: &[String]) -> Vec<Arc<dyn Skill>> {
     let registry = get_registry();
     let mut result = Vec::new();
-
     for (name, skill) in registry.iter() {
         let skill_category = skill.category();
         if categories.iter().any(|cat| cat == skill_category) {
             result.push(skill.clone());
         }
     }
-
     result
 }
 
@@ -2076,14 +2074,12 @@ pub fn get_skills_by_categories(categories: &[String]) -> Vec<Arc<dyn Skill>> {
 pub fn list_skills_by_categories(categories: &[String]) -> Vec<String> {
     let registry = get_registry();
     let mut result = Vec::new();
-
     for (name, skill) in registry.iter() {
         let skill_category = skill.category();
         if categories.iter().any(|cat| cat == skill_category) {
             result.push(name.clone());
         }
     }
-
     result
 }
 

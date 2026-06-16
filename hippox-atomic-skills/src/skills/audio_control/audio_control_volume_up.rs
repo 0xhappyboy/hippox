@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::volume_up;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct AudioControlVolumeUpSkill;
@@ -26,17 +26,15 @@ impl Skill for AudioControlVolumeUpSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "delta".to_string(),
-                param_type: "integer".to_string(),
-                description: "Amount to increase by (0-100)".to_string(),
-                required: false,
-                default: Some(Value::Number(10.into())),
-                example: Some(Value::Number(20.into())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "delta".to_string(),
+            param_type: "integer".to_string(),
+            description: "Amount to increase by (0-100)".to_string(),
+            required: false,
+            default: Some(Value::Number(10.into())),
+            example: Some(Value::Number(20.into())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -52,17 +50,18 @@ impl Skill for AudioControlVolumeUpSkill {
         "Volume increased by 10%".to_string()
     }
 
-    fn category(&self) -> &str {
-        "audio_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Audio
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let delta = parameters.get("delta")
+        let delta = parameters
+            .get("delta")
             .and_then(|v| v.as_u64())
             .unwrap_or(10) as u32;
-        
+
         volume_up(delta)?;
-        
+
         Ok(format!("Volume increased by {}%", delta))
     }
 }

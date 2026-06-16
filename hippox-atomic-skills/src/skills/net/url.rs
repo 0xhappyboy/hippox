@@ -3,8 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    execute, parse_config,
-    types::{Skill, SkillParameter},
+    SkillCategory, execute, parse_config, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -104,8 +103,8 @@ impl Skill for ReadUrlSkill {
         "HTTP 200:\n{\"full_name\": \"rust-lang/rust\", ...}".to_string()
     }
 
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

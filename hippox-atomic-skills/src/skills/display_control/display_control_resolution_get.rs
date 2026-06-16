@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_resolution;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlResolutionGetSkill;
@@ -39,13 +39,13 @@ impl Skill for DisplayControlResolutionGetSkill {
         "Current resolution: 1920x1080".to_string()
     }
 
-    fn category(&self) -> &str {
-        "display_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Display
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let (width, height) = get_resolution(None)?;
-        
+
         Ok(format!("Current resolution: {}x{}", width, height))
     }
 }

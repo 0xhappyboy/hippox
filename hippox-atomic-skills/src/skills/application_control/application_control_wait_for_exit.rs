@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::{find_process_by_name, wait_for_exit};
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlWaitForExitSkill;
@@ -62,8 +62,8 @@ impl Skill for ApplicationControlWaitForExitSkill {
         "Application exited within timeout".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -23,8 +23,6 @@ pub fn register(registry: &mut SkillRegistryMap) {
             Arc::new(OsGetLoadAverageSkill),
         );
         map.insert("os_get_hostname".to_string(), Arc::new(OsGetHostnameSkill));
-        map.insert("os_get_time".to_string(), Arc::new(OsGetTimeSkill));
-        map.insert("os_set_time".to_string(), Arc::new(OsSetTimeSkill));
         map.insert("os_get_user".to_string(), Arc::new(OsGetUserSkill));
         map.insert("os_disk_usage".to_string(), Arc::new(OsDiskUsageSkill));
         map.insert("os_memory_info".to_string(), Arc::new(OsMemoryInfoSkill));

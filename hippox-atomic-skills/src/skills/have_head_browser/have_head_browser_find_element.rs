@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::shared::*;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct HaveHeadBrowserFindElementSkill;
@@ -60,8 +60,8 @@ impl Skill for HaveHeadBrowserFindElementSkill {
         "Element found: .result-title".to_string()
     }
 
-    fn category(&self) -> &str {
-        "have_head_browser"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::HaveHeadBrowser
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

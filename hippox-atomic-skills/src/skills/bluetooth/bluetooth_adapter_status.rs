@@ -5,7 +5,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_adapter_status;
-use crate::types::{Skill, SkillParameter};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct BluetoothAdapterStatusSkill;
@@ -49,8 +52,8 @@ impl Skill for BluetoothAdapterStatusSkill {
         "Bluetooth Status:\n- Powered On: Yes\n- Discoverable: Yes\n- Name: My Computer\n- MAC Address: AA:BB:CC:DD:EE:FF".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::scan_devices;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothScanSkill;
@@ -25,17 +25,15 @@ impl Skill for BluetoothScanSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "timeout_secs".to_string(),
-                param_type: "integer".to_string(),
-                description: "Scan timeout in seconds (default: 10)".to_string(),
-                required: false,
-                default: Some(Value::Number(10.into())),
-                example: Some(Value::Number(15.into())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "timeout_secs".to_string(),
+            param_type: "integer".to_string(),
+            description: "Scan timeout in seconds (default: 10)".to_string(),
+            required: false,
+            default: Some(Value::Number(10.into())),
+            example: Some(Value::Number(15.into())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,8 +49,8 @@ impl Skill for BluetoothScanSkill {
         "Found 3 devices:\n1. My Headphones (AA:BB:CC:DD:EE:FF) [Audio]\n2. My Phone (11:22:33:44:55:66) [Phone]\n3. Mouse (77:88:99:AA:BB:CC) [HID]".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -60,15 +58,15 @@ impl Skill for BluetoothScanSkill {
             .get("timeout_secs")
             .and_then(|v| v.as_u64())
             .unwrap_or(10);
-        
+
         tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
-        
+
         let devices = scan_devices()?;
-        
+
         if devices.is_empty() {
             return Ok("No Bluetooth devices found".to_string());
         }
-        
+
         let mut result = format!("Found {} devices:\n", devices.len());
         for (i, device) in devices.iter().enumerate() {
             let paired_marker = if device.paired { " [PAIRED]" } else { "" };
@@ -86,7 +84,7 @@ impl Skill for BluetoothScanSkill {
             }
             result.push('\n');
         }
-        
+
         Ok(result)
     }
 }

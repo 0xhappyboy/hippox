@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::{find_window, get_window_rect, set_window_pos};
+use super::common::{find_window, get_window_rect, set_window_pos};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlMoveSkill;
@@ -80,21 +80,27 @@ impl Skill for WindowControlMoveSkill {
         "Window moved to (100, 100)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        let x = parameters.get("x").and_then(|v| v.as_i64()).ok_or_else(|| anyhow::anyhow!("Missing x"))? as i32;
-        let y = parameters.get("y").and_then(|v| v.as_i64()).ok_or_else(|| anyhow::anyhow!("Missing y"))? as i32;
-        
+        let x = parameters
+            .get("x")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| anyhow::anyhow!("Missing x"))? as i32;
+        let y = parameters
+            .get("y")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| anyhow::anyhow!("Missing y"))? as i32;
+
         let window_id = find_window(title, process)?;
         let rect = get_window_rect(window_id)?;
-        
+
         set_window_pos(window_id, x, y, rect.width, rect.height)?;
-        
+
         Ok(format!("Window moved to ({}, {})", x, y))
     }
 }

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothBleWriteSkill;
@@ -41,7 +41,9 @@ impl Skill for BluetoothBleWriteSkill {
                 description: "UUID of the characteristic to write".to_string(),
                 required: true,
                 default: None,
-                example: Some(Value::String("00002a19-0000-1000-8000-00805f9b34fb".to_string())),
+                example: Some(Value::String(
+                    "00002a19-0000-1000-8000-00805f9b34fb".to_string(),
+                )),
                 enum_values: None,
             },
             SkillParameter {
@@ -71,8 +73,8 @@ impl Skill for BluetoothBleWriteSkill {
         "Characteristic value written successfully".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -80,24 +82,24 @@ impl Skill for BluetoothBleWriteSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         let characteristic_uuid = parameters
             .get("characteristic_uuid")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'characteristic_uuid' parameter"))?;
-        
+
         let value = parameters
             .get("value")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'value' parameter"))?;
-        
+
         #[cfg(target_os = "linux")]
         {
             Command::new("bluetoothctl")
                 .args(["set-value", mac_address, characteristic_uuid, value])
                 .output()?;
         }
-        
+
         Ok("Characteristic value written successfully".to_string())
     }
 }

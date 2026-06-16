@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::common::{list_saved_networks, get_wifi_status};
+use super::common::{get_wifi_status, list_saved_networks};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiListConnectionsSkill;
@@ -38,20 +38,20 @@ impl Skill for WifiListConnectionsSkill {
         "Saved networks (3):\n1. MyWiFi [Connected]\n2. GuestWiFi\n3. OfficeNet".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let status = get_wifi_status()?;
         let current_ssid = status.ssid.clone();
-        
+
         let saved_networks = list_saved_networks()?;
-        
+
         if saved_networks.is_empty() {
             return Ok("No saved WiFi networks found".to_string());
         }
-        
+
         let mut result = format!("Saved networks ({}):\n", saved_networks.len());
         for (i, network) in saved_networks.iter().enumerate() {
             let connected_marker = if Some(&network.ssid) == current_ssid.as_ref() {
@@ -59,9 +59,14 @@ impl Skill for WifiListConnectionsSkill {
             } else {
                 ""
             };
-            result.push_str(&format!("{}. {}{}\n", i + 1, network.ssid, connected_marker));
+            result.push_str(&format!(
+                "{}. {}{}\n",
+                i + 1,
+                network.ssid,
+                connected_marker
+            ));
         }
-        
+
         if let Some(ssid) = current_ssid {
             result.push_str(&format!("\nCurrently connected to: {}", ssid));
             if let Some(ip) = status.ip_address {
@@ -73,7 +78,7 @@ impl Skill for WifiListConnectionsSkill {
         } else {
             result.push_str("\nNot currently connected to any WiFi network");
         }
-        
+
         Ok(result)
     }
 }

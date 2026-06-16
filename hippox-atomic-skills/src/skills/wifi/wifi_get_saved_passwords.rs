@@ -5,8 +5,8 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::list_saved_networks;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiGetSavedPasswordsSkill;
@@ -26,17 +26,15 @@ impl Skill for WifiGetSavedPasswordsSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "ssid".to_string(),
-                param_type: "string".to_string(),
-                description: "Specific SSID to get password for (omit for all networks)".to_string(),
-                required: false,
-                default: None,
-                example: Some(Value::String("MyWiFi".to_string())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "ssid".to_string(),
+            param_type: "string".to_string(),
+            description: "Specific SSID to get password for (omit for all networks)".to_string(),
+            required: false,
+            default: None,
+            example: Some(Value::String("MyWiFi".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -52,17 +50,15 @@ impl Skill for WifiGetSavedPasswordsSkill {
         "Password for MyWiFi: password123".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let specific_ssid = parameters
-            .get("ssid")
-            .and_then(|v| v.as_str());
-        
+        let specific_ssid = parameters.get("ssid").and_then(|v| v.as_str());
+
         let mut result = String::new();
-        
+
         #[cfg(target_os = "windows")]
         {
             if let Some(ssid) = specific_ssid {
@@ -70,7 +66,7 @@ impl Skill for WifiGetSavedPasswordsSkill {
                     .args(["wlan", "show", "profile", "name=", ssid, "key=clear"])
                     .output()?;
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                
+
                 for line in stdout.lines() {
                     if line.contains("Key Content") || line.contains("关键内容") {
                         if let Some(pwd) = line.split(':').nth(1) {
@@ -86,10 +82,17 @@ impl Skill for WifiGetSavedPasswordsSkill {
                 let networks = list_saved_networks()?;
                 for network in networks {
                     let output = Command::new("netsh")
-                        .args(["wlan", "show", "profile", "name=", &network.ssid, "key=clear"])
+                        .args([
+                            "wlan",
+                            "show",
+                            "profile",
+                            "name=",
+                            &network.ssid,
+                            "key=clear",
+                        ])
                         .output()?;
                     let stdout = String::from_utf8_lossy(&output.stdout);
-                    
+
                     for line in stdout.lines() {
                         if line.contains("Key Content") || line.contains("关键内容") {
                             if let Some(pwd) = line.split(':').nth(1) {
@@ -101,16 +104,16 @@ impl Skill for WifiGetSavedPasswordsSkill {
                 }
             }
         }
-        
+
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
             result = "Password retrieval on this platform requires root privileges. Please run with sudo.".to_string();
         }
-        
+
         if result.is_empty() {
             result = "No saved passwords found".to_string();
         }
-        
+
         Ok(result)
     }
 }

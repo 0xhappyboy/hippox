@@ -5,7 +5,8 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use super::shared::{find_window, get_focus_window};
+use super::common::{find_window, get_focus_window};
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 
 #[derive(Debug)]
@@ -71,8 +72,8 @@ impl Skill for WindowControlWaitForFocusSkill {
         "Window gained focus after 1234ms".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -88,7 +89,7 @@ impl Skill for WindowControlWaitForFocusSkill {
                 anyhow::bail!("Timeout waiting for window to gain focus");
             }
             let focused_id = get_focus_window()?;
-            use super::shared::list_windows;
+            use super::common::list_windows;
             let windows = list_windows()?;
             if let Some(focused) = windows.iter().find(|w| w.id == focused_id) {
                 let match_title = title.map_or(false, |t| {

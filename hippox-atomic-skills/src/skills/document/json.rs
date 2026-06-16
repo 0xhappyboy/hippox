@@ -3,7 +3,7 @@ use serde_json::{Value, from_str, json, to_string_pretty};
 use std::collections::HashMap;
 
 use crate::{
-    ensure_dir, file_exists, read_file_content,
+    SkillCategory, ensure_dir, file_exists, read_file_content,
     types::{Skill, SkillParameter},
     validate_path, write_file_content,
 };
@@ -72,8 +72,8 @@ impl Skill for JsonReadSkill {
         "{\n  \"name\": \"example\",\n  \"version\": \"1.0\"\n}".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -188,8 +188,8 @@ impl Skill for JsonWriteSkill {
         "JSON written to: output.json".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -297,8 +297,8 @@ impl Skill for JsonValidateSkill {
         "JSON is valid".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

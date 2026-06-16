@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::{close_process_window, find_process_by_name};
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlCloseSkill;
@@ -50,8 +50,8 @@ impl Skill for ApplicationControlCloseSkill {
         "Application closed".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

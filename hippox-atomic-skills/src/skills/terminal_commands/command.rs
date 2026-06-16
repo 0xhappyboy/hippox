@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    ExecOptions, exec_async,
+    ExecOptions, SkillCategory, exec_async,
     types::{Skill, SkillParameter},
 };
 
@@ -89,8 +89,8 @@ impl Skill for ExecCommandSkill {
         "Hello World".to_string()
     }
 
-    fn category(&self) -> &str {
-        "terminal_commands"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Terminal
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

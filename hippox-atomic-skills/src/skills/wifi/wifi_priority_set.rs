@@ -5,8 +5,8 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::list_saved_networks;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiPrioritySetSkill;
@@ -26,17 +26,16 @@ impl Skill for WifiPrioritySetSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "priority_list".to_string(),
-                param_type: "array".to_string(),
-                description: "List of SSIDs in order of priority (first = highest priority)".to_string(),
-                required: true,
-                default: None,
-                example: Some(json!(["MyWiFi", "GuestWiFi", "OfficeNet"])),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "priority_list".to_string(),
+            param_type: "array".to_string(),
+            description: "List of SSIDs in order of priority (first = highest priority)"
+                .to_string(),
+            required: true,
+            default: None,
+            example: Some(json!(["MyWiFi", "GuestWiFi", "OfficeNet"])),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -52,8 +51,8 @@ impl Skill for WifiPrioritySetSkill {
         "WiFi priority set: MyWiFi (highest) > GuestWiFi > OfficeNet".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -61,18 +60,18 @@ impl Skill for WifiPrioritySetSkill {
             .get("priority_list")
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("Missing 'priority_list' parameter"))?;
-        
+
         let ssids: Vec<String> = priority_list
             .iter()
             .filter_map(|v| v.as_str().map(|s| s.to_string()))
             .collect();
-        
+
         if ssids.is_empty() {
             anyhow::bail!("priority_list must contain at least one SSID");
         }
-        
+
         set_network_priority(&ssids)?;
-        
+
         let priority_display: Vec<String> = ssids
             .iter()
             .enumerate()
@@ -84,8 +83,11 @@ impl Skill for WifiPrioritySetSkill {
                 }
             })
             .collect();
-        
-        Ok(format!("WiFi priority set: {}", priority_display.join(" > ")))
+
+        Ok(format!(
+            "WiFi priority set: {}",
+            priority_display.join(" > ")
+        ))
     }
 }
 
@@ -96,7 +98,7 @@ fn set_network_priority(ssids: &[String]) -> Result<()> {
         .args(["wlan", "show", "profiles"])
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     let mut current_profiles: Vec<String> = Vec::new();
     for line in stdout.lines() {
         if line.contains(":") && !line.contains("All User Profile") {
@@ -108,16 +110,25 @@ fn set_network_priority(ssids: &[String]) -> Result<()> {
             }
         }
     }
-    
+
     // Set priority by reordering profiles
     for (priority, ssid) in ssids.iter().enumerate() {
         if current_profiles.contains(ssid) {
             Command::new("netsh")
-                .args(["wlan", "set", "profile", "order", "name=", ssid, "priority=", &priority.to_string()])
+                .args([
+                    "wlan",
+                    "set",
+                    "profile",
+                    "order",
+                    "name=",
+                    ssid,
+                    "priority=",
+                    &priority.to_string(),
+                ])
                 .output()?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -126,27 +137,33 @@ fn set_network_priority(ssids: &[String]) -> Result<()> {
     // Linux uses NetworkManager connection autoconnect-priority
     for (priority, ssid) in ssids.iter().enumerate() {
         let priority_value = (ssids.len() - priority) * 10;
-        
+
         // Find connection name (might be different from SSID)
         let output = Command::new("nmcli")
             .args(["-t", "-f", "NAME,TYPE", "connection", "show"])
             .output()?;
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         for line in stdout.lines() {
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() >= 2 && parts[1] == "802-11-wireless" {
                 let conn_name = parts[0];
                 if conn_name.contains(ssid) || ssid.contains(conn_name) {
                     Command::new("nmcli")
-                        .args(["connection", "modify", conn_name, "connection.autoconnect-priority", &priority_value.to_string()])
+                        .args([
+                            "connection",
+                            "modify",
+                            conn_name,
+                            "connection.autoconnect-priority",
+                            &priority_value.to_string(),
+                        ])
                         .output()?;
                     break;
                 }
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -154,19 +171,19 @@ fn set_network_priority(ssids: &[String]) -> Result<()> {
 fn set_network_priority(ssids: &[String]) -> Result<()> {
     // macOS uses preferred networks order
     let service_name = get_wifi_service_name()?;
-    
+
     // Get existing preferred networks
     let output = Command::new("networksetup")
         .args(["-listpreferredwirelessnetworks", &service_name])
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Build new order list
     let mut new_order = Vec::new();
     for ssid in ssids {
         new_order.push(ssid.as_str());
     }
-    
+
     // Add any existing networks not in priority list at the end
     for line in stdout.lines().skip(1) {
         let line_ssid = line.trim_start_matches('*').trim();
@@ -174,27 +191,27 @@ fn set_network_priority(ssids: &[String]) -> Result<()> {
             new_order.push(line_ssid);
         }
     }
-    
+
     // Remove all existing preferred networks
     let output = Command::new("networksetup")
         .args(["-listpreferredwirelessnetworks", &service_name])
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     for line in stdout.lines().skip(1) {
         let ssid = line.trim_start_matches('*').trim();
         let _ = Command::new("networksetup")
             .args(["-removepreferredwirelessnetwork", &service_name, ssid])
             .output();
     }
-    
+
     // Add networks in new priority order
     for ssid in new_order {
         Command::new("networksetup")
             .args(["-addpreferredwirelessnetwork", &service_name, ssid, "0"])
             .output()?;
     }
-    
+
     Ok(())
 }
 
@@ -204,7 +221,7 @@ fn get_wifi_service_name() -> Result<String> {
         .args(["-listallhardwareports"])
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     let lines: Vec<&str> = stdout.lines().collect();
     for (i, line) in lines.iter().enumerate() {
         if line.contains("Hardware Port: Wi-Fi") || line.contains("Hardware Port: AirPort") {
@@ -215,7 +232,7 @@ fn get_wifi_service_name() -> Result<String> {
             }
         }
     }
-    
+
     Ok("Wi-Fi".to_string())
 }
 

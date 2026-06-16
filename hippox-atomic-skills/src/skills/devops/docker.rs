@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::types::{Skill, SkillParameter};
-use crate::{ExecOptions, exec_async, exec_with_stdin_async};
+use crate::{ExecOptions, SkillCategory, exec_async, exec_with_stdin_async};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -51,8 +51,9 @@ impl Skill for DockerPsSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when you need to see running containers, check container status, or find container IDs"
     }
-    fn category(&self) -> &str {
-        "devops"
+
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -181,8 +182,8 @@ impl Skill for DockerStartStopSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to control container lifecycle: start, stop, restart, pause, or unpause"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -294,8 +295,8 @@ impl Skill for DockerLogsSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to debug container issues, monitor output, or check error logs"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -415,8 +416,8 @@ impl Skill for DockerInspectSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when you need detailed container configuration, network settings, or mount information"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -498,8 +499,8 @@ impl Skill for DockerExecSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill to run commands inside containers for debugging, maintenance, or automation"
     }
-    fn category(&self) -> &str {
-        "devops"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

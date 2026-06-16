@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::types::{Skill, SkillParameter};
-use crate::{RequestConfig, execute};
+use crate::{RequestConfig, SkillCategory, execute};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -36,14 +36,17 @@ impl Skill for SendDingDingSkill {
     fn name(&self) -> &str {
         "send_dingding"
     }
+
     fn description(&self) -> &str {
         "Send a message via DingDing robot"
     }
+
     fn usage_hint(&self) -> &str {
         "Use this skill when the user wants to send a DingDing message, notify via DingDing, or send a message to a DingDing group"
     }
-    fn category(&self) -> &str {
-        "messaging"
+
+    fn category(&self) -> SkillCategory {
+        SkillCategory::SocialPlatform
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

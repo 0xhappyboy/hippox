@@ -3,7 +3,7 @@ use chrono::{Duration, Local, Utc};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DateTimeSkill;
@@ -72,8 +72,8 @@ impl Skill for DateTimeSkill {
         "2024-01-15 14:30:25".to_string()
     }
 
-    fn category(&self) -> &str {
-        "time"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Time
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

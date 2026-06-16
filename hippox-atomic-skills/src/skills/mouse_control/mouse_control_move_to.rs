@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::set_mouse_position;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct MouseControlMoveToSkill;
@@ -62,21 +62,23 @@ impl Skill for MouseControlMoveToSkill {
         "Mouse moved to (500, 300)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "mouse_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Mouse
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let x = parameters.get("x")
+        let x = parameters
+            .get("x")
             .and_then(|v| v.as_i64())
             .ok_or_else(|| anyhow::anyhow!("Missing 'x' parameter"))? as i32;
-        
-        let y = parameters.get("y")
+
+        let y = parameters
+            .get("y")
             .and_then(|v| v.as_i64())
             .ok_or_else(|| anyhow::anyhow!("Missing 'y' parameter"))? as i32;
-        
+
         set_mouse_position(x, y)?;
-        
+
         Ok(format!("Mouse moved to ({}, {})", x, y))
     }
 }

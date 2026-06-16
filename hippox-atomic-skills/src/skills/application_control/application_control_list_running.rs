@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::list_running_processes;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlListRunningSkill;
@@ -58,38 +58,28 @@ impl Skill for ApplicationControlListRunningSkill {
         "Found 127 processes:\n1. System (PID: 4)\n2. notepad.exe (PID: 12345)\n...".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let filter = parameters.get("filter").and_then(|v| v.as_str());
-        let limit = parameters.get("limit")
+        let limit = parameters
+            .get("limit")
             .and_then(|v| v.as_u64())
             .unwrap_or(50) as usize;
-        
         let mut processes = list_running_processes()?;
-        
         if let Some(f) = filter {
             processes.retain(|p| p.name.to_lowercase().contains(&f.to_lowercase()));
         }
-        
         processes.truncate(limit);
-        
         if processes.is_empty() {
             return Ok("No processes found".to_string());
         }
-        
         let mut result = format!("Found {} processes:\n", processes.len());
         for (i, proc) in processes.iter().enumerate() {
-            result.push_str(&format!(
-                "{}. {} (PID: {})\n",
-                i + 1,
-                proc.name,
-                proc.pid
-            ));
+            result.push_str(&format!("{}. {} (PID: {})\n", i + 1, proc.name, proc.pid));
         }
-        
         Ok(result)
     }
 }

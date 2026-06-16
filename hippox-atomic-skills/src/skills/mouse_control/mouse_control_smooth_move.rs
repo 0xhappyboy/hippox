@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::smooth_move_to;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct MouseControlSmoothMoveSkill;
@@ -72,8 +72,8 @@ impl Skill for MouseControlSmoothMoveSkill {
         "Mouse smoothly moved to (500, 300) in 300ms".to_string()
     }
 
-    fn category(&self) -> &str {
-        "mouse_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Mouse
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

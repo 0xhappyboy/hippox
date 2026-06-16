@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiSetInterfacePowerSkill;
@@ -60,8 +60,8 @@ impl Skill for WifiSetInterfacePowerSkill {
         "WiFi interface power mode set to: performance".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -69,12 +69,12 @@ impl Skill for WifiSetInterfacePowerSkill {
             .get("mode")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mode' parameter"))?;
-        
+
         let interface = parameters
             .get("interface")
             .and_then(|v| v.as_str())
             .unwrap_or("wlan0");
-        
+
         #[cfg(target_os = "linux")]
         {
             let power_value = match mode {
@@ -82,25 +82,25 @@ impl Skill for WifiSetInterfacePowerSkill {
                 "powersave" => "on",
                 _ => anyhow::bail!("Invalid mode: {}", mode),
             };
-            
+
             Command::new("iwconfig")
                 .args([interface, "power", power_value])
                 .output()?;
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             // Windows power settings via powercfg
             let scheme = match mode {
                 "performance" => "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c", // High performance
-                "powersave" => "a1841308-3541-4fab-bc81-f71556f20b4a", // Power saver
+                "powersave" => "a1841308-3541-4fab-bc81-f71556f20b4a",   // Power saver
                 _ => anyhow::bail!("Invalid mode: {}", mode),
             };
             Command::new("powercfg")
                 .args(["/setactive", scheme])
                 .output()?;
         }
-        
+
         Ok(format!("WiFi interface power mode set to: {}", mode))
     }
 }

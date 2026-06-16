@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothReceiveFileSkill;
@@ -29,7 +29,8 @@ impl Skill for BluetoothReceiveFileSkill {
             SkillParameter {
                 name: "save_directory".to_string(),
                 param_type: "string".to_string(),
-                description: "Directory to save received files (default: downloads folder)".to_string(),
+                description: "Directory to save received files (default: downloads folder)"
+                    .to_string(),
                 required: false,
                 default: None,
                 example: Some(Value::String("/home/user/Downloads".to_string())),
@@ -61,8 +62,8 @@ impl Skill for BluetoothReceiveFileSkill {
         "Ready to receive files for 60 seconds".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,15 +71,15 @@ impl Skill for BluetoothReceiveFileSkill {
             .get("save_directory")
             .and_then(|v| v.as_str())
             .unwrap_or("/tmp/bluetooth_received");
-        
+
         let timeout = parameters
             .get("timeout_secs")
             .and_then(|v| v.as_u64())
             .unwrap_or(60);
-        
+
         // Create directory if it doesn't exist
         std::fs::create_dir_all(save_directory)?;
-        
+
         #[cfg(target_os = "linux")]
         {
             Command::new("bluetoothctl")
@@ -88,7 +89,10 @@ impl Skill for BluetoothReceiveFileSkill {
                 .args(["default-agent"])
                 .output()?;
         }
-        
-        Ok(format!("Ready to receive files in '{}' for {} seconds", save_directory, timeout))
+
+        Ok(format!(
+            "Ready to receive files in '{}' for {} seconds",
+            save_directory, timeout
+        ))
     }
 }

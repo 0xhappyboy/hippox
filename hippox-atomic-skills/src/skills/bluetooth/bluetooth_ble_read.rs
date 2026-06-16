@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothBleReadSkill;
@@ -41,7 +41,9 @@ impl Skill for BluetoothBleReadSkill {
                 description: "UUID of the characteristic to read".to_string(),
                 required: true,
                 default: None,
-                example: Some(Value::String("00002a19-0000-1000-8000-00805f9b34fb".to_string())),
+                example: Some(Value::String(
+                    "00002a19-0000-1000-8000-00805f9b34fb".to_string(),
+                )),
                 enum_values: None,
             },
         ]
@@ -61,8 +63,8 @@ impl Skill for BluetoothBleReadSkill {
         "Characteristic value: 0x64 (100)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,22 +72,25 @@ impl Skill for BluetoothBleReadSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         let characteristic_uuid = parameters
             .get("characteristic_uuid")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'characteristic_uuid' parameter"))?;
-        
+
         #[cfg(target_os = "linux")]
         {
             let output = Command::new("bluetoothctl")
                 .args(["get-value", mac_address, characteristic_uuid])
                 .output()?;
-            
+
             let stdout = String::from_utf8_lossy(&output.stdout);
             return Ok(format!("Characteristic value: {}", stdout.trim()));
         }
-        
-        Ok(format!("Read from {} characteristic {}", mac_address, characteristic_uuid))
+
+        Ok(format!(
+            "Read from {} characteristic {}",
+            mac_address, characteristic_uuid
+        ))
     }
 }

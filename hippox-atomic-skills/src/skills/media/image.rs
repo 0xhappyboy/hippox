@@ -35,7 +35,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::{
-    file_exists,
+    SkillCategory, file_exists,
     types::{Skill, SkillParameter},
 };
 
@@ -158,8 +158,8 @@ impl Skill for ImageResizeSkill {
         "Successfully resized image from 1920x1080 to 300x225 (aspect preserved)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "image"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Media
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -313,8 +313,8 @@ impl Skill for ImageConvertSkill {
         "Successfully converted image from PNG to JPEG (quality: 85)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "image"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Media
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -446,8 +446,8 @@ impl Skill for ImageInfoSkill {
         "{\n  \"dimensions\": \"1920x1080\",\n  \"format\": \"JPEG\",\n  \"file_size_bytes\": 245760,\n  \"file_size_kb\": 240.0\n}".to_string()
     }
 
-    fn category(&self) -> &str {
-        "image"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Media
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -610,8 +610,8 @@ impl Skill for ImageRotateSkill {
         "Successfully rotated image by 90 degrees".to_string()
     }
 
-    fn category(&self) -> &str {
-        "image"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Media
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -776,8 +776,8 @@ impl Skill for ImageCropSkill {
         "Successfully cropped image from 1920x1080 to 1000x800 at position (200, 150)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "image"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Media
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -956,8 +956,8 @@ impl Skill for ImageCompressSkill {
         "Compressed image: 2.5MB -> 850KB (66.0% reduction)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "image"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Media
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1107,7 +1107,7 @@ mod tests {
     #[tokio::test]
     async fn test_image_info_with_missing_parameter() {
         let skill = ImageInfoSkill;
-        let params = HashMap::new(); 
+        let params = HashMap::new();
         let result = skill.execute(&params).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Missing 'path'"));

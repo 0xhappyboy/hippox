@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothLeAdvertiseStopSkill;
@@ -38,8 +38,8 @@ impl Skill for BluetoothLeAdvertiseStopSkill {
         "BLE advertising stopped".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -49,7 +49,7 @@ impl Skill for BluetoothLeAdvertiseStopSkill {
                 .args(["advertise", "off"])
                 .output()?;
         }
-        
+
         Ok("BLE advertising stopped".to_string())
     }
 }

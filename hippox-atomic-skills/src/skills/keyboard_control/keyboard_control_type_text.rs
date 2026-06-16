@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::type_text;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct KeyboardControlTypeTextSkill;
@@ -62,19 +62,21 @@ impl Skill for KeyboardControlTypeTextSkill {
         "Typed: Hello World".to_string()
     }
 
-    fn category(&self) -> &str {
-        "keyboard_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Keyboard
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let text = parameters.get("text")
+        let text = parameters
+            .get("text")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'text' parameter"))?;
-        
-        let delay_ms = parameters.get("delay_ms")
+
+        let delay_ms = parameters
+            .get("delay_ms")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
-        
+
         if delay_ms > 0 {
             for c in text.chars() {
                 type_text(&c.to_string())?;
@@ -83,7 +85,7 @@ impl Skill for KeyboardControlTypeTextSkill {
         } else {
             type_text(text)?;
         }
-        
+
         Ok(format!("Typed: {}", text))
     }
 }

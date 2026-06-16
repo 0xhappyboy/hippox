@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::shared::find_window;
-use crate::types::{Skill, SkillParameter};
+use super::common::find_window;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlSendToBackSkill;
@@ -60,8 +60,8 @@ impl Skill for WindowControlSendToBackSkill {
         "Window sent to back".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -77,7 +77,7 @@ impl Skill for WindowControlSendToBackSkill {
             };
 
             unsafe {
-                let hwnd = super::shared::u64_to_hwnd(window_id);
+                let hwnd = super::common::u64_to_hwnd(window_id);
                 let _ = SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             }
         }

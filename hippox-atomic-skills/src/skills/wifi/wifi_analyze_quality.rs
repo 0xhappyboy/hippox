@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::{get_wifi_status, scan_wifi_networks};
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiAnalyzeQualitySkill;
@@ -38,8 +38,8 @@ impl Skill for WifiAnalyzeQualitySkill {
         "Quality Analysis:\n- Score: 75/100\n- Current Channel: 6\n- Recommended Channel: 11\n- Recommendations: Switch to channel 11 to avoid interference from 3 nearby networks".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {

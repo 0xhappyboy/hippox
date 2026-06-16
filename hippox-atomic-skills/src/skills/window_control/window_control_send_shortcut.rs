@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::{find_window, set_foreground_window};
+use super::common::{find_window, set_foreground_window};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlSendShortcutSkill;
@@ -84,23 +84,26 @@ impl Skill for WindowControlSendShortcutSkill {
         "Shortcut sent to window".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        let shortcut = parameters.get("shortcut").and_then(|v| v.as_str()).ok_or_else(|| anyhow::anyhow!("Missing shortcut"))?;
-        
+        let shortcut = parameters
+            .get("shortcut")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing shortcut"))?;
+
         if let Some(_window_id) = find_window(title, process).ok() {
             // Activate window first
             // set_foreground_window(window_id)?;
         }
-        
+
         // Use enigo or similar to send shortcut
         let _ = shortcut;
-        
+
         // Platform-specific shortcut implementation
         #[cfg(target_os = "windows")]
         {
@@ -113,7 +116,7 @@ impl Skill for WindowControlSendShortcutSkill {
                 _ => {}
             }
         }
-        
+
         Ok("Shortcut sent to window (implementation pending)".to_string())
     }
 }

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiDnsSetSkill;
@@ -61,8 +61,8 @@ impl Skill for WifiDnsSetSkill {
         "DNS set to: 8.8.8.8, 8.8.4.4".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,22 +70,36 @@ impl Skill for WifiDnsSetSkill {
             .get("primary_dns")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'primary_dns' parameter"))?;
-        let secondary_dns = parameters
-            .get("secondary_dns")
-            .and_then(|v| v.as_str());
+        let secondary_dns = parameters.get("secondary_dns").and_then(|v| v.as_str());
         #[cfg(target_os = "windows")]
         {
             let interface_name = get_wifi_interface_name()?;
             if let Some(secondary) = secondary_dns {
                 Command::new("netsh")
-                    .args(["interface", "ip", "set", "dns", &interface_name, "static", primary_dns])
+                    .args([
+                        "interface",
+                        "ip",
+                        "set",
+                        "dns",
+                        &interface_name,
+                        "static",
+                        primary_dns,
+                    ])
                     .output()?;
                 Command::new("netsh")
                     .args(["interface", "ip", "add", "dns", &interface_name, secondary])
                     .output()?;
             } else {
                 Command::new("netsh")
-                    .args(["interface", "ip", "set", "dns", &interface_name, "static", primary_dns])
+                    .args([
+                        "interface",
+                        "ip",
+                        "set",
+                        "dns",
+                        &interface_name,
+                        "static",
+                        primary_dns,
+                    ])
                     .output()?;
             }
         }
@@ -118,7 +132,7 @@ fn get_wifi_interface_name() -> Result<String> {
         .args(["wlan", "show", "interfaces"])
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     for line in stdout.lines() {
         if line.contains("名称") || line.contains("Name") {
             if let Some(name) = line.split(':').nth(1) {
@@ -126,6 +140,6 @@ fn get_wifi_interface_name() -> Result<String> {
             }
         }
     }
-    
+
     Ok("Wi-Fi".to_string())
 }

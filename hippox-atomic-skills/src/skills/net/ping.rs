@@ -5,6 +5,7 @@
 //! - `TcpPingSkill`: Perform TCP ping (SYN scan) to test if a port is reachable when ICMP is blocked
 //! - `BatchPingSkill`: Ping multiple hosts simultaneously and aggregate results
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -107,8 +108,8 @@ impl Skill for PingSkill {
     }
 
     /// Returns the category of this skill for organizational purposes
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     /// Executes an ICMP ping to the target host
@@ -244,8 +245,8 @@ impl Skill for TcpPingSkill {
     }
 
     /// Returns the category of this skill for organizational purposes
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     /// Executes a TCP ping to test port reachability
@@ -378,8 +379,8 @@ impl Skill for BatchPingSkill {
     }
 
     /// Returns the category of this skill for organizational purposes
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     /// Executes batch pings to multiple targets simultaneously

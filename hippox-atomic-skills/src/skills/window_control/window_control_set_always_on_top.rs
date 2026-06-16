@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::shared::find_window;
-use crate::types::{Skill, SkillParameter};
+use super::common::find_window;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlSetAlwaysOnTopSkill;
@@ -70,8 +70,8 @@ impl Skill for WindowControlSetAlwaysOnTopSkill {
         "Window set to always on top".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -92,7 +92,7 @@ impl Skill for WindowControlSetAlwaysOnTopSkill {
             };
 
             unsafe {
-                let hwnd = super::shared::u64_to_hwnd(window_id);
+                let hwnd = super::common::u64_to_hwnd(window_id);
                 let flags = SWP_NOMOVE | SWP_NOSIZE;
                 if enabled {
                     let _ = SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);

@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::list_paired_devices;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothListPairedSkill;
@@ -38,17 +38,17 @@ impl Skill for BluetoothListPairedSkill {
         "Found 2 paired devices:\n1. My Headphones (AA:BB:CC:DD:EE:FF) [Connected]\n2. My Phone (11:22:33:44:55:66)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let devices = list_paired_devices()?;
-        
+
         if devices.is_empty() {
             return Ok("No paired devices found".to_string());
         }
-        
+
         let mut result = format!("Found {} paired devices:\n", devices.len());
         for (i, device) in devices.iter().enumerate() {
             let connected_marker = if device.connected { " [CONNECTED]" } else { "" };
@@ -60,7 +60,7 @@ impl Skill for BluetoothListPairedSkill {
                 connected_marker
             ));
         }
-        
+
         Ok(result)
     }
 }

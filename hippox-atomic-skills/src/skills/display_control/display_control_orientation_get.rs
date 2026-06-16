@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_orientation;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlOrientationGetSkill;
@@ -39,13 +39,13 @@ impl Skill for DisplayControlOrientationGetSkill {
         "Display orientation: landscape".to_string()
     }
 
-    fn category(&self) -> &str {
-        "display_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Display
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let orientation = get_orientation(None)?;
-        
+
         Ok(format!("Display orientation: {}", orientation))
     }
 }

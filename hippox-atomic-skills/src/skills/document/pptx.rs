@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    ensure_dir, file_exists, read_file_content,
+    SkillCategory, ensure_dir, file_exists, read_file_content,
     types::{Skill, SkillParameter},
     validate_path, write_file_content,
 };
@@ -71,8 +71,8 @@ impl Skill for PptxReadSkill {
         "Slide 1: Title\nSlide 2: Content...".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -198,8 +198,8 @@ impl Skill for PptxInfoSkill {
         "Slides: 10\nFile size: 1.2 MB\nCreated: 2024-01-01".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

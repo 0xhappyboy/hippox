@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::{find_window, kill_window};
+use super::common::{find_window, kill_window};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlKillSkill;
@@ -60,17 +60,17 @@ impl Skill for WindowControlKillSkill {
         "Window process killed".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        
+
         let window_id = find_window(title, process)?;
         kill_window(window_id)?;
-        
+
         Ok("Window process killed".to_string())
     }
 }

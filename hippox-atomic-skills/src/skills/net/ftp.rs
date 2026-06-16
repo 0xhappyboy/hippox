@@ -6,7 +6,7 @@ use std::net::ToSocketAddrs;
 use std::path::Path;
 use suppaftp::types::{FileType, FormatControl};
 
-use crate::{Skill, SkillParameter};
+use crate::{Skill, SkillCategory, SkillParameter};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -35,8 +35,8 @@ impl Skill for FtpUploadSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to upload files to an FTP server"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -192,8 +192,8 @@ impl Skill for FtpDownloadSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to download files from an FTP server"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -336,8 +336,8 @@ impl Skill for FtpListSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to see what files are in an FTP directory"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -465,8 +465,8 @@ impl Skill for FtpDeleteSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to delete files on an FTP server"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

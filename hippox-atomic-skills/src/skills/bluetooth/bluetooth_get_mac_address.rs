@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_mac_address;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothGetMacAddressSkill;
@@ -38,8 +38,8 @@ impl Skill for BluetoothGetMacAddressSkill {
         "Bluetooth MAC Address: AA:BB:CC:DD:EE:FF".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {

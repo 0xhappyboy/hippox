@@ -4,8 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 
 use crate::{
-    types::{Skill, SkillParameter},
-    validate_path,
+    SkillCategory, types::{Skill, SkillParameter}, validate_path
 };
 
 #[derive(Debug)]
@@ -70,8 +69,8 @@ impl Skill for ListDirectorySkill {
         "Contents of /home/user:\ndocuments\nDownloads\nPictures".to_string()
     }
 
-    fn category(&self) -> &str {
-        "file"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

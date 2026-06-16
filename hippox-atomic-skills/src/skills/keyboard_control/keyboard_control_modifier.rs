@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::{get_key_code, send_key_down, send_key_up};
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct KeyboardControlModifierSkill;
@@ -67,8 +67,8 @@ impl Skill for KeyboardControlModifierSkill {
         "Modifier ctrl set to down".to_string()
     }
 
-    fn category(&self) -> &str {
-        "keyboard_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Keyboard
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

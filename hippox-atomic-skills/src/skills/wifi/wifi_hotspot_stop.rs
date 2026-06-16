@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiHotspotStopSkill;
@@ -38,8 +38,8 @@ impl Skill for WifiHotspotStopSkill {
         "Hotspot stopped".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -49,14 +49,14 @@ impl Skill for WifiHotspotStopSkill {
                 .args(["wlan", "stop", "hostednetwork"])
                 .output()?;
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             let _ = Command::new("nmcli")
                 .args(["connection", "down", "Hotspot"])
                 .output();
         }
-        
+
         Ok("Hotspot stopped".to_string())
     }
 }

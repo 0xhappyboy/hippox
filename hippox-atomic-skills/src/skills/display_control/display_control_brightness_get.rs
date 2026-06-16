@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_brightness;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlBrightnessGetSkill;
@@ -39,13 +39,13 @@ impl Skill for DisplayControlBrightnessGetSkill {
         "Display brightness: 75%".to_string()
     }
 
-    fn category(&self) -> &str {
-        "display_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Display
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let brightness = get_brightness()?;
-        
+
         Ok(format!("Display brightness: {}%", brightness))
     }
 }

@@ -14,7 +14,10 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 /// Skill for retrieving text content from the system clipboard
 #[derive(Debug)]
@@ -49,8 +52,8 @@ impl Skill for ClipboardGetSkill {
         "Text content from clipboard".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -138,8 +141,8 @@ impl Skill for ClipboardSetSkill {
         "Content copied to clipboard".to_string()
     }
 
-    fn category(&self) -> &str {
-        "system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -232,8 +235,8 @@ impl Skill for ClipboardClearSkill {
         "Clipboard cleared".to_string()
     }
 
-    fn category(&self) -> &str {
-        "system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -275,9 +278,9 @@ mod tests {
         assert_eq!(get_skill.name(), "clipboard_get");
         assert_eq!(set_skill.name(), "clipboard_set");
         assert_eq!(clear_skill.name(), "clipboard_clear");
-        assert_eq!(get_skill.category(), "system");
-        assert_eq!(set_skill.category(), "system");
-        assert_eq!(clear_skill.category(), "system");
+        assert_eq!(get_skill.category(), SkillCategory::Os);
+        assert_eq!(set_skill.category(), SkillCategory::Os);
+        assert_eq!(clear_skill.category(), SkillCategory::Os);
     }
 
     #[test]

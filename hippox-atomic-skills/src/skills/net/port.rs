@@ -5,6 +5,7 @@
 //! - `PortLookupSkill`: Look up information about a specific port number
 //! - `PortTestSkill`: Test connectivity to a specific port on a target host
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -123,8 +124,8 @@ impl Skill for PortScanSkill {
     }
 
     /// Returns the category of this skill for organizational purposes
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     /// Executes a port scan on the target host
@@ -376,8 +377,8 @@ impl Skill for PortLookupSkill {
     }
 
     /// Returns the category of this skill for organizational purposes
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     /// Looks up information about a specific port
@@ -506,8 +507,8 @@ impl Skill for PortTestSkill {
     }
 
     /// Returns the category of this skill for organizational purposes
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     /// Tests connectivity to a specific port on a target host

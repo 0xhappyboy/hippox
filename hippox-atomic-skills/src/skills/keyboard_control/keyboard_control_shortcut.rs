@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::send_shortcut;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct KeyboardControlShortcutSkill;
@@ -26,22 +26,28 @@ impl Skill for KeyboardControlShortcutSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "shortcut".to_string(),
-                param_type: "string".to_string(),
-                description: "Shortcut combination (e.g., 'Ctrl+C', 'Ctrl+Shift+S', 'Alt+F4')".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("Ctrl+S".to_string())),
-                enum_values: Some(vec![
-                    "Ctrl+C".to_string(), "Ctrl+V".to_string(), "Ctrl+X".to_string(),
-                    "Ctrl+Z".to_string(), "Ctrl+Y".to_string(), "Ctrl+S".to_string(),
-                    "Ctrl+A".to_string(), "Alt+F4".to_string(), "Ctrl+Alt+Delete".to_string(),
-                    "Ctrl+Shift+Esc".to_string(), "Win+R".to_string(),
-                ]),
-            },
-        ]
+        vec![SkillParameter {
+            name: "shortcut".to_string(),
+            param_type: "string".to_string(),
+            description: "Shortcut combination (e.g., 'Ctrl+C', 'Ctrl+Shift+S', 'Alt+F4')"
+                .to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("Ctrl+S".to_string())),
+            enum_values: Some(vec![
+                "Ctrl+C".to_string(),
+                "Ctrl+V".to_string(),
+                "Ctrl+X".to_string(),
+                "Ctrl+Z".to_string(),
+                "Ctrl+Y".to_string(),
+                "Ctrl+S".to_string(),
+                "Ctrl+A".to_string(),
+                "Alt+F4".to_string(),
+                "Ctrl+Alt+Delete".to_string(),
+                "Ctrl+Shift+Esc".to_string(),
+                "Win+R".to_string(),
+            ]),
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -57,17 +63,18 @@ impl Skill for KeyboardControlShortcutSkill {
         "Shortcut sent: Ctrl+S".to_string()
     }
 
-    fn category(&self) -> &str {
-        "keyboard_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Keyboard
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let shortcut = parameters.get("shortcut")
+        let shortcut = parameters
+            .get("shortcut")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'shortcut' parameter"))?;
-        
+
         send_shortcut(shortcut)?;
-        
+
         Ok(format!("Shortcut sent: {}", shortcut))
     }
 }

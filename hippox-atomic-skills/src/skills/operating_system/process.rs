@@ -8,7 +8,7 @@
 //! - `ProcessGetPidSkill`: Get PID of a process by name
 //! - `ProcessInfoSkill`: Get detailed information about a process
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -90,8 +90,8 @@ impl Skill for ProcessListSkill {
         "PID     NAME                          CPU%    MEMORY  \n1234    chrome                        2.5     256.3 MB\n5678    code                          1.2     180.2 MB".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -208,8 +208,8 @@ impl Skill for ProcessKillSkill {
         "Process 1234 terminated successfully".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -336,8 +336,8 @@ impl Skill for ProcessKillByNameSkill {
         "Terminated 3 process(es) matching 'notepad.exe'".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -453,8 +453,8 @@ impl Skill for ProcessIsRunningSkill {
         "Process 'docker' is running".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -550,8 +550,8 @@ impl Skill for ProcessGetPidSkill {
         "Found PIDs: 1234, 5678".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -647,8 +647,8 @@ impl Skill for ProcessInfoSkill {
         "Process: systemd\nPID: 1\nCPU: 0.1%\nMemory: 12.5 MB\nStatus: Running\nStart Time: 2024-01-15 10:30:00".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

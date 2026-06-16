@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothLeAdvertiseStartSkill;
@@ -32,7 +32,9 @@ impl Skill for BluetoothLeAdvertiseStartSkill {
                 description: "UUID of the service to advertise (optional)".to_string(),
                 required: false,
                 default: None,
-                example: Some(Value::String("0000180f-0000-1000-8000-00805f9b34fb".to_string())),
+                example: Some(Value::String(
+                    "0000180f-0000-1000-8000-00805f9b34fb".to_string(),
+                )),
                 enum_values: None,
             },
             SkillParameter {
@@ -60,28 +62,26 @@ impl Skill for BluetoothLeAdvertiseStartSkill {
         "BLE advertising started".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let service_uuid = parameters
-            .get("service_uuid")
-            .and_then(|v| v.as_str());
-        
+        let service_uuid = parameters.get("service_uuid").and_then(|v| v.as_str());
+
         #[cfg(target_os = "linux")]
         {
             Command::new("bluetoothctl")
                 .args(["advertise", "on"])
                 .output()?;
-            
+
             if let Some(uuid) = service_uuid {
                 Command::new("bluetoothctl")
                     .args(["advertise", "service", uuid])
                     .output()?;
             }
         }
-        
+
         Ok("BLE advertising started".to_string())
     }
 }

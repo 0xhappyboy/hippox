@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothTrustDeviceSkill;
@@ -61,8 +61,8 @@ impl Skill for BluetoothTrustDeviceSkill {
         "Device AA:BB:CC:DD:EE:FF is now trusted".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,21 +70,17 @@ impl Skill for BluetoothTrustDeviceSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
         let trust = parameters
             .get("trust")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| anyhow::anyhow!("Missing 'trust' parameter"))?;
-        
         let action = if trust { "trust" } else { "untrust" };
-        
         #[cfg(target_os = "linux")]
         {
             Command::new("bluetoothctl")
                 .args([action, mac_address])
                 .output()?;
         }
-        
         if trust {
             Ok(format!("Device {} is now trusted", mac_address))
         } else {

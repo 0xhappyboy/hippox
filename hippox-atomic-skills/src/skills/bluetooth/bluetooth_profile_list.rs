@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothProfileListSkill;
@@ -38,8 +38,8 @@ impl Skill for BluetoothProfileListSkill {
         "Supported Bluetooth Profiles:\n1. A2DP (Audio)\n2. HFP (Hands-Free)\n3. SPP (Serial Port)\n4. HID (Human Interface)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -53,12 +53,12 @@ impl Skill for BluetoothProfileListSkill {
             "OBEX (Object Exchange)",
             "GATT (Generic Attribute Profile)",
         ];
-        
+
         let mut result = String::from("Supported Bluetooth Profiles:\n");
         for (i, profile) in profiles.iter().enumerate() {
             result.push_str(&format!("{}. {}\n", i + 1, profile));
         }
-        
+
         Ok(result)
     }
 }

@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::types::{Skill, SkillParameter};
-use crate::{RequestConfig, execute};
+use crate::{RequestConfig, SkillCategory, execute};
 
 // ========== Helper functions ==========
 
@@ -149,8 +149,8 @@ impl Skill for GithubGetRepo {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to get repository details like stars, forks, description"
     }
-    fn category(&self) -> &str {
-        "github"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -241,8 +241,8 @@ impl Skill for GithubCreateIssue {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to report a bug or request a feature"
     }
-    fn category(&self) -> &str {
-        "github"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -377,8 +377,8 @@ impl Skill for GithubListIssues {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to see existing issues"
     }
-    fn category(&self) -> &str {
-        "github"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -499,8 +499,8 @@ impl Skill for GithubStarRepo {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user wants to star/favorite a repository"
     }
-    fn category(&self) -> &str {
-        "github"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -592,8 +592,8 @@ impl Skill for GithubSearchRepos {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to find repositories"
     }
-    fn category(&self) -> &str {
-        "github"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -685,8 +685,8 @@ impl Skill for GithubGetUser {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to get profile info of a GitHub user"
     }
-    fn category(&self) -> &str {
-        "github"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -767,8 +767,8 @@ impl Skill for GithubListPRs {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to see open pull requests"
     }
-    fn category(&self) -> &str {
-        "github"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Devops
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

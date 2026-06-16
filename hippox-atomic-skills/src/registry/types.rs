@@ -19,8 +19,8 @@ pub enum SkillCategory {
     Process,
     /// Markdown, CSV, XML, Excel, PDF, JSON, YAML, TOML
     Document,
-    /// Email, DingTalk, Feishu, WeChat Work, Telegram
-    Message,
+    /// DingTalk, Feishu, WeChat Work, Telegram
+    SocialPlatform,
     /// PostgreSQL, MySQL, Redis, SQLite
     Db,
     /// Text comparison, sorting, deduplication, filtering, regex
@@ -31,8 +31,8 @@ pub enum SkillCategory {
     Media,
     /// Bitcoin, EVM, Solana wallet operations
     Blockchain,
-    /// Browser navigation, clicking, form filling, screenshot, JS execution
-    Browser,
+    /// have head browser navigation, clicking, form filling, screenshot, JS execution
+    HaveHeadBrowser,
     /// Window minimize, maximize, move, close, always on top
     Window,
     /// Text-to-speech, voice broadcast
@@ -53,11 +53,21 @@ pub enum SkillCategory {
     Bluetooth,
     /// Execute system commands and scripts
     Terminal,
+    /// E-mail
+    Email,
+    /// scheduled tasks
+    ScheduledTasks,
+    /// time
+    Time,
+    /// cryptography
+    Cryptography,
+    /// speech speak
+    SpeechSpeak,
 }
 
 impl SkillCategory {
     /// Get the string representation of the category
-    pub fn as_str(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             SkillCategory::Basic => "basic",
             SkillCategory::File => "file",
@@ -66,13 +76,13 @@ impl SkillCategory {
             SkillCategory::Os => "os",
             SkillCategory::Process => "process",
             SkillCategory::Document => "document",
-            SkillCategory::Message => "message",
+            SkillCategory::SocialPlatform => "social_platform",
             SkillCategory::Db => "db",
             SkillCategory::Text => "text",
             SkillCategory::Devops => "devops",
             SkillCategory::Media => "media",
             SkillCategory::Blockchain => "blockchain",
-            SkillCategory::Browser => "browser",
+            SkillCategory::HaveHeadBrowser => "have_head_browser",
             SkillCategory::Window => "window",
             SkillCategory::Speech => "speech",
             SkillCategory::Keyboard => "keyboard",
@@ -83,6 +93,11 @@ impl SkillCategory {
             SkillCategory::Wifi => "wifi",
             SkillCategory::Bluetooth => "bluetooth",
             SkillCategory::Terminal => "terminal",
+            SkillCategory::Email => "email",
+            SkillCategory::ScheduledTasks => "scheduled_tasks",
+            SkillCategory::Time => "time",
+            SkillCategory::Cryptography => "cryptography",
+            SkillCategory::SpeechSpeak => "speech_speak",
         }
     }
 
@@ -96,13 +111,13 @@ impl SkillCategory {
             SkillCategory::Os => "Operating System",
             SkillCategory::Process => "Process Management",
             SkillCategory::Document => "Document Processing",
-            SkillCategory::Message => "Messaging",
+            SkillCategory::SocialPlatform => "Social Platform",
             SkillCategory::Db => "Database",
             SkillCategory::Text => "Text Processing",
             SkillCategory::Devops => "DevOps",
             SkillCategory::Media => "Media Processing",
             SkillCategory::Blockchain => "Blockchain",
-            SkillCategory::Browser => "Browser Control",
+            SkillCategory::HaveHeadBrowser => "Have Head Browser Control",
             SkillCategory::Window => "Window Control",
             SkillCategory::Speech => "Speech Synthesis",
             SkillCategory::Keyboard => "Keyboard Control",
@@ -113,6 +128,11 @@ impl SkillCategory {
             SkillCategory::Wifi => "WiFi Management",
             SkillCategory::Bluetooth => "Bluetooth Management",
             SkillCategory::Terminal => "Terminal Commands",
+            SkillCategory::Email => "Email",
+            SkillCategory::ScheduledTasks => "Scheduled Tasks",
+            SkillCategory::Time => "Time & Date",
+            SkillCategory::Cryptography => "Cryptography",
+            SkillCategory::SpeechSpeak => "Speech Speak",
         }
     }
 
@@ -136,8 +156,8 @@ impl SkillCategory {
             SkillCategory::Document => {
                 "Markdown, CSV, XML, Excel, PDF, JSON, YAML, TOML document processing"
             }
-            SkillCategory::Message => {
-                "Send notifications via Email, DingTalk, Feishu, WeChat Work, Telegram"
+            SkillCategory::SocialPlatform => {
+                "Send notifications via DingTalk, Feishu, WeChat Work, Telegram"
             }
             SkillCategory::Db => "Database operations for PostgreSQL, MySQL, Redis, SQLite",
             SkillCategory::Text => {
@@ -146,8 +166,8 @@ impl SkillCategory {
             SkillCategory::Devops => "Kubernetes, Docker, and GitHub operations",
             SkillCategory::Media => "Image processing: resize, convert, crop, rotate, compress",
             SkillCategory::Blockchain => "Bitcoin, EVM, and Solana wallet operations",
-            SkillCategory::Browser => {
-                "Browser automation: navigation, clicking, form filling, screenshot, JS execution"
+            SkillCategory::HaveHeadBrowser => {
+                "Have Head Browser automation: navigation, clicking, form filling, screenshot, JS execution"
             }
             SkillCategory::Window => {
                 "Window management: minimize, maximize, move, close, pin to top"
@@ -173,6 +193,15 @@ impl SkillCategory {
                 "Bluetooth management: scan, pair, connect, file transfer, BLE operations"
             }
             SkillCategory::Terminal => "Execute system commands and scripts",
+            SkillCategory::Email => "Send and manage emails via SMTP/IMAP",
+            SkillCategory::ScheduledTasks => "Schedule and manage cron jobs or scheduled tasks",
+            SkillCategory::Time => {
+                "Get current time, date, timezone conversion, system time management"
+            }
+            SkillCategory::Cryptography => {
+                "Cryptographic operations: hashing (MD5, SHA256, SHA512), Base64 encoding/decoding"
+            }
+            SkillCategory::SpeechSpeak => "Used to convert text into spoken audio",
         }
     }
 
@@ -186,13 +215,13 @@ impl SkillCategory {
             SkillCategory::Os => "💻",
             SkillCategory::Process => "⚙️",
             SkillCategory::Document => "📄",
-            SkillCategory::Message => "💬",
+            SkillCategory::SocialPlatform => "📱",
             SkillCategory::Db => "🗄️",
             SkillCategory::Text => "📝",
             SkillCategory::Devops => "🚀",
             SkillCategory::Media => "🎨",
             SkillCategory::Blockchain => "⛓️",
-            SkillCategory::Browser => "🌍",
+            SkillCategory::HaveHeadBrowser => "🌍",
             SkillCategory::Window => "🪟",
             SkillCategory::Speech => "🔊",
             SkillCategory::Keyboard => "⌨️",
@@ -203,6 +232,11 @@ impl SkillCategory {
             SkillCategory::Wifi => "📶",
             SkillCategory::Bluetooth => "📳",
             SkillCategory::Terminal => ">$",
+            SkillCategory::Email => "✉️",
+            SkillCategory::ScheduledTasks => "⏰",
+            SkillCategory::Time => "🕐",
+            SkillCategory::Cryptography => "🔐",
+            SkillCategory::SpeechSpeak => "🎤",
         }
     }
 
@@ -216,30 +250,35 @@ impl SkillCategory {
             SkillCategory::Os => 40,
             SkillCategory::Process => 41,
             SkillCategory::Document => 50,
-            SkillCategory::Message => 60,
+            SkillCategory::SocialPlatform => 55,
             SkillCategory::Db => 70,
             SkillCategory::Text => 80,
             SkillCategory::Devops => 90,
             SkillCategory::Media => 110,
             SkillCategory::Blockchain => 120,
-            SkillCategory::Browser => 130,
-            SkillCategory::Window => 140,
-            SkillCategory::Speech => 150,
-            SkillCategory::Keyboard => 160,
-            SkillCategory::Mouse => 161,
-            SkillCategory::Audio => 170,
-            SkillCategory::Application => 180,
-            SkillCategory::Display => 190,
-            SkillCategory::Wifi => 200,
-            SkillCategory::Bluetooth => 210,
+            SkillCategory::HaveHeadBrowser => 125,
+            SkillCategory::Window => 130,
+            SkillCategory::Speech => 140,
+            SkillCategory::Keyboard => 150,
+            SkillCategory::Mouse => 151,
+            SkillCategory::Audio => 155,
+            SkillCategory::Application => 160,
+            SkillCategory::Display => 165,
+            SkillCategory::Wifi => 170,
+            SkillCategory::Bluetooth => 180,
+            SkillCategory::Email => 185,
+            SkillCategory::ScheduledTasks => 190,
+            SkillCategory::Time => 195,
+            SkillCategory::Cryptography => 200,
             SkillCategory::Terminal => 250,
+            SkillCategory::SpeechSpeak => 255,
         }
     }
 
     /// Get complete metadata for the category
     pub fn metadata(&self) -> CategoryMetadata {
         CategoryMetadata {
-            name: self.as_str(),
+            name: self.name(),
             display_name: self.display_name(),
             description: self.description(),
             icon: self.icon(),
@@ -258,13 +297,13 @@ impl SkillCategory {
             Os.metadata(),
             Process.metadata(),
             Document.metadata(),
-            Message.metadata(),
+            SocialPlatform.metadata(),
             Db.metadata(),
             Text.metadata(),
             Devops.metadata(),
             Media.metadata(),
             Blockchain.metadata(),
-            Browser.metadata(),
+            HaveHeadBrowser.metadata(),
             Window.metadata(),
             Speech.metadata(),
             Keyboard.metadata(),
@@ -274,7 +313,12 @@ impl SkillCategory {
             Display.metadata(),
             Wifi.metadata(),
             Bluetooth.metadata(),
+            Email.metadata(),
+            ScheduledTasks.metadata(),
+            Time.metadata(),
+            Cryptography.metadata(),
             Terminal.metadata(),
+            SpeechSpeak.metadata(),
         ]
     }
 }

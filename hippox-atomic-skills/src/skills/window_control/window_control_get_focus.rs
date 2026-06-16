@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::get_focus_window;
+use super::common::get_focus_window;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlGetFocusSkill;
@@ -38,17 +38,23 @@ impl Skill for WindowControlGetFocusSkill {
         "Focused window: 微信 (WeChat.exe)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let window_id = get_focus_window()?;
-        
-        use super::shared::list_windows;
+
+        use super::common::list_windows;
         let windows = list_windows()?;
-        let window = windows.iter().find(|w| w.id == window_id).ok_or_else(|| anyhow::anyhow!("Window not found"))?;
-        
-        Ok(format!("Focused window: {} ({})", window.title, window.process_name))
+        let window = windows
+            .iter()
+            .find(|w| w.id == window_id)
+            .ok_or_else(|| anyhow::anyhow!("Window not found"))?;
+
+        Ok(format!(
+            "Focused window: {} ({})",
+            window.title, window.process_name
+        ))
     }
 }

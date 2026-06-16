@@ -5,8 +5,8 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::send_file;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothSendFileSkill;
@@ -62,8 +62,8 @@ impl Skill for BluetoothSendFileSkill {
         "File sent successfully to AA:BB:CC:DD:EE:FF".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -71,18 +71,18 @@ impl Skill for BluetoothSendFileSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         let file_path = parameters
             .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'file_path' parameter"))?;
-        
+
         if !Path::new(file_path).exists() {
             anyhow::bail!("File does not exist: {}", file_path);
         }
-        
+
         send_file(mac_address, file_path)?;
-        
+
         Ok(format!("File sent successfully to {}", mac_address))
     }
 }

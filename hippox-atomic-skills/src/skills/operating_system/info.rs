@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use sysinfo::{Disks, System};
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 /// A skill for retrieving comprehensive system information.
 ///
@@ -89,8 +89,8 @@ impl Skill for SystemInfoSkill {
     }
 
     /// Returns the category classification for this skill.
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     /// Executes the system information retrieval based on the provided parameters.
@@ -242,7 +242,9 @@ fn get_all_info(sys: &System) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::SkillCategory;
+
+use super::*;
     use sysinfo::System;
 
     /// Verify that the skill returns valid strings for each info type and that responses are non-empty and contain expected keywords.
@@ -371,7 +373,7 @@ mod tests {
         assert_eq!(skill.name(), "system_info");
         assert!(!skill.description().is_empty());
         assert!(!skill.usage_hint().is_empty());
-        assert_eq!(skill.category(), "system");
+        assert_eq!(skill.category(), SkillCategory::Os);
         assert!(!skill.example_output().is_empty());
         let params = skill.parameters();
         assert_eq!(params.len(), 1);

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothSetDiscoverableTimeoutSkill;
@@ -25,17 +25,15 @@ impl Skill for BluetoothSetDiscoverableTimeoutSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "timeout_secs".to_string(),
-                param_type: "integer".to_string(),
-                description: "Discoverable timeout in seconds (0 = unlimited)".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::Number(60.into())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "timeout_secs".to_string(),
+            param_type: "integer".to_string(),
+            description: "Discoverable timeout in seconds (0 = unlimited)".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::Number(60.into())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,8 +49,8 @@ impl Skill for BluetoothSetDiscoverableTimeoutSkill {
         "Discoverable timeout set to 60 seconds".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -60,14 +58,12 @@ impl Skill for BluetoothSetDiscoverableTimeoutSkill {
             .get("timeout_secs")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("Missing 'timeout_secs' parameter"))?;
-        
         #[cfg(target_os = "linux")]
         {
             Command::new("bluetoothctl")
                 .args(["discoverable-timeout", &timeout.to_string()])
                 .output()?;
         }
-        
         if timeout == 0 {
             Ok("Discoverable timeout set to unlimited".to_string())
         } else {

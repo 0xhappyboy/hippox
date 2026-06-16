@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::set_discoverable;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothPairableSkill;
@@ -61,8 +61,8 @@ impl Skill for BluetoothPairableSkill {
         "Bluetooth discoverable mode enabled for 120 seconds".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,17 +70,20 @@ impl Skill for BluetoothPairableSkill {
             .get("enabled")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| anyhow::anyhow!("Missing 'enabled' parameter"))?;
-        
+
         let timeout = parameters
             .get("timeout_secs")
             .and_then(|v| v.as_u64())
             .map(|t| t as u32);
-        
+
         set_discoverable(enabled, timeout)?;
-        
+
         if enabled {
             if let Some(t) = timeout {
-                Ok(format!("Bluetooth discoverable mode enabled for {} seconds", t))
+                Ok(format!(
+                    "Bluetooth discoverable mode enabled for {} seconds",
+                    t
+                ))
             } else {
                 Ok("Bluetooth discoverable mode enabled".to_string())
             }

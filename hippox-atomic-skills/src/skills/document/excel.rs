@@ -2,7 +2,11 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::{ensure_dir, file_exists, types::{Skill, SkillParameter}, validate_path};
+use crate::{
+    SkillCategory, ensure_dir, file_exists,
+    types::{Skill, SkillParameter},
+    validate_path,
+};
 
 #[derive(Debug)]
 pub struct ExcelReadSkill;
@@ -75,8 +79,8 @@ impl Skill for ExcelReadSkill {
         "Sheet: Sheet1\nHeaders: [Name, Age]\nRow 1: [Alice, 30]\nRow 2: [Bob, 25]".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -235,8 +239,8 @@ impl Skill for ExcelWriteSkill {
         "Excel written to: output.xlsx (2 rows)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

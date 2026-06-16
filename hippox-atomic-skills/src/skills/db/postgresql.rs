@@ -5,6 +5,7 @@ use sqlx::{Column, Row};
 use std::collections::HashMap;
 use std::time::Duration;
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 
 async fn get_pg_pool(
@@ -63,8 +64,8 @@ impl Skill for PostgresQuerySkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to query data from PostgreSQL database"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -249,8 +250,8 @@ impl Skill for PostgresExecuteSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to modify data in PostgreSQL database"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -388,8 +389,8 @@ impl Skill for PostgresListTablesSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to see available tables in the database"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

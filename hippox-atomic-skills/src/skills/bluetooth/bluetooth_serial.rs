@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 
 #[derive(Debug)]
@@ -72,8 +73,8 @@ impl Skill for BluetoothSerialSkill {
         "Response: OK".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -81,46 +82,34 @@ impl Skill for BluetoothSerialSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
-        let command = parameters
-            .get("command")
-            .and_then(|v| v.as_str());
-        
+        let command = parameters.get("command").and_then(|v| v.as_str());
         let read_timeout = parameters
             .get("read_timeout_ms")
             .and_then(|v| v.as_u64())
             .unwrap_or(5000);
-        
         // Convert MAC address to RFCOMM channel
         let rfcomm_port = format!("00:{}", mac_address.replace(":", ""));
-        
         // For Linux, use rfcomm or direct serial
         #[cfg(target_os = "linux")]
         {
             use std::fs::OpenOptions;
-            
             let device_path = format!("/dev/rfcomm0");
-            
             // Bind RFCOMM if not already bound
             let _ = Command::new("rfcomm")
                 .args(["bind", "0", mac_address])
                 .output();
-            
             let mut serial = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .open(&device_path)?;
-            
             if let Some(cmd) = command {
                 serial.write_all(cmd.as_bytes())?;
                 serial.flush()?;
             }
-            
             // Read response
             let mut buffer = vec![0u8; 1024];
             let mut response = String::new();
             let start = std::time::Instant::now();
-            
             while start.elapsed() < std::time::Duration::from_millis(read_timeout) {
                 if let Ok(n) = serial.read(&mut buffer) {
                     if n > 0 {
@@ -132,10 +121,8 @@ impl Skill for BluetoothSerialSkill {
                 }
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
-            
             return Ok(format!("Response: {}", response.trim()));
         }
-        
         Ok(format!("Serial communication with {}", mac_address))
     }
 }

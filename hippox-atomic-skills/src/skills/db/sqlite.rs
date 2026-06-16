@@ -4,6 +4,7 @@ use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::{Column, Row};
 use std::collections::HashMap;
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 
 async fn get_sqlite_pool(path: &str, pool_size: u32) -> Result<SqlitePool> {
@@ -42,8 +43,8 @@ impl Skill for SqliteQuerySkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to query data from SQLite database"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -182,8 +183,8 @@ impl Skill for SqliteExecuteSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to modify data in SQLite database"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -280,8 +281,8 @@ impl Skill for SqliteListTablesSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to see available tables in the SQLite database"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

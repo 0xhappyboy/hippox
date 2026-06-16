@@ -45,6 +45,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time;
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 
 /// Type alias for a thread-safe map storing scheduled task handles
@@ -189,8 +190,8 @@ impl Skill for ScheduleTaskSkill {
     }
 
     /// Returns the category of this skill
-    fn category(&self) -> &str {
-        "system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::ScheduledTasks
     }
 
     /// Executes the task scheduling operation
@@ -432,8 +433,8 @@ impl Skill for UnscheduleTaskSkill {
     }
 
     /// Returns the category of this skill
-    fn category(&self) -> &str {
-        "system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::ScheduledTasks
     }
 
     /// Executes the task unscheduling operation
@@ -531,8 +532,8 @@ impl Skill for ListScheduledTasksSkill {
     }
 
     /// Returns the category of this skill
-    fn category(&self) -> &str {
-        "system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::ScheduledTasks
     }
 
     /// Executes the task listing operation
@@ -765,9 +766,9 @@ mod tests {
         assert_eq!(schedule_skill.name(), "schedule_task");
         assert_eq!(unschedule_skill.name(), "unschedule_task");
         assert_eq!(list_skill.name(), "list_scheduled_tasks");
-        assert_eq!(schedule_skill.category(), "system");
-        assert_eq!(unschedule_skill.category(), "system");
-        assert_eq!(list_skill.category(), "system");
+        assert_eq!(schedule_skill.category(), SkillCategory::ScheduledTasks);
+        assert_eq!(unschedule_skill.category(), SkillCategory::ScheduledTasks);
+        assert_eq!(list_skill.category(), SkillCategory::ScheduledTasks);
         assert!(!schedule_skill.description().is_empty());
         assert!(!unschedule_skill.description().is_empty());
         assert!(!list_skill.description().is_empty());

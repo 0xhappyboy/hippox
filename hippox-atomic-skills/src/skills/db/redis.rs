@@ -3,7 +3,10 @@ use redis::{Client, Commands, Connection};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 fn get_redis_connection(host: &str, port: u16, password: &str, db: usize) -> Result<Connection> {
     let url = if password.is_empty() {
@@ -50,8 +53,8 @@ impl Skill for RedisSetSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to store data in Redis"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -166,8 +169,8 @@ impl Skill for RedisGetSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to retrieve data from Redis"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -262,8 +265,8 @@ impl Skill for RedisDelSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to delete data from Redis"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -359,8 +362,8 @@ impl Skill for RedisKeysSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to list keys in Redis"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -455,8 +458,8 @@ impl Skill for RedisHSetSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to store structured data in Redis"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -571,8 +574,8 @@ impl Skill for RedisHGetSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to retrieve structured data from Redis"
     }
-    fn category(&self) -> &str {
-        "database"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

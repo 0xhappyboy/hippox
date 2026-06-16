@@ -6,7 +6,7 @@
 //! - `TextDeduplicateSkill`: Remove duplicate lines while preserving order
 //! - `TextFilterSkill`: Filter lines by keyword or regex pattern
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 use anyhow::Result;
 use serde_json::{Value, json};
 use similar::{Algorithm, ChangeTag, TextDiff};
@@ -84,8 +84,8 @@ impl Skill for TextDiffSkill {
         "--- text1\n+++ text2\n@@ -1,3 +1,3 @@\n-Hello World\n+Hello Rust\n Line 2\n-Line 3\n+Changed Line".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -211,8 +211,8 @@ impl Skill for TextSortSkill {
         "2\n4\n10\n30".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -323,8 +323,8 @@ impl Skill for TextDeduplicateSkill {
         "Red\nblue".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -443,8 +443,8 @@ impl Skill for TextFilterSkill {
         "ERROR: disk full\nWARNING: low memory".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::list_displays;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlListSkill;
@@ -39,17 +39,17 @@ impl Skill for DisplayControlListSkill {
         "Found 2 displays:\n1. Primary Display (1920x1080, 60Hz)\n2. Secondary Display (1920x1080, 60Hz)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "display_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Display
     }
-
+    
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let displays = list_displays()?;
-        
+
         if displays.is_empty() {
             return Ok("No displays found".to_string());
         }
-        
+
         let mut result = format!("Found {} displays:\n", displays.len());
         for (i, display) in displays.iter().enumerate() {
             let primary_marker = if display.is_primary { " (primary)" } else { "" };
@@ -64,7 +64,7 @@ impl Skill for DisplayControlListSkill {
                 display.scale
             ));
         }
-        
+
         Ok(result)
     }
 }

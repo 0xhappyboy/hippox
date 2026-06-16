@@ -7,7 +7,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
-use crate::{Skill, SkillParameter};
+use crate::{Skill, SkillCategory, SkillParameter};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -43,8 +43,8 @@ impl Skill for TcpSendSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to send raw data over TCP socket to a server"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -230,8 +230,8 @@ impl Skill for TcpReceiveSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to listen on a TCP port and receive data"
     }
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

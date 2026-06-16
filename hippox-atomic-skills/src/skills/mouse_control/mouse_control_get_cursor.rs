@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_cursor_type;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct MouseControlGetCursorSkill;
@@ -39,8 +39,8 @@ impl Skill for MouseControlGetCursorSkill {
         "Cursor type: arrow".to_string()
     }
 
-    fn category(&self) -> &str {
-        "mouse_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Mouse
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {

@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::set_volume;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct AudioControlVolumeSetSkill;
@@ -26,17 +26,15 @@ impl Skill for AudioControlVolumeSetSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "volume".to_string(),
-                param_type: "integer".to_string(),
-                description: "Volume level from 0 to 100".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::Number(50.into())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "volume".to_string(),
+            param_type: "integer".to_string(),
+            description: "Volume level from 0 to 100".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::Number(50.into())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -52,18 +50,18 @@ impl Skill for AudioControlVolumeSetSkill {
         "Volume set to 50%".to_string()
     }
 
-    fn category(&self) -> &str {
-        "audio_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Audio
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let volume = parameters.get("volume")
+        let volume = parameters
+            .get("volume")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'volume' parameter"))? as u32;
-        
+            .ok_or_else(|| anyhow::anyhow!("Missing 'volume' parameter"))?
+            as u32;
         let volume = volume.clamp(0, 100);
         set_volume(volume)?;
-        
         Ok(format!("Volume set to {}%", volume))
     }
 }

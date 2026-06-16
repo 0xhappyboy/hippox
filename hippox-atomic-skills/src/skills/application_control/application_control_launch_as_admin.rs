@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::launch_as_admin;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlLaunchAsAdminSkill;
@@ -62,8 +62,8 @@ impl Skill for ApplicationControlLaunchAsAdminSkill {
         "Application launched as admin with PID: 12345".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -71,7 +71,6 @@ impl Skill for ApplicationControlLaunchAsAdminSkill {
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-
         let args = parameters
             .get("args")
             .and_then(|v| v.as_array())
@@ -81,9 +80,7 @@ impl Skill for ApplicationControlLaunchAsAdminSkill {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-
         let pid = launch_as_admin(path, &args)?;
-
         Ok(format!("Application launched as admin with PID: {}", pid))
     }
 }

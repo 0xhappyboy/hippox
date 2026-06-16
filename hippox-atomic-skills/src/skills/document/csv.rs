@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    ensure_dir, file_exists, read_file_content,
+    SkillCategory, ensure_dir, file_exists, read_file_content,
     types::{Skill, SkillParameter},
     validate_path, write_file_content,
 };
@@ -80,8 +80,8 @@ impl Skill for CsvReadSkill {
             .to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -225,8 +225,8 @@ impl Skill for CsvWriteSkill {
         "CSV written to: output.csv (2 rows)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

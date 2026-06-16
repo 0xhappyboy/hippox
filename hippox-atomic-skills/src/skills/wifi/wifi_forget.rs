@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::forget_wifi;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiForgetSkill;
@@ -25,17 +25,15 @@ impl Skill for WifiForgetSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "ssid".to_string(),
-                param_type: "string".to_string(),
-                description: "WiFi network name (SSID) to forget".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("GuestWiFi".to_string())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "ssid".to_string(),
+            param_type: "string".to_string(),
+            description: "WiFi network name (SSID) to forget".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("GuestWiFi".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,8 +49,8 @@ impl Skill for WifiForgetSkill {
         "Forgot WiFi network: GuestWiFi".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothPrioritySetSkill;
@@ -25,17 +25,16 @@ impl Skill for BluetoothPrioritySetSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "priority_list".to_string(),
-                param_type: "array".to_string(),
-                description: "List of MAC addresses in priority order (first = highest priority)".to_string(),
-                required: true,
-                default: None,
-                example: Some(json!(["AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66"])),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "priority_list".to_string(),
+            param_type: "array".to_string(),
+            description: "List of MAC addresses in priority order (first = highest priority)"
+                .to_string(),
+            required: true,
+            default: None,
+            example: Some(json!(["AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66"])),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,8 +50,8 @@ impl Skill for BluetoothPrioritySetSkill {
         "Priority set for 2 devices".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -60,9 +59,9 @@ impl Skill for BluetoothPrioritySetSkill {
             .get("priority_list")
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("Missing 'priority_list' parameter"))?;
-        
+
         let count = priority_list.len();
-        
+
         // On Linux, priority can be set via configuration files
         #[cfg(target_os = "linux")]
         {
@@ -74,7 +73,7 @@ impl Skill for BluetoothPrioritySetSkill {
                 }
             }
         }
-        
+
         Ok(format!("Priority set for {} devices", count))
     }
 }

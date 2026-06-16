@@ -4,6 +4,7 @@ use sqlx::mysql::MySqlPool;
 use sqlx::{Column, Row};
 use std::collections::HashMap;
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 
 async fn get_mysql_pool(
@@ -50,8 +51,9 @@ impl Skill for MysqlQuerySkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to query data from MySQL database"
     }
-    fn category(&self) -> &str {
-        "database"
+
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -243,8 +245,9 @@ impl Skill for MysqlExecuteSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to modify data in MySQL database"
     }
-    fn category(&self) -> &str {
-        "database"
+
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -381,8 +384,9 @@ impl Skill for MysqlListTablesSkill {
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to see available tables in the database"
     }
-    fn category(&self) -> &str {
-        "database"
+
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Db
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

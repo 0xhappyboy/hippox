@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::common::{scan_wifi_networks, WiFiNetwork};
+use super::common::{WiFiNetwork, scan_wifi_networks};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiScanSkill;
@@ -25,17 +25,15 @@ impl Skill for WifiScanSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "timeout_secs".to_string(),
-                param_type: "integer".to_string(),
-                description: "Scan timeout in seconds (default: 10)".to_string(),
-                required: false,
-                default: Some(Value::Number(10.into())),
-                example: Some(Value::Number(15.into())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "timeout_secs".to_string(),
+            param_type: "integer".to_string(),
+            description: "Scan timeout in seconds (default: 10)".to_string(),
+            required: false,
+            default: Some(Value::Number(10.into())),
+            example: Some(Value::Number(15.into())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,8 +49,8 @@ impl Skill for WifiScanSkill {
         "Found 5 networks:\n1. MyWiFi (Signal: 85%, Security: WPA2-Personal)\n2. GuestWiFi (Signal: 45%, Security: Open)\n3. OfficeNet (Signal: 30%, Security: WPA2-Enterprise)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -60,18 +58,22 @@ impl Skill for WifiScanSkill {
             .get("timeout_secs")
             .and_then(|v| v.as_u64())
             .unwrap_or(10);
-        
+
         tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
-        
+
         let networks = scan_wifi_networks()?;
-        
+
         if networks.is_empty() {
             return Ok("No WiFi networks found".to_string());
         }
-        
+
         let mut result = format!("Found {} networks:\n", networks.len());
         for (i, network) in networks.iter().enumerate() {
-            let connected_marker = if network.is_connected { " [CONNECTED]" } else { "" };
+            let connected_marker = if network.is_connected {
+                " [CONNECTED]"
+            } else {
+                ""
+            };
             result.push_str(&format!(
                 "{}. {}{} (Signal: {}%, Security: {})",
                 i + 1,
@@ -80,7 +82,7 @@ impl Skill for WifiScanSkill {
                 network.signal_strength,
                 network.encryption_type
             ));
-            
+
             if let Some(bssid) = &network.bssid {
                 result.push_str(&format!(", BSSID: {}", bssid));
             }
@@ -89,7 +91,7 @@ impl Skill for WifiScanSkill {
             }
             result.push('\n');
         }
-        
+
         Ok(result)
     }
 }

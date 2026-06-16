@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::shared::find_window;
-use crate::types::{Skill, SkillParameter};
+use super::common::find_window;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlFindSkill;
@@ -60,8 +60,8 @@ impl Skill for WindowControlFindSkill {
         "Found window: 微信 (ID: 12345678)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,7 +70,7 @@ impl Skill for WindowControlFindSkill {
 
         let window_id = find_window(title, process)?;
 
-        use super::shared::list_windows;
+        use super::common::list_windows;
         let windows = list_windows()?;
         let window = windows
             .iter()

@@ -30,10 +30,7 @@ use std::sync::Arc;
 /// - Invalid JSON input during parsing
 /// - Unknown skill name (not found in registry)
 /// - Skill execution failure (delegated to the skill itself)
-use crate::{
-    skill_registry::get_registry,
-    {Skill, SkillCall, skill_registry},
-};
+use crate::{Skill, SkillCall, get_registry, get_skill_by_name};
 use anyhow::Result;
 use serde_json::Value;
 
@@ -237,7 +234,7 @@ impl Executor {
     /// # }
     /// ```
     pub async fn execute(&self, call: &SkillCall) -> Result<String> {
-        let skill = skill_registry::get_skill(&call.action)
+        let skill = get_skill_by_name(&call.action)
             .ok_or_else(|| anyhow::anyhow!("Unknown skill: {}", call.action))?;
         skill.execute(&call.parameters).await
     }
@@ -251,34 +248,6 @@ impl Default for Executor {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Get skills filtered by categories
-pub fn get_skills_by_categories(categories: &[String]) -> Vec<Arc<dyn Skill>> {
-    let registry = get_registry();
-    let mut result = Vec::new();
-    for skill in registry.values() {
-        let skill_category = skill.category();
-        if categories.iter().any(|cat| cat == skill_category) {
-            result.push(skill.clone());
-        }
-    }
-    result
-}
-
-/// Get skill names filtered by categories
-pub fn list_skills_by_categories(categories: &[String]) -> Vec<String> {
-    let registry = get_registry();
-    let mut result = Vec::new();
-
-    for (name, skill) in registry.iter() {
-        let skill_category = skill.category();
-        if categories.iter().any(|cat| cat == skill_category) {
-            result.push(name.clone());
-        }
-    }
-
-    result
 }
 
 #[cfg(test)]

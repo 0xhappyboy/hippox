@@ -5,8 +5,11 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::list_input_devices;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct AudioControlInputDeviceListSkill;
@@ -39,17 +42,17 @@ impl Skill for AudioControlInputDeviceListSkill {
         "Found 2 input devices:\n1. Default Microphone (default)\n2. Microphone Array".to_string()
     }
 
-    fn category(&self) -> &str {
-        "audio_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Audio
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let devices = list_input_devices()?;
-        
+
         if devices.is_empty() {
             return Ok("No input devices found".to_string());
         }
-        
+
         let mut result = format!("Found {} input devices:\n", devices.len());
         for (i, device) in devices.iter().enumerate() {
             let default_marker = if device.is_default { " (default)" } else { "" };
@@ -61,7 +64,7 @@ impl Skill for AudioControlInputDeviceListSkill {
                 device.id
             ));
         }
-        
+
         Ok(result)
     }
 }

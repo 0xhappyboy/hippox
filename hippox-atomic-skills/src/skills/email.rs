@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -31,14 +31,17 @@ impl Skill for SendEmailSkill {
     fn name(&self) -> &str {
         "send_email"
     }
+
     fn description(&self) -> &str {
         "Send an email via SMTP server"
     }
+
     fn usage_hint(&self) -> &str {
         "Use this skill when the user wants to send an email, notify someone via email"
     }
-    fn category(&self) -> &str {
-        "messaging"
+
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Email
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {

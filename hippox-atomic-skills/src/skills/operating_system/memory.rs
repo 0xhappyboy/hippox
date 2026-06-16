@@ -13,6 +13,7 @@ use std::collections::HashMap;
 
 use crate::Pattern;
 use crate::ProcessMemory;
+use crate::SkillCategory;
 use crate::{
     mem,
     types::{Skill, SkillParameter},
@@ -61,8 +62,8 @@ impl Skill for ProcessBasicInfoSkill {
         "PID: 1234\nName: chrome.exe\nParent PID: 5678".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -170,8 +171,8 @@ impl Skill for MemoryReadSkill {
         "Value: 12345".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -301,8 +302,8 @@ impl Skill for MemoryScanSkill {
         "Found at addresses:\n0x7FF6A1B4C000\n0x7FF6A1B4C100".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -395,8 +396,8 @@ impl Skill for ModuleBaseSkill {
         "Module base address: 0x7FF6A1B40000".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

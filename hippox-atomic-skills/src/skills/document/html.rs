@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    ensure_dir, file_exists, read_file_content,
+    SkillCategory, ensure_dir, file_exists, read_file_content,
     types::{Skill, SkillParameter},
     validate_path, write_file_content,
 };
@@ -70,8 +70,8 @@ impl Skill for HtmlReadSkill {
         "<html><body><h1>Title</h1></body></html>".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -203,8 +203,8 @@ impl Skill for HtmlWriteSkill {
         "HTML written to: output.html".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -288,8 +288,8 @@ impl Skill for HtmlValidateSkill {
         "HTML is valid".to_string()
     }
 
-    fn category(&self) -> &str {
-        "document"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Document
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

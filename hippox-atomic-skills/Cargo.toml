@@ -116,7 +116,7 @@ default = [
     "helloworld",
     "math",
     "media",
-    "message",
+    "social_platform",
     "net",
     "operating_system",
     "task",
@@ -133,6 +133,9 @@ default = [
     "display_control",
     "wifi",
     "bluetooth",
+    "email",
+    "scheduler_task",
+    "cryptography",
 ]
 all = [
     "blockchain",
@@ -143,7 +146,7 @@ all = [
     "helloworld",
     "math",
     "media",
-    "message",
+    "social_platform",
     "net",
     "operating_system",
     "task",
@@ -160,7 +163,13 @@ all = [
     "display_control",
     "wifi",
     "bluetooth",
+    "email",
+    "scheduler_task",
+    "cryptography",
 ]
+cryptography = []
+scheduler_task = []
+email = []
 bluetooth = []
 wifi = []
 display_control = []
@@ -180,7 +189,7 @@ file = []
 helloworld = []
 math = []
 media = []
-message = []
+social_platform = []
 net = []
 operating_system = []
 task = []

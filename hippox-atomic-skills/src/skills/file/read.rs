@@ -3,9 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    file_exists, read_file_content,
-    types::{Skill, SkillParameter},
-    validate_path,
+    SkillCategory, file_exists, read_file_content, types::{Skill, SkillParameter}, validate_path
 };
 
 #[derive(Debug)]
@@ -61,8 +59,8 @@ impl Skill for ReadFileSkill {
         "{\n  \"name\": \"example\",\n  \"version\": \"1.0\"\n}".to_string()
     }
 
-    fn category(&self) -> &str {
-        "file"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::common::{find_process_by_name, close_process_window, launch_app, wait_for_exit};
+use super::common::{close_process_window, find_process_by_name, launch_app, wait_for_exit};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlRestartSkill;
@@ -39,10 +39,13 @@ impl Skill for ApplicationControlRestartSkill {
             SkillParameter {
                 name: "path".to_string(),
                 param_type: "string".to_string(),
-                description: "Path to the application executable (if different from name)".to_string(),
+                description: "Path to the application executable (if different from name)"
+                    .to_string(),
                 required: false,
                 default: None,
-                example: Some(Value::String("C:\\Windows\\System32\\notepad.exe".to_string())),
+                example: Some(Value::String(
+                    "C:\\Windows\\System32\\notepad.exe".to_string(),
+                )),
                 enum_values: None,
             },
         ]
@@ -61,29 +64,27 @@ impl Skill for ApplicationControlRestartSkill {
         "Application restarted".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let name = parameters.get("name")
+        let name = parameters
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'name' parameter"))?;
-        
-        let path = parameters.get("path")
+        let path = parameters
+            .get("path")
             .and_then(|v| v.as_str())
             .unwrap_or(name);
-        
         // Find and close existing instances
         let processes = find_process_by_name(name)?;
         for process in processes {
             let _ = close_process_window(process.pid);
             let _ = wait_for_exit(process.pid, 5000).await;
         }
-        
         // Launch new instance
         let pid = launch_app(path)?;
-        
         Ok(format!("Application restarted with PID: {}", pid))
     }
 }

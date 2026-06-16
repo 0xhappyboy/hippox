@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::set_resolution;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlResolutionSetSkill;
@@ -71,23 +71,30 @@ impl Skill for DisplayControlResolutionSetSkill {
         "Resolution set to 1920x1080".to_string()
     }
 
-    fn category(&self) -> &str {
-        "display_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Display
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let width = parameters.get("width")
+        let width = parameters
+            .get("width")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'width' parameter"))? as u32;
-        
-        let height = parameters.get("height")
+            .ok_or_else(|| anyhow::anyhow!("Missing 'width' parameter"))?
+            as u32;
+
+        let height = parameters
+            .get("height")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'height' parameter"))? as u32;
-        
-        let display_id = parameters.get("display_id").and_then(|v| v.as_u64()).map(|v| v as u32);
-        
+            .ok_or_else(|| anyhow::anyhow!("Missing 'height' parameter"))?
+            as u32;
+
+        let display_id = parameters
+            .get("display_id")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32);
+
         set_resolution(width, height, display_id)?;
-        
+
         Ok(format!("Resolution set to {}x{}", width, height))
     }
 }

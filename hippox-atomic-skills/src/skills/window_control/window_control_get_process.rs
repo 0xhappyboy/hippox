@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::find_window;
+use super::common::find_window;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlGetProcessSkill;
@@ -60,20 +60,26 @@ impl Skill for WindowControlGetProcessSkill {
         "Process: WeChat.exe (PID: 12345)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        
+
         let window_id = find_window(title, process)?;
-        
-        use super::shared::list_windows;
+
+        use super::common::list_windows;
         let windows = list_windows()?;
-        let window = windows.iter().find(|w| w.id == window_id).ok_or_else(|| anyhow::anyhow!("Window not found"))?;
-        
-        Ok(format!("Process: {} (PID: {})", window.process_name, window.pid))
+        let window = windows
+            .iter()
+            .find(|w| w.id == window_id)
+            .ok_or_else(|| anyhow::anyhow!("Window not found"))?;
+
+        Ok(format!(
+            "Process: {} (PID: {})",
+            window.process_name, window.pid
+        ))
     }
 }

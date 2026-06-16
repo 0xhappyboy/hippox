@@ -5,8 +5,8 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_wifi_status;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiGetNoiseLevelSkill;
@@ -39,34 +39,42 @@ impl Skill for WifiGetNoiseLevelSkill {
         "Signal: -45 dBm, Noise: -90 dBm, SNR: 45 dB".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let status = get_wifi_status()?;
-        
+
         if !status.connected {
             return Ok("Not connected to WiFi".to_string());
         }
-        
+
         let signal = status.signal_strength.unwrap_or(0);
         let signal_dbm = (signal - 100) as i32; // Rough conversion: 0% = -100dBm, 100% = 0dBm
-        
+
         #[cfg(target_os = "linux")]
         let noise_dbm = -95; // Typical default
-        
+
         #[cfg(not(target_os = "linux"))]
         let noise_dbm = -90;
-        
+
         let snr = signal_dbm - noise_dbm;
-        
+
         Ok(format!(
             "Signal: {} dBm, Noise: {} dBm, SNR: {} dB\nQuality: {}",
             signal_dbm,
             noise_dbm,
             snr,
-            if snr > 30 { "Excellent" } else if snr > 20 { "Good" } else if snr > 10 { "Fair" } else { "Poor" }
+            if snr > 30 {
+                "Excellent"
+            } else if snr > 20 {
+                "Good"
+            } else if snr > 10 {
+                "Fair"
+            } else {
+                "Poor"
+            }
         ))
     }
 }

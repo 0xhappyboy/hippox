@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 
 use crate::{
-    ensure_dir,
-    types::{Skill, SkillParameter},
-    validate_path,
+    SkillCategory, ensure_dir, types::{Skill, SkillParameter}, validate_path
 };
 
 #[derive(Debug)]
@@ -72,8 +70,8 @@ impl Skill for CopyFileSkill {
         "Copied /tmp/source.txt to /tmp/dest.txt".to_string()
     }
 
-    fn category(&self) -> &str {
-        "file"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::File
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

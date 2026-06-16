@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::shared::*;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct HaveHeadBrowserTabSwitchSkill;
@@ -49,8 +49,8 @@ impl Skill for HaveHeadBrowserTabSwitchSkill {
         "Switched to tab 0".to_string()
     }
 
-    fn category(&self) -> &str {
-        "have_head_browser"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::HaveHeadBrowser
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use super::shared::*;
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 
 #[derive(Debug)]
@@ -73,8 +74,8 @@ impl Skill for HaveHeadBrowserWaitSkill {
         "Waited for 2000ms".to_string()
     }
 
-    fn category(&self) -> &str {
-        "have_head_browser"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::HaveHeadBrowser
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

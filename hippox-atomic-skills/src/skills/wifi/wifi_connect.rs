@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::connect_wifi;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiConnectSkill;
@@ -61,8 +61,8 @@ impl Skill for WifiConnectSkill {
         "Connected to WiFi network: MyWiFi".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,9 +70,7 @@ impl Skill for WifiConnectSkill {
             .get("ssid")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'ssid' parameter"))?;
-        let password = parameters
-            .get("password")
-            .and_then(|v| v.as_str());
+        let password = parameters.get("password").and_then(|v| v.as_str());
         connect_wifi(ssid, password)?;
         // Wait for connection to establish
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;

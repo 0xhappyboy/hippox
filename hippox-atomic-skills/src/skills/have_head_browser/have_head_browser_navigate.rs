@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::shared::*;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct HaveHeadBrowserNavigateSkill;
@@ -60,8 +60,8 @@ impl Skill for HaveHeadBrowserNavigateSkill {
         "Navigated to https://www.google.com".to_string()
     }
 
-    fn category(&self) -> &str {
-        "have_head_browser"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::HaveHeadBrowser
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

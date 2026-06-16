@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothAutoConnectToggleSkill;
@@ -61,8 +61,8 @@ impl Skill for BluetoothAutoConnectToggleSkill {
         "Auto-connect enabled for AA:BB:CC:DD:EE:FF".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,12 +70,12 @@ impl Skill for BluetoothAutoConnectToggleSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         let enabled = parameters
             .get("enabled")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| anyhow::anyhow!("Missing 'enabled' parameter"))?;
-        
+
         #[cfg(target_os = "linux")]
         {
             if enabled {
@@ -88,7 +88,7 @@ impl Skill for BluetoothAutoConnectToggleSkill {
                     .output()?;
             }
         }
-        
+
         if enabled {
             Ok(format!("Auto-connect enabled for {}", mac_address))
         } else {

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothLeScanFilterSkill;
@@ -32,7 +32,9 @@ impl Skill for BluetoothLeScanFilterSkill {
                 description: "Service UUID to filter for".to_string(),
                 required: true,
                 default: None,
-                example: Some(Value::String("0000180d-0000-1000-8000-00805f9b34fb".to_string())),
+                example: Some(Value::String(
+                    "0000180d-0000-1000-8000-00805f9b34fb".to_string(),
+                )),
                 enum_values: None,
             },
             SkillParameter {
@@ -61,8 +63,8 @@ impl Skill for BluetoothLeScanFilterSkill {
         "Found 2 devices with service 0000180d-0000-1000-8000-00805f9b34fb:\n1. Heart Rate Monitor (AA:BB:CC:DD:EE:FF)\n2. Fitness Tracker (11:22:33:44:55:66)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,32 +72,28 @@ impl Skill for BluetoothLeScanFilterSkill {
             .get("service_uuid")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'service_uuid' parameter"))?;
-        
+
         let timeout = parameters
             .get("timeout_secs")
             .and_then(|v| v.as_u64())
             .unwrap_or(10);
-        
+
         #[cfg(target_os = "linux")]
         {
-            Command::new("bluetoothctl")
-                .args(["scan", "on"])
-                .output()?;
-            
+            Command::new("bluetoothctl").args(["scan", "on"]).output()?;
+
             tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
-            
-            let output = Command::new("bluetoothctl")
-                .args(["devices"])
-                .output()?;
-            
+
+            let output = Command::new("bluetoothctl").args(["devices"]).output()?;
+
             Command::new("bluetoothctl")
                 .args(["scan", "off"])
                 .output()?;
-            
+
             let stdout = String::from_utf8_lossy(&output.stdout);
             let mut result = format!("Found devices with service {}:\n", service_uuid);
             let mut count = 0;
-            
+
             for line in stdout.lines() {
                 if line.starts_with("Device") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
@@ -107,14 +105,14 @@ impl Skill for BluetoothLeScanFilterSkill {
                     }
                 }
             }
-            
+
             if count == 0 {
                 return Ok(format!("No devices found with service {}", service_uuid));
             }
-            
+
             return Ok(result);
         }
-        
+
         Ok(format!("Filtered scan for service {}", service_uuid))
     }
 }

@@ -1,6 +1,6 @@
 //! Window control skills module
 
-mod shared;
+mod common;
 
 mod window_control_minimize;
 mod window_control_maximize;

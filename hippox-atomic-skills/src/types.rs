@@ -3,6 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use crate::SkillCategory;
+
 /// Skill parameter definition
 ///
 /// Defines a single parameter that can be passed to a skill. This includes
@@ -159,7 +161,7 @@ pub struct SkillMetadata {
     /// - `"math"`: Mathematical computations
     /// - `"time"`: Time/date operations
     /// - `"system"`: System-level operations
-    pub category: String,
+    pub category: SkillCategory,
 }
 
 /// Skill execution trait
@@ -268,8 +270,8 @@ pub trait Skill: Send + Sync + Debug {
     /// purposes.
     ///
     /// Default implementation returns `"general"`.
-    fn category(&self) -> &str {
-        "general"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Basic
     }
 
     /// Execute the skill with given parameters
@@ -367,7 +369,7 @@ pub trait Skill: Send + Sync + Debug {
             parameters: self.parameters(),
             example_call: self.example_call(),
             example_output: self.example_output(),
-            category: self.category().to_string(),
+            category: self.category(),
         }
     }
 }
@@ -469,8 +471,8 @@ mod tests {
             "Use this skill to test functionality"
         }
 
-        fn category(&self) -> &str {
-            "test"
+        fn category(&self) -> SkillCategory {
+            SkillCategory::Basic
         }
     }
 
@@ -530,7 +532,7 @@ mod tests {
         assert_eq!(metadata.name, "test_skill");
         assert_eq!(metadata.description, "A test skill");
         assert_eq!(metadata.usage_hint, "Use this skill to test functionality");
-        assert_eq!(metadata.category, "test");
+        assert_eq!(metadata.category, SkillCategory::Basic);
         assert_eq!(metadata.parameters.len(), 2);
         assert_eq!(metadata.parameters[0].name, "input");
         assert_eq!(metadata.parameters[0].required, true);

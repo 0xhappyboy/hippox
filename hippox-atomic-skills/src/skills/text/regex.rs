@@ -6,7 +6,10 @@
 //! - `RegexReplaceSkill`: Replace pattern matches with a replacement string
 //! - `RegexExtractSkill`: Extract capture groups from matches
 
-use crate::types::{Skill, SkillParameter};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -84,8 +87,8 @@ impl Skill for RegexMatchSkill {
         "Pattern matches: true".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -183,8 +186,8 @@ impl Skill for RegexFindSkill {
         "Found matches:\n  - Hello\n  - World\n  - Rust".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -209,7 +212,11 @@ impl Skill for RegexFindSkill {
         if matches.is_empty() {
             Ok("No matches found".to_string())
         } else {
-            let result = format!("Found {} match(es):\n  {}", matches.len(), matches.join("\n  "));
+            let result = format!(
+                "Found {} match(es):\n  {}",
+                matches.len(),
+                matches.join("\n  ")
+            );
             Ok(result)
         }
     }
@@ -298,8 +305,8 @@ impl Skill for RegexReplaceSkill {
         "Result: Call [555-1234] for support".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -360,7 +367,8 @@ impl Skill for RegexExtractSkill {
             SkillParameter {
                 name: "pattern".to_string(),
                 param_type: "string".to_string(),
-                description: "Regular expression with capture groups (using parentheses)".to_string(),
+                description: "Regular expression with capture groups (using parentheses)"
+                    .to_string(),
                 required: true,
                 default: None,
                 example: Some(json!(r"(\w+)@(\w+\.\w+)")),
@@ -401,8 +409,8 @@ impl Skill for RegexExtractSkill {
         "Extracted groups:\nMatch 1:\n  Group 1: 12\n  Group 2: 25\n  Group 3: 2024".to_string()
     }
 
-    fn category(&self) -> &str {
-        "text"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Text
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -436,7 +444,10 @@ impl Skill for RegexExtractSkill {
             if all_captures.is_empty() {
                 return Ok("No matches found".to_string());
             }
-            output.push(format!("Extracted groups ({} match(es)):", all_captures.len()));
+            output.push(format!(
+                "Extracted groups ({} match(es)):",
+                all_captures.len()
+            ));
             for (match_idx, caps) in all_captures.iter().enumerate() {
                 output.push(format!("Match {}:", match_idx + 1));
                 for (group_idx, cap) in caps.iter().enumerate() {

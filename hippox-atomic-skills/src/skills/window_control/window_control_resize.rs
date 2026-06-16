@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::{find_window, get_window_rect, set_window_pos};
+use super::common::{find_window, get_window_rect, set_window_pos};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlResizeSkill;
@@ -80,21 +80,27 @@ impl Skill for WindowControlResizeSkill {
         "Window resized to 800x600".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        let width = parameters.get("width").and_then(|v| v.as_u64()).ok_or_else(|| anyhow::anyhow!("Missing width"))? as u32;
-        let height = parameters.get("height").and_then(|v| v.as_u64()).ok_or_else(|| anyhow::anyhow!("Missing height"))? as u32;
-        
+        let width = parameters
+            .get("width")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| anyhow::anyhow!("Missing width"))? as u32;
+        let height = parameters
+            .get("height")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| anyhow::anyhow!("Missing height"))? as u32;
+
         let window_id = find_window(title, process)?;
         let rect = get_window_rect(window_id)?;
-        
+
         set_window_pos(window_id, rect.x, rect.y, width, height)?;
-        
+
         Ok(format!("Window resized to {}x{}", width, height))
     }
 }

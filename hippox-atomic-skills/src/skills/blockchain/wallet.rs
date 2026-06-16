@@ -1,3 +1,4 @@
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use ethers::abi::Bytes;
@@ -111,8 +112,8 @@ impl Skill for BitcoinWalletSkill {
         "{\n  \"address\": \"tb1q...\",\n  \"private_key\": \"cV...\",\n  \"public_key\": \"02...\"\n}".to_string()
     }
 
-    fn category(&self) -> &str {
-        "blockchain"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Blockchain
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -382,8 +383,8 @@ impl Skill for EvmWalletSkill {
         "{\n  \"address\": \"0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0\",\n  \"chain\": \"ethereum\",\n  \"balance_eth\": 1.234,\n  \"balance_wei\": \"1234000000000000000\"\n}".to_string()
     }
 
-    fn category(&self) -> &str {
-        "blockchain"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Blockchain
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -869,8 +870,8 @@ impl Skill for SolanaWalletSkill {
         "{\n  \"address\": \"7RnPqQkF5GqQF4qXDWcV2bV3gQf6kDmhKqXxXxXxXxX\",\n  \"network\": \"mainnet-beta\",\n  \"balance_sol\": 123.456,\n  \"balance_lamports\": 123456789000\n}".to_string()
     }
 
-    fn category(&self) -> &str {
-        "blockchain"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Blockchain
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

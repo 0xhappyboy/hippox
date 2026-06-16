@@ -4,6 +4,7 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+use crate::SkillCategory;
 use crate::skills::window_control::WindowControlSendShortcutSkill;
 use crate::types::{Skill, SkillParameter};
 
@@ -38,8 +39,8 @@ impl Skill for WindowControlGetSelectedSkill {
         "Selected text: Hello World".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {

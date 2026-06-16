@@ -20,7 +20,10 @@
 //! - `OsBatteryInfoSkill`: Get battery status (laptops)
 //! - `OsNotificationSkill`: Send desktop notifications
 
-use crate::types::{Skill, SkillParameter};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -80,8 +83,8 @@ impl Skill for OsRebootSkill {
         "System will reboot in 10 seconds".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -180,8 +183,8 @@ impl Skill for OsShutdownSkill {
         "System will shutdown in 30 seconds".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -258,8 +261,8 @@ impl Skill for OsSleepSkill {
         "System is going to sleep".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -317,8 +320,8 @@ impl Skill for OsLockSkill {
         "Screen locked".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -380,8 +383,8 @@ impl Skill for OsLogoutSkill {
         "Logging out current user".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -444,8 +447,8 @@ impl Skill for OsHibernateSkill {
         "System is hibernating".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -506,8 +509,8 @@ impl Skill for OsGetUptimeSkill {
         "System uptime: 5 days, 3 hours, 22 minutes".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -575,8 +578,8 @@ impl Skill for OsGetLoadAverageSkill {
         "Load average: 1 min: 2.5, 5 min: 1.8, 15 min: 1.2".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -628,8 +631,8 @@ impl Skill for OsGetHostnameSkill {
         "Current hostname: my-computer".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -657,145 +660,6 @@ impl Skill for OsGetHostnameSkill {
                 hostname.unwrap_or_else(|| "unknown".to_string())
             ))
         }
-    }
-}
-
-/// A skill for getting system time.
-#[derive(Debug)]
-pub struct OsGetTimeSkill;
-
-#[async_trait::async_trait]
-impl Skill for OsGetTimeSkill {
-    fn name(&self) -> &str {
-        "os_get_time"
-    }
-
-    fn description(&self) -> &str {
-        "Get current system time and timezone"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to check the current date, time, and timezone"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "format".to_string(),
-            param_type: "string".to_string(),
-            description: "Output format: full, date, time, timestamp".to_string(),
-            required: false,
-            default: Some(json!("full")),
-            example: Some(json!("date")),
-            enum_values: Some(vec![
-                "full".to_string(),
-                "date".to_string(),
-                "time".to_string(),
-                "timestamp".to_string(),
-            ]),
-        }]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "os_get_time"
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "Current time: 2024-01-15 14:30:45 (UTC+8)".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "time"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let format = parameters
-            .get("format")
-            .and_then(|v| v.as_str())
-            .unwrap_or("full");
-        let now = chrono::Local::now();
-        let tz = now.offset();
-        match format {
-            "date" => Ok(format!("Current date: {}", now.format("%Y-%m-%d"))),
-            "time" => Ok(format!("Current time: {}", now.format("%H:%M:%S"))),
-            "timestamp" => Ok(format!("Unix timestamp: {}", now.timestamp())),
-            _ => Ok(format!(
-                "Current time: {} ({})",
-                now.format("%Y-%m-%d %H:%M:%S"),
-                tz
-            )),
-        }
-    }
-}
-
-/// A skill for setting system time (requires admin).
-#[derive(Debug)]
-pub struct OsSetTimeSkill;
-
-#[async_trait::async_trait]
-impl Skill for OsSetTimeSkill {
-    fn name(&self) -> &str {
-        "os_set_time"
-    }
-
-    fn description(&self) -> &str {
-        "Set system time (requires administrator privileges)"
-    }
-
-    fn usage_hint(&self) -> &str {
-        "Use this skill to adjust system time"
-    }
-
-    fn parameters(&self) -> Vec<SkillParameter> {
-        vec![SkillParameter {
-            name: "datetime".to_string(),
-            param_type: "string".to_string(),
-            description: "New datetime in format 'YYYY-MM-DD HH:MM:SS'".to_string(),
-            required: true,
-            default: None,
-            example: Some(json!("2024-01-15 12:00:00")),
-            enum_values: None,
-        }]
-    }
-
-    fn example_call(&self) -> Value {
-        json!({
-            "action": "os_set_time",
-            "parameters": {
-                "datetime": "2024-01-15 10:00:00"
-            }
-        })
-    }
-
-    fn example_output(&self) -> String {
-        "System time updated successfully".to_string()
-    }
-
-    fn category(&self) -> &str {
-        "time"
-    }
-
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let datetime = parameters
-            .get("datetime")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: datetime"))?;
-        #[cfg(target_os = "windows")]
-        {
-            use crate::exec_async;
-            exec_async(
-                "powershell",
-                &["-Command", &format!("Set-Date -Date '{}'", datetime)],
-                None,
-            )
-            .await?;
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            exec_async("sudo", &["date", "-s", datetime], None).await?;
-        }
-        Ok("System time updated successfully".to_string())
     }
 }
 
@@ -831,8 +695,8 @@ impl Skill for OsGetUserSkill {
         "Username: john\nUID: 1000\nGroups: sudo, docker".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -896,8 +760,8 @@ impl Skill for OsDiskUsageSkill {
             .to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -966,8 +830,8 @@ impl Skill for OsMemoryInfoSkill {
         "Total Memory: 16.0 GB\nUsed Memory: 8.2 GB (51%)\nAvailable Memory: 7.8 GB".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1020,8 +884,8 @@ impl Skill for OsCpuInfoSkill {
         "CPU cores: 8\nPhysical cores: 4\nCPU usage: 15%\nFrequency: 2.4 GHz".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1083,8 +947,8 @@ impl Skill for OsNetworkInfoSkill {
             .to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1163,8 +1027,8 @@ impl Skill for OsBatteryInfoSkill {
         "Battery: 75% (Charging)\nTime remaining: 2h 30m".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1294,8 +1158,8 @@ impl Skill for OsNotificationSkill {
         "Notification sent".to_string()
     }
 
-    fn category(&self) -> &str {
-        "operating_system"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Os
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -1373,14 +1237,6 @@ mod tests {
         let params = HashMap::new();
         let result = skill.execute(&params).await.unwrap();
         assert!(result.contains("Load average"));
-    }
-
-    #[tokio::test]
-    async fn test_os_get_time() {
-        let skill = OsGetTimeSkill;
-        let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
-        assert!(result.contains("Current time"));
     }
 
     #[tokio::test]

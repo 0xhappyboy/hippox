@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::shared::{find_window, get_window_rect};
-use crate::types::{Skill, SkillParameter};
+use super::common::{find_window, get_window_rect};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 use image::GenericImageView;
 
 #[derive(Debug)]
@@ -71,8 +71,8 @@ impl Skill for WindowControlScreenshotSkill {
         "Screenshot saved to ./wechat.png".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

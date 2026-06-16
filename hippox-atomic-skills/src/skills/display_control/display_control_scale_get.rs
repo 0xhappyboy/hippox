@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::get_scale;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlScaleGetSkill;
@@ -39,13 +39,13 @@ impl Skill for DisplayControlScaleGetSkill {
         "Display scale: 1.5x".to_string()
     }
 
-    fn category(&self) -> &str {
-        "display_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Display
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
         let scale = get_scale(None)?;
-        
+
         Ok(format!("Display scale: {:.1}x", scale))
     }
 }

@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::{get_default_gateway, ping_gateway};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiPingGatewaySkill;
@@ -25,17 +25,15 @@ impl Skill for WifiPingGatewaySkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "count".to_string(),
-                param_type: "integer".to_string(),
-                description: "Number of ping packets to send (default: 4)".to_string(),
-                required: false,
-                default: Some(Value::Number(4.into())),
-                example: Some(Value::Number(10.into())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "count".to_string(),
+            param_type: "integer".to_string(),
+            description: "Number of ping packets to send (default: 4)".to_string(),
+            required: false,
+            default: Some(Value::Number(4.into())),
+            example: Some(Value::Number(10.into())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -51,18 +49,21 @@ impl Skill for WifiPingGatewaySkill {
         "Gateway: 192.168.1.1, Ping: 2.5ms (0% loss)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let gateway = get_default_gateway()?;
         let (success, avg_time) = ping_gateway(&gateway)?;
-        
+
         if success {
             Ok(format!("Gateway: {}, Ping: {}ms", gateway, avg_time))
         } else {
-            Ok(format!("Gateway: {}, Ping failed (timeout or unreachable)", gateway))
+            Ok(format!(
+                "Gateway: {}, Ping failed (timeout or unreachable)",
+                gateway
+            ))
         }
     }
 }

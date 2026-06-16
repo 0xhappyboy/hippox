@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
-use super::shared::{find_window, WindowInfo};
+use super::common::{WindowInfo, find_window};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WindowControlGetTitleSkill;
@@ -60,21 +60,24 @@ impl Skill for WindowControlGetTitleSkill {
         "Window title: 微信 - 张三".to_string()
     }
 
-    fn category(&self) -> &str {
-        "window_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Window
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
         let title_match = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        
+
         let window_id = find_window(title_match, process)?;
-        
+
         // Get window info
-        use super::shared::list_windows;
+        use super::common::list_windows;
         let windows = list_windows()?;
-        let window = windows.iter().find(|w| w.id == window_id).ok_or_else(|| anyhow::anyhow!("Window not found"))?;
-        
+        let window = windows
+            .iter()
+            .find(|w| w.id == window_id)
+            .ok_or_else(|| anyhow::anyhow!("Window not found"))?;
+
         Ok(format!("Window title: {}", window.title))
     }
 }

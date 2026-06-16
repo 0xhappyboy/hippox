@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothRenameDeviceSkill;
@@ -61,8 +61,8 @@ impl Skill for BluetoothRenameDeviceSkill {
         "Device AA:BB:CC:DD:EE:FF renamed to 'My Headphones'".to_string()
     }
 
-    fn category(&self) -> &str {
-        "bluetooth"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Bluetooth
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,19 +70,19 @@ impl Skill for BluetoothRenameDeviceSkill {
             .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-        
+
         let name = parameters
             .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'name' parameter"))?;
-        
+
         #[cfg(target_os = "linux")]
         {
             Command::new("bluetoothctl")
                 .args(["set-alias", mac_address, name])
                 .output()?;
         }
-        
+
         Ok(format!("Device {} renamed to '{}'", mac_address, name))
     }
 }

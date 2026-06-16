@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 use super::common::send_shortcut;
 
 #[derive(Debug)]
@@ -56,8 +56,8 @@ impl Skill for KeyboardControlHotkeySkill {
         "Hotkey sent: Win+R".to_string()
     }
 
-    fn category(&self) -> &str {
-        "keyboard_control"
+   fn category(&self) -> SkillCategory {
+        SkillCategory::Keyboard
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

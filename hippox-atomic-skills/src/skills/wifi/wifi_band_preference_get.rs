@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiBandPreferenceGetSkill;
@@ -38,8 +38,8 @@ impl Skill for WifiBandPreferenceGetSkill {
         "Current band preference: 5GHz".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
@@ -49,7 +49,7 @@ impl Skill for WifiBandPreferenceGetSkill {
                 .args(["wlan", "show", "settings"])
                 .output()?;
             let stdout = String::from_utf8_lossy(&output.stdout);
-            
+
             for line in stdout.lines() {
                 if line.contains("Band") || line.contains("频段") {
                     if let Some(band) = line.split(':').nth(1) {
@@ -58,14 +58,12 @@ impl Skill for WifiBandPreferenceGetSkill {
                 }
             }
         }
-        
+
         #[cfg(target_os = "linux")]
         {
-            let output = Command::new("iw")
-                .args(["reg", "get"])
-                .output()?;
+            let output = Command::new("iw").args(["reg", "get"]).output()?;
             let stdout = String::from_utf8_lossy(&output.stdout);
-            
+
             if stdout.contains("2.4") && stdout.contains("5") {
                 return Ok("Current band preference: Auto (2.4GHz and 5GHz)".to_string());
             } else if stdout.contains("2.4") {
@@ -74,7 +72,7 @@ impl Skill for WifiBandPreferenceGetSkill {
                 return Ok("Current band preference: 5GHz".to_string());
             }
         }
-        
+
         Ok("Current band preference: Auto".to_string())
     }
 }

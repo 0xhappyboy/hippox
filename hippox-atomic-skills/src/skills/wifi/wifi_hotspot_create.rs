@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiHotspotCreateSkill;
@@ -61,8 +61,8 @@ impl Skill for WifiHotspotCreateSkill {
         "Hotspot 'MyHotspot' created and started".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,44 +70,56 @@ impl Skill for WifiHotspotCreateSkill {
             .get("ssid")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'ssid' parameter"))?;
-        
+
         let password = parameters
             .get("password")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'password' parameter"))?;
-        
+
         if password.len() < 8 {
             anyhow::bail!("Password must be at least 8 characters");
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             Command::new("netsh")
-                .args(["wlan", "set", "hostednetwork", "mode=allow", "ssid=", ssid, "key=", password])
+                .args([
+                    "wlan",
+                    "set",
+                    "hostednetwork",
+                    "mode=allow",
+                    "ssid=",
+                    ssid,
+                    "key=",
+                    password,
+                ])
                 .output()?;
             Command::new("netsh")
                 .args(["wlan", "start", "hostednetwork"])
                 .output()?;
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             // Use create_ap or nmcli
             let output = Command::new("nmcli")
-                .args(["device", "wifi", "hotspot", "ifname", "wlan0", "ssid", ssid, "password", password])
+                .args([
+                    "device", "wifi", "hotspot", "ifname", "wlan0", "ssid", ssid, "password",
+                    password,
+                ])
                 .output();
-            
+
             if output.is_err() {
                 anyhow::bail!("Hotspot creation requires 'nmcli' or 'create_ap' tool");
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             // macOS requires Internet Sharing to be configured manually
             anyhow::bail!("Hotspot creation on macOS requires System Preferences configuration");
         }
-        
+
         Ok(format!("Hotspot '{}' created and started", ssid))
     }
 }

@@ -18,6 +18,8 @@ mod blockchain_register;
 mod bluetooth_register;
 #[cfg(any(feature = "have_head_browser", feature = "all"))]
 mod browser_register;
+#[cfg(any(feature = "cryptography", feature = "all"))]
+mod cryptography_register;
 #[cfg(any(feature = "db", feature = "all"))]
 mod db_register;
 #[cfg(any(feature = "devops", feature = "all"))]
@@ -26,6 +28,8 @@ mod devops_register;
 mod display_register;
 #[cfg(any(feature = "document", feature = "all"))]
 mod document_register;
+#[cfg(any(feature = "email", feature = "all"))]
+mod email_register;
 #[cfg(any(feature = "file", feature = "all"))]
 mod file_register;
 #[cfg(any(feature = "keyboard_control", feature = "all"))]
@@ -34,8 +38,8 @@ mod keyboard_register;
 mod math_register;
 #[cfg(any(feature = "media", feature = "all"))]
 mod media_register;
-#[cfg(any(feature = "message", feature = "all"))]
-mod message_register;
+#[cfg(any(feature = "social_platform", feature = "all"))]
+mod socialplatform_register;
 #[cfg(any(feature = "mouse_control", feature = "all"))]
 mod mouse_register;
 #[cfg(any(feature = "net", feature = "all"))]
@@ -50,6 +54,8 @@ mod speech_register;
 mod terminal_register;
 #[cfg(any(feature = "text", feature = "all"))]
 mod text_register;
+#[cfg(any(feature = "time", feature = "all"))]
+mod time_register;
 #[cfg(any(feature = "wifi", feature = "all"))]
 mod wifi_register;
 #[cfg(any(feature = "window_control", feature = "all"))]

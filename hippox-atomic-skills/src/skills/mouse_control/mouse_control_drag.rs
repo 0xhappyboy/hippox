@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::{MouseButton, mouse_press, mouse_release, set_mouse_position};
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct MouseControlDragSkill;
@@ -96,8 +96,8 @@ impl Skill for MouseControlDragSkill {
         "Dragged from (100, 100) to (300, 300)".to_string()
     }
 
-    fn category(&self) -> &str {
-        "mouse_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Mouse
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

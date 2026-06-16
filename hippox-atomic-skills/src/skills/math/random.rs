@@ -24,7 +24,10 @@ use rand::RngExt;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 /// # Random Number Generation Skill
 ///
@@ -108,8 +111,8 @@ impl Skill for RandomNumberSkill {
     }
 
     /// Returns the skill category for organization
-    fn category(&self) -> &str {
-        "random"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Math
     }
 
     /// Executes the random number generation logic
@@ -238,8 +241,8 @@ impl Skill for RandomStringSkill {
     }
 
     /// Returns the skill category for organization
-    fn category(&self) -> &str {
-        "random"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Math
     }
 
     /// Executes the random string generation logic
@@ -351,8 +354,8 @@ impl Skill for RandomUuidSkill {
     }
 
     /// Returns the skill category for organization
-    fn category(&self) -> &str {
-        "random"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Math
     }
 
     /// Executes the random UUID generation logic
@@ -481,8 +484,8 @@ impl Skill for RandomPasswordSkill {
     }
 
     /// Returns the skill category for organization
-    fn category(&self) -> &str {
-        "random"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Math
     }
 
     /// Executes the secure password generation logic

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiRoamingToggleSkill;
@@ -61,8 +61,8 @@ impl Skill for WifiRoamingToggleSkill {
         "WiFi roaming enabled with sensitivity 70%".to_string()
     }
 
-    fn category(&self) -> &str {
-        "wifi"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Wifi
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -70,12 +70,12 @@ impl Skill for WifiRoamingToggleSkill {
             .get("enabled")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| anyhow::anyhow!("Missing 'enabled' parameter"))?;
-        
+
         let sensitivity = parameters
             .get("sensitivity")
             .and_then(|v| v.as_u64())
             .unwrap_or(50);
-        
+
         #[cfg(target_os = "windows")]
         {
             let value = if enabled { "enable" } else { "disable" };
@@ -83,7 +83,7 @@ impl Skill for WifiRoamingToggleSkill {
                 .args(["wlan", "set", "roaming", value])
                 .output()?;
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             let roam_value = if enabled { "1" } else { "0" };
@@ -91,8 +91,11 @@ impl Skill for WifiRoamingToggleSkill {
                 .args(["wlan0", "set", "power_save", roam_value])
                 .output()?;
         }
-        
+
         let status = if enabled { "enabled" } else { "disabled" };
-        Ok(format!("WiFi roaming {} with sensitivity {}%", status, sensitivity))
+        Ok(format!(
+            "WiFi roaming {} with sensitivity {}%",
+            status, sensitivity
+        ))
     }
 }

@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::{get_key_code, send_key_down};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct KeyboardControlDownSkill;
@@ -26,17 +26,15 @@ impl Skill for KeyboardControlDownSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "key".to_string(),
-                param_type: "string".to_string(),
-                description: "Key to press and hold (e.g., 'shift', 'ctrl', 'alt')".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("shift".to_string())),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "key".to_string(),
+            param_type: "string".to_string(),
+            description: "Key to press and hold (e.g., 'shift', 'ctrl', 'alt')".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("shift".to_string())),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -52,20 +50,20 @@ impl Skill for KeyboardControlDownSkill {
         "Key down: shift".to_string()
     }
 
-    fn category(&self) -> &str {
-        "keyboard_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Keyboard
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let key = parameters.get("key")
+        let key = parameters
+            .get("key")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'key' parameter"))?;
-        
-        let key_code = get_key_code(key)
-            .ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
-        
+
+        let key_code = get_key_code(key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
+
         send_key_down(key_code)?;
-        
+
         Ok(format!("Key down: {}", key))
     }
 }

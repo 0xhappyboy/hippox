@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::types::{Skill, SkillParameter};
 use super::common::find_process_by_name;
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlWaitForSkill;
@@ -62,31 +62,28 @@ impl Skill for ApplicationControlWaitForSkill {
         "Application started within timeout".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let name = parameters.get("name")
+        let name = parameters
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'name' parameter"))?;
-        
-        let timeout_ms = parameters.get("timeout_ms")
+        let timeout_ms = parameters
+            .get("timeout_ms")
             .and_then(|v| v.as_u64())
             .unwrap_or(30000);
-        
         let start = std::time::Instant::now();
-        
         loop {
             if start.elapsed() > std::time::Duration::from_millis(timeout_ms) {
                 anyhow::bail!("Timeout waiting for application to start");
             }
-            
             let processes = find_process_by_name(name)?;
             if !processes.is_empty() {
                 return Ok("Application started within timeout".to_string());
             }
-            
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
     }

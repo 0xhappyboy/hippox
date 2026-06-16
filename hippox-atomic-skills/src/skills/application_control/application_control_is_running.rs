@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::find_process_by_name;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlIsRunningSkill;
@@ -50,8 +50,8 @@ impl Skill for ApplicationControlIsRunningSkill {
         "Application is running: true".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -59,10 +59,8 @@ impl Skill for ApplicationControlIsRunningSkill {
             .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'name' parameter"))?;
-
         let processes = find_process_by_name(name)?;
         let is_running = !processes.is_empty();
-
         Ok(format!("Application is running: {}", is_running))
     }
 }

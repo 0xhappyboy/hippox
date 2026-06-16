@@ -19,6 +19,7 @@
 //! // let result = skill.execute(&params).await?;
 //! ```
 
+use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use regex::Regex;
@@ -89,8 +90,8 @@ impl Skill for IpInfoSkill {
         "IP Information for 8.8.8.8:\nCountry: United States\nCity: Mountain View\nISP: Google LLC\nASN: AS15169\nLatitude: 37.4223\nLongitude: -122.0841\nTimezone: America/Los_Angeles".to_string()
     }
 
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -238,8 +239,8 @@ impl Skill for IpValidateSkill {
         "IP Address: 10.0.0.1\nType: IPv4\nClassification: Private (RFC 1918)\nValid: Yes\nLoopback: No\nMulticast: No".to_string()
     }
 
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -333,8 +334,8 @@ impl Skill for IpRangeSkill {
         "CIDR: 10.0.0.0/16\nNetwork: 10.0.0.0\nSubnet Mask: 255.255.0.0\nWildcard: 0.0.255.255\nFirst IP: 10.0.0.1\nLast IP: 10.0.255.254\nBroadcast: 10.0.255.255\nTotal Hosts: 65534".to_string()
     }
 
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -442,8 +443,8 @@ impl Skill for LocalIpSkill {
             .to_string()
     }
 
-    fn category(&self) -> &str {
-        "net"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Net
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {

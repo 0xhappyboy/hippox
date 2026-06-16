@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::launch_app;
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlLaunchSkill;
@@ -50,8 +50,8 @@ impl Skill for ApplicationControlLaunchSkill {
         "Application launched with PID: 12345".to_string()
     }
 
-    fn category(&self) -> &str {
-        "application_control"
+    fn category(&self) -> SkillCategory {
+        SkillCategory::Application
     }
 
     async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
@@ -59,9 +59,7 @@ impl Skill for ApplicationControlLaunchSkill {
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-
         let pid = launch_app(path)?;
-
         Ok(format!("Application launched with PID: {}", pid))
     }
 }
