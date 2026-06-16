@@ -23,7 +23,8 @@ uuid = "1.23.3"
 once_cell = "1.21.4"
 tracing = "0.1.44"
 toml = "1.1.2"
-hippox-atomic-skills = "0.2.0"
+hippox-atomic-skills = { path = "../hippox-atomic-skills" }
+# hippox-atomic-skills = "0.2.0"
 regex = "1.12.4"
 chrono = "0.4.45"
 

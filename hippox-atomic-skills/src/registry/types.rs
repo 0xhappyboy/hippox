@@ -37,8 +37,6 @@ pub enum SkillCategory {
     HaveHeadBrowser,
     /// Window minimize, maximize, move, close, always on top
     Window,
-    /// Text-to-speech, voice broadcast
-    Speech,
     /// Key presses, shortcuts, text input
     Keyboard,
     /// Mouse movement, clicking, dragging, scrolling
@@ -64,6 +62,7 @@ pub enum SkillCategory {
     /// cryptography
     Cryptography,
     /// speech speak
+    /// Text-to-speech, voice broadcast
     SpeechSpeak,
     OperatingSystemServices,
     OperatingSystemSecurity,
@@ -72,94 +71,114 @@ pub enum SkillCategory {
 impl SkillCategory {
     /// Convert string to SkillCategory enum
     ///
+    /// # Important
+    /// This function MUST be kept in sync with the `name()` method.
+    /// The string patterns here must match exactly with what `name()` returns.
+    /// These names are used as the category index for LLM intent classification.
+    /// If `name()` returns `"file_ops"`, this function must accept `"file_ops"` as input.
+    ///
     /// # Arguments
-    /// * `s` - Category name string (e.g., "basic", "file", "math")
+    /// * `s` - Category name string (e.g., "file_ops", "network_ops", "security_ops")
     ///
     /// # Returns
     /// `Some(SkillCategory)` if the string matches a category name, otherwise `None`
     ///
     /// # Examples
     /// ```
-    /// let category = SkillCategory::from_str("basic");
-    /// assert_eq!(category, Some(SkillCategory::Basic));
+    /// let category = SkillCategory::from_str("file_ops");
+    /// assert_eq!(category, Some(SkillCategory::File));
     /// ```
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "basic" => Some(SkillCategory::Basic),
-            "file" => Some(SkillCategory::File),
-            "math" => Some(SkillCategory::Math),
-            "network" => Some(SkillCategory::Network),
-            "operating_system" => Some(SkillCategory::OperatingSystem),
-            "operating_system_process" => Some(SkillCategory::OperatingSystemProcess),
-            "operating_system_memory" => Some(SkillCategory::OperatingSystemMemory),
-            "document" => Some(SkillCategory::Document),
-            "social_platform" => Some(SkillCategory::SocialPlatform),
-            "database" => Some(SkillCategory::Database),
-            "text" => Some(SkillCategory::Text),
-            "devops" => Some(SkillCategory::Devops),
-            "media" => Some(SkillCategory::Media),
-            "blockchain" => Some(SkillCategory::Blockchain),
-            "have_head_browser" => Some(SkillCategory::HaveHeadBrowser),
-            "window" => Some(SkillCategory::Window),
-            "speech" => Some(SkillCategory::Speech),
-            "keyboard" => Some(SkillCategory::Keyboard),
-            "mouse" => Some(SkillCategory::Mouse),
-            "audio" => Some(SkillCategory::Audio),
-            "application" => Some(SkillCategory::Application),
-            "display" => Some(SkillCategory::Display),
-            "wifi" => Some(SkillCategory::Wifi),
-            "bluetooth" => Some(SkillCategory::Bluetooth),
-            "terminal" => Some(SkillCategory::Terminal),
-            "operating_system_services" => Some(SkillCategory::OperatingSystemServices),
-            "operating_system_security" => Some(SkillCategory::OperatingSystemSecurity),
+            "file_ops" => Some(SkillCategory::File),
+            "math_ops" => Some(SkillCategory::Math),
+            "network_ops" => Some(SkillCategory::Network),
+            "system_ops" => Some(SkillCategory::OperatingSystem),
+            "process_ops" => Some(SkillCategory::OperatingSystemProcess),
+            "memory_ops" => Some(SkillCategory::OperatingSystemMemory),
+            "document_ops" => Some(SkillCategory::Document),
+            "social_ops" => Some(SkillCategory::SocialPlatform),
+            "database_ops" => Some(SkillCategory::Database),
+            "text_ops" => Some(SkillCategory::Text),
+            "devops_ops" => Some(SkillCategory::Devops),
+            "media_ops" => Some(SkillCategory::Media),
+            "blockchain_ops" => Some(SkillCategory::Blockchain),
+            "browser_ops" => Some(SkillCategory::HaveHeadBrowser),
+            "window_ops" => Some(SkillCategory::Window),
+            "keyboard_ops" => Some(SkillCategory::Keyboard),
+            "mouse_ops" => Some(SkillCategory::Mouse),
+            "audio_ops" => Some(SkillCategory::Audio),
+            "app_ops" => Some(SkillCategory::Application),
+            "display_ops" => Some(SkillCategory::Display),
+            "wifi_ops" => Some(SkillCategory::Wifi),
+            "bluetooth_ops" => Some(SkillCategory::Bluetooth),
+            "terminal_ops" => Some(SkillCategory::Terminal),
+            "email_ops" => Some(SkillCategory::Email),
+            "schedule_ops" => Some(SkillCategory::ScheduledTasks),
+            "time_ops" => Some(SkillCategory::Time),
+            "crypto_ops" => Some(SkillCategory::Cryptography),
+            "tts_play_on_speaker" => Some(SkillCategory::SpeechSpeak),
+            "service_ops" => Some(SkillCategory::OperatingSystemServices),
+            "security_ops" => Some(SkillCategory::OperatingSystemSecurity),
             _ => None,
         }
     }
 
     /// Get the string representation of the category
+    /// Returns the LLM-readable name identifier for this category.
+    ///
+    /// # Important
+    /// This name is the primary key used for category identification in the LLM
+    /// skill routing system. It is sent to the LLM during intent analysis to help
+    /// the model select the appropriate skill category for a given user request.
+    ///
+    /// The naming convention uses descriptive, human-readable terms that clearly
+    /// indicate the category's purpose (e.g., "file_ops", "network_ops", "security_ops")
+    /// so the LLM can accurately match user intent to the correct category during
+    /// the initial intent classification phase.
     ///
     /// # Returns
-    /// The category name as a string
+    /// A static string identifier used for LLM-based skill category selection.
     ///
     /// # Examples
     /// ```
-    /// let name = SkillCategory::Basic.name();
-    /// assert_eq!(name, "basic");
+    /// let category = SkillCategory::File;
+    /// assert_eq!(category.name(), "file_ops");
     /// ```
     pub fn name(&self) -> &'static str {
         match self {
             SkillCategory::Basic => "basic",
-            SkillCategory::File => "file",
-            SkillCategory::Math => "math",
-            SkillCategory::Network => "network",
-            SkillCategory::OperatingSystem => "operating_system",
-            SkillCategory::OperatingSystemProcess => "operating_system_process",
-            SkillCategory::OperatingSystemMemory => "operating_system_memory",
-            SkillCategory::Document => "document",
-            SkillCategory::SocialPlatform => "social_platform",
-            SkillCategory::Database => "database",
-            SkillCategory::Text => "text",
-            SkillCategory::Devops => "devops",
-            SkillCategory::Media => "media",
-            SkillCategory::Blockchain => "blockchain",
-            SkillCategory::HaveHeadBrowser => "have_head_browser",
-            SkillCategory::Window => "window",
-            SkillCategory::Speech => "speech",
-            SkillCategory::Keyboard => "keyboard",
-            SkillCategory::Mouse => "mouse",
-            SkillCategory::Audio => "audio",
-            SkillCategory::Application => "application",
-            SkillCategory::Display => "display",
-            SkillCategory::Wifi => "wifi",
-            SkillCategory::Bluetooth => "bluetooth",
-            SkillCategory::Terminal => "terminal",
-            SkillCategory::Email => "email",
-            SkillCategory::ScheduledTasks => "scheduled_tasks",
-            SkillCategory::Time => "time",
-            SkillCategory::Cryptography => "cryptography",
-            SkillCategory::SpeechSpeak => "speech_speak",
-            SkillCategory::OperatingSystemServices => "operating_system_services",
-            SkillCategory::OperatingSystemSecurity => "operating_system_security",
+            SkillCategory::File => "file_ops",
+            SkillCategory::Math => "math_ops",
+            SkillCategory::Network => "network_ops",
+            SkillCategory::OperatingSystem => "system_ops",
+            SkillCategory::OperatingSystemProcess => "process_ops",
+            SkillCategory::OperatingSystemMemory => "memory_ops",
+            SkillCategory::Document => "document_ops",
+            SkillCategory::SocialPlatform => "social_ops",
+            SkillCategory::Database => "database_ops",
+            SkillCategory::Text => "text_ops",
+            SkillCategory::Devops => "devops_ops",
+            SkillCategory::Media => "media_ops",
+            SkillCategory::Blockchain => "blockchain_ops",
+            SkillCategory::HaveHeadBrowser => "browser_ops",
+            SkillCategory::Window => "window_ops",
+            SkillCategory::Keyboard => "keyboard_ops",
+            SkillCategory::Mouse => "mouse_ops",
+            SkillCategory::Audio => "audio_ops",
+            SkillCategory::Application => "app_ops",
+            SkillCategory::Display => "display_ops",
+            SkillCategory::Wifi => "wifi_ops",
+            SkillCategory::Bluetooth => "bluetooth_ops",
+            SkillCategory::Terminal => "terminal_ops",
+            SkillCategory::Email => "email_ops",
+            SkillCategory::ScheduledTasks => "schedule_ops",
+            SkillCategory::Time => "time_ops",
+            SkillCategory::Cryptography => "crypto_ops",
+            SkillCategory::SpeechSpeak => "tts_play_on_speaker",
+            SkillCategory::OperatingSystemServices => "service_ops",
+            SkillCategory::OperatingSystemSecurity => "security_ops",
         }
     }
 
@@ -182,7 +201,6 @@ impl SkillCategory {
             SkillCategory::Blockchain => "Blockchain",
             SkillCategory::HaveHeadBrowser => "Have Head Browser Control",
             SkillCategory::Window => "Window Control",
-            SkillCategory::Speech => "Speech Synthesis",
             SkillCategory::Keyboard => "Keyboard Control",
             SkillCategory::Mouse => "Mouse Control",
             SkillCategory::Audio => "Audio Control",
@@ -242,7 +260,6 @@ impl SkillCategory {
             SkillCategory::Window => {
                 "Window management: minimize, maximize, move, close, pin to top"
             }
-            SkillCategory::Speech => "Text-to-speech synthesis and voice broadcast",
             SkillCategory::Keyboard => {
                 "Keyboard input simulation: key presses, shortcuts, text typing"
             }
@@ -300,7 +317,6 @@ impl SkillCategory {
             SkillCategory::Blockchain => "⛓️",
             SkillCategory::HaveHeadBrowser => "🌍",
             SkillCategory::Window => "🪟",
-            SkillCategory::Speech => "🔊",
             SkillCategory::Keyboard => "⌨️",
             SkillCategory::Mouse => "🖱️",
             SkillCategory::Audio => "🎵",
@@ -338,7 +354,6 @@ impl SkillCategory {
             SkillCategory::Blockchain => 120,
             SkillCategory::HaveHeadBrowser => 125,
             SkillCategory::Window => 130,
-            SkillCategory::Speech => 140,
             SkillCategory::Keyboard => 150,
             SkillCategory::Mouse => 151,
             SkillCategory::Audio => 155,
@@ -388,7 +403,6 @@ impl SkillCategory {
             Blockchain.metadata(),
             HaveHeadBrowser.metadata(),
             Window.metadata(),
-            Speech.metadata(),
             Keyboard.metadata(),
             Mouse.metadata(),
             Audio.metadata(),

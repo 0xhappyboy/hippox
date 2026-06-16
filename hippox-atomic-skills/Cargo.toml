@@ -148,7 +148,6 @@ default = [
     "wifi",
     "bluetooth",
     "email",
-    "scheduler_task",
     "cryptography",
     "operating_system_services",
     "operating_system_security",
@@ -183,7 +182,6 @@ all = [
     "wifi",
     "bluetooth",
     "email",
-    "scheduler_task",
     "cryptography",
     "operating_system_services",
     "operating_system_security",
@@ -198,7 +196,6 @@ operating_system_process = []
 operating_system_security = []
 operating_system_services = []
 cryptography = []
-scheduler_task = []
 email = []
 bluetooth = []
 wifi = []

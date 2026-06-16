@@ -24,8 +24,6 @@ pub mod network;
 pub mod operating_system;
 #[cfg(feature = "operating_system_services")]
 pub mod operating_system_services;
-#[cfg(feature = "scheduler_task")]
-pub mod scheduler_task;
 #[cfg(feature = "social_platform")]
 pub mod social_platform;
 #[cfg(feature = "speech_speak")]
@@ -61,6 +59,8 @@ pub mod operating_system_memory;
 pub mod operating_system_process;
 #[cfg(feature = "operating_system_security")]
 pub mod operating_system_security;
+#[cfg(feature = "scheduled_tasks")]
+pub mod scheduled_tasks;
 
 // ===================================== Re-exports =====================================
 #[cfg(feature = "application_control")]
@@ -109,15 +109,15 @@ pub use operating_system_process::*;
 pub use operating_system_security::*;
 #[cfg(feature = "operating_system_services")]
 pub use operating_system_services::*;
-#[cfg(feature = "scheduler_task")]
-pub use scheduler_task::*;
+#[cfg(feature = "scheduled_tasks")]
+pub use scheduled_tasks::*;
 #[cfg(feature = "social_platform")]
 pub use social_platform::*;
 #[cfg(feature = "speech_speak")]
 pub use speech_speak::*;
 #[cfg(feature = "terminal_commands")]
 pub use terminal_commands::*;
-#[cfg(feature = "task")]
+#[cfg(feature = "text")]
 pub use text::*;
 #[cfg(feature = "time")]
 pub use time::*;

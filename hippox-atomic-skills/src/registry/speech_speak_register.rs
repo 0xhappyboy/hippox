@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::{SkillCategory, SkillRegistryMap};
 
 pub fn register(registry: &mut SkillRegistryMap) {
-    let category = SkillCategory::Speech;
+    let category = SkillCategory::SpeechSpeak;
     let map = registry.entry(category).or_insert_with(HashMap::new);
     
     #[cfg(any(feature = "speech_speak", feature = "all"))]

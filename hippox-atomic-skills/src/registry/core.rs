@@ -9,7 +9,7 @@ use crate::registry::cryptography_register;
 use crate::registry::email_register;
 #[cfg(any(feature = "network", feature = "all"))]
 use crate::registry::network_register;
-#[cfg(any(feature = "scheduler_task", feature = "all"))]
+#[cfg(any(feature = "scheduled_tasks", feature = "all"))]
 use crate::registry::scheduled_tasks_register;
 #[cfg(any(feature = "time", feature = "all"))]
 use crate::registry::time_register;
@@ -131,8 +131,6 @@ static SKILL_REGISTRY: Lazy<RwLock<SkillRegistryMap>> = Lazy::new(|| {
     time_register::register(&mut registry);
     #[cfg(any(feature = "email", feature = "all"))]
     email_register::register(&mut registry);
-    #[cfg(any(feature = "scheduler_task", feature = "all"))]
-    scheduled_tasks_register::register(&mut registry);
     #[cfg(any(feature = "operating_system_services", feature = "all"))]
     operating_system_services_register::register(&mut registry);
     #[cfg(any(feature = "operating_system_security", feature = "all"))]
@@ -641,10 +639,13 @@ pub fn get_skills_by_category_list(categories: &[String]) -> Vec<Arc<dyn Skill>>
 pub fn list_skills_name_by_category_list(categorys: &[String]) -> Vec<String> {
     let registry = get_registry();
     let mut result = Vec::new();
-    for (category, category_map) in registry.iter() {
-        let category_name = category.name().to_string();
-        if categorys.iter().any(|cat| cat == &category_name) {
-            result.extend(category_map.keys().cloned());
+    let enums: Vec<SkillCategory> = categorys
+        .iter()
+        .filter_map(|cat| SkillCategory::from_str(cat))
+        .collect();
+    for cat_enum in enums {
+        if let Some(skill_map) = registry.get(&cat_enum) {
+            result.extend(skill_map.keys().cloned());
         }
     }
     result
