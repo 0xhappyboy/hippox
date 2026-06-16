@@ -1,4 +1,4 @@
-//! SHA512 hash skill
+//! SHA512 hash skill for text
 
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -22,20 +22,20 @@ use crate::types::{Skill, SkillParameter};
 /// Output: "SHA512: 2c74fd17edafd80e8447b0d46741ee243b7eb74dd2149a0ab1b9246fb30382f27e853d8585719e0e67cbda0daa8f51671064615d645ae27acb15bfb1447f459b"
 /// ```
 #[derive(Debug)]
-pub struct HashSha512Skill;
+pub struct HashSha512TextSkill;
 
 #[async_trait::async_trait]
-impl Skill for HashSha512Skill {
+impl Skill for HashSha512TextSkill {
     fn name(&self) -> &str {
-        "hash_sha512"
+        "hash_sha512_text"
     }
 
     fn description(&self) -> &str {
-        "Calculate SHA512 hash of a string"
+        "Calculate SHA512 hash of a text string"
     }
 
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to compute SHA512 hash for a text string"
+        "Use this skill when you need to compute SHA512 hash for a text string. For file hashing, use file/hash_sha512."
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -52,7 +52,7 @@ impl Skill for HashSha512Skill {
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "hash_sha512",
+            "action": "hash_sha512_text",
             "parameters": {
                 "input": "Hello World"
             }
@@ -72,6 +72,7 @@ impl Skill for HashSha512Skill {
             .get("input")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'input' parameter"))?;
+
         use sha2::{Digest, Sha512};
         let mut hasher = Sha512::new();
         hasher.update(input.as_bytes());

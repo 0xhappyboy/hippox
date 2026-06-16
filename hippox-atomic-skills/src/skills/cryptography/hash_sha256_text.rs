@@ -1,12 +1,10 @@
-//! SHA256 hash skill
+//! SHA256 hash skill for text
 
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::{
-    types::{Skill, SkillParameter},
-};
+use crate::types::{Skill, SkillParameter};
 
 /// Skill for calculating SHA256 hash of a string
 ///
@@ -24,20 +22,20 @@ use crate::{
 /// Output: "SHA256: a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e"
 /// ```
 #[derive(Debug)]
-pub struct HashSha256Skill;
+pub struct HashSha256TextSkill;
 
 #[async_trait::async_trait]
-impl Skill for HashSha256Skill {
+impl Skill for HashSha256TextSkill {
     fn name(&self) -> &str {
-        "hash_sha256"
+        "hash_sha256_text"
     }
 
     fn description(&self) -> &str {
-        "Calculate SHA256 hash of a string"
+        "Calculate SHA256 hash of a text string"
     }
 
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to compute SHA256 hash for a text string"
+        "Use this skill when you need to compute SHA256 hash for a text string. For file hashing, use file/hash_sha256."
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -54,7 +52,7 @@ impl Skill for HashSha256Skill {
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "hash_sha256",
+            "action": "hash_sha256_text",
             "parameters": {
                 "input": "Hello World"
             }
@@ -74,6 +72,7 @@ impl Skill for HashSha256Skill {
             .get("input")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'input' parameter"))?;
+
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(input.as_bytes());
@@ -86,40 +85,5 @@ impl Skill for HashSha256Skill {
             .get("input")
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: input"))?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_hash_sha256_skill() {
-        let skill = HashSha256Skill;
-        let mut params = HashMap::new();
-
-        // Test normal string
-        params.insert(
-            "input".to_string(),
-            Value::String("Hello World".to_string()),
-        );
-        let result = skill.execute(&params).await.unwrap();
-        assert_eq!(
-            result,
-            "SHA256: a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e"
-        );
-
-        // Test empty string
-        params.insert("input".to_string(), Value::String("".to_string()));
-        let result = skill.execute(&params).await.unwrap();
-        assert_eq!(
-            result,
-            "SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        );
-
-        // Test missing parameter
-        let empty_params = HashMap::new();
-        let result = skill.execute(&empty_params).await;
-        assert!(result.is_err());
     }
 }

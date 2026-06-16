@@ -5,9 +5,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::{
-    types::{Skill, SkillParameter},
-};
+use crate::types::{Skill, SkillParameter};
 
 /// Skill for Base64 encoding
 ///

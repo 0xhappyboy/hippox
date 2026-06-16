@@ -10,7 +10,8 @@ pub fn register(registry: &mut SkillRegistryMap) {
 
     #[cfg(any(feature = "scheduled_tasks", feature = "all"))]
     {
-        use crate::skills::scheduled_tasks::*;
+        use crate::skills::{ListScheduledTasksSkill, ScheduleTaskSkill, UnscheduleTaskSkill};
+
         map.insert("schedule_task".to_string(), Arc::new(ScheduleTaskSkill));
         map.insert("unschedule_task".to_string(), Arc::new(UnscheduleTaskSkill));
         map.insert(

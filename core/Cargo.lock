@@ -3082,6 +3082,8 @@ dependencies = [
 [[package]]
 name = "hippox-atomic-skills"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e66822888f5263992fb6f9f61a565981ac85e83ae8a5e17469ab5d04f34c90db"
 dependencies = [
  "anyhow",
  "async-trait",

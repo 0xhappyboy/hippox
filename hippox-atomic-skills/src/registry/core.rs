@@ -8,7 +8,7 @@ use crate::registry::cryptography_register;
 #[cfg(any(feature = "email", feature = "all"))]
 use crate::registry::email_register;
 #[cfg(any(feature = "scheduler_task", feature = "all"))]
-use crate::registry::scheduled_task_register;
+use crate::registry::scheduled_tasks_register;
 #[cfg(any(feature = "time", feature = "all"))]
 use crate::registry::time_register;
 use once_cell::sync::Lazy;
@@ -50,6 +50,10 @@ use crate::registry::media_register;
 use crate::registry::mouse_register;
 #[cfg(any(feature = "net", feature = "all"))]
 use crate::registry::net_register;
+#[cfg(any(feature = "operating_system_security", feature = "all"))]
+use crate::registry::operating_system_security_register;
+#[cfg(any(feature = "operating_system_services", feature = "all"))]
+use crate::registry::operating_system_services_register;
 #[cfg(any(feature = "operating_system", feature = "all"))]
 use crate::registry::os_register;
 #[cfg(any(feature = "operating_system", feature = "all"))]
@@ -128,7 +132,13 @@ static SKILL_REGISTRY: Lazy<RwLock<SkillRegistryMap>> = Lazy::new(|| {
     #[cfg(any(feature = "email", feature = "all"))]
     email_register::register(&mut registry);
     #[cfg(any(feature = "scheduler_task", feature = "all"))]
-    scheduled_task_register::register(&mut registry);
+    scheduled_tasks_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_services", feature = "all"))]
+    operating_system_services_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_security", feature = "all"))]
+    operating_system_security_register::register(&mut registry);
+    #[cfg(any(feature = "scheduled_tasks", feature = "all"))]
+    scheduled_tasks_register::register(&mut registry);
 
     RwLock::new(registry)
 });

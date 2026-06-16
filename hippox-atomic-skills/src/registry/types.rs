@@ -63,6 +63,8 @@ pub enum SkillCategory {
     Cryptography,
     /// speech speak
     SpeechSpeak,
+    OperatingSystemServices,
+    OperatingSystemSecurity,
 }
 
 impl SkillCategory {
@@ -105,6 +107,8 @@ impl SkillCategory {
             "wifi" => Some(SkillCategory::Wifi),
             "bluetooth" => Some(SkillCategory::Bluetooth),
             "terminal" => Some(SkillCategory::Terminal),
+            "operating_system_services" => Some(SkillCategory::OperatingSystemServices),
+            "operating_system_security" => Some(SkillCategory::OperatingSystemSecurity),
             _ => None,
         }
     }
@@ -125,11 +129,11 @@ impl SkillCategory {
             SkillCategory::File => "file",
             SkillCategory::Math => "math",
             SkillCategory::Net => "net",
-            SkillCategory::Os => "os",
+            SkillCategory::Os => "operating_system",
             SkillCategory::Process => "process",
             SkillCategory::Document => "document",
             SkillCategory::SocialPlatform => "social_platform",
-            SkillCategory::Db => "db",
+            SkillCategory::Db => "database",
             SkillCategory::Text => "text",
             SkillCategory::Devops => "devops",
             SkillCategory::Media => "media",
@@ -150,6 +154,8 @@ impl SkillCategory {
             SkillCategory::Time => "time",
             SkillCategory::Cryptography => "cryptography",
             SkillCategory::SpeechSpeak => "speech_speak",
+            SkillCategory::OperatingSystemServices => "operating_system_services",
+            SkillCategory::OperatingSystemSecurity => "operating_system_security",
         }
     }
 
@@ -185,6 +191,8 @@ impl SkillCategory {
             SkillCategory::Time => "Time & Date",
             SkillCategory::Cryptography => "Cryptography",
             SkillCategory::SpeechSpeak => "Speech Speak",
+            SkillCategory::OperatingSystemServices => "Operating System Services",
+            SkillCategory::OperatingSystemSecurity => "Operating System Security",
         }
     }
 
@@ -254,6 +262,12 @@ impl SkillCategory {
                 "Cryptographic operations: hashing (MD5, SHA256, SHA512), Base64 encoding/decoding"
             }
             SkillCategory::SpeechSpeak => "Used to convert text into spoken audio",
+            SkillCategory::OperatingSystemServices => {
+                "Service management: list, start, stop, restart, enable, disable, and manage system services"
+            }
+            SkillCategory::OperatingSystemSecurity => {
+                "Security operations: weak password detection, security policy assessment, CVE query, threat intelligence, phishing detection"
+            }
         }
     }
 
@@ -289,6 +303,8 @@ impl SkillCategory {
             SkillCategory::Time => "🕐",
             SkillCategory::Cryptography => "🔐",
             SkillCategory::SpeechSpeak => "🎤",
+            SkillCategory::OperatingSystemServices => "🔧",
+            SkillCategory::OperatingSystemSecurity => "🛡️",
         }
     }
 
@@ -324,6 +340,8 @@ impl SkillCategory {
             SkillCategory::Cryptography => 200,
             SkillCategory::Terminal => 250,
             SkillCategory::SpeechSpeak => 255,
+            SkillCategory::OperatingSystemServices => 35,
+            SkillCategory::OperatingSystemSecurity => 36,
         }
     }
 
@@ -371,6 +389,8 @@ impl SkillCategory {
             Cryptography.metadata(),
             Terminal.metadata(),
             SpeechSpeak.metadata(),
+            OperatingSystemServices.metadata(),
+            OperatingSystemSecurity.metadata(),
         ]
     }
 }

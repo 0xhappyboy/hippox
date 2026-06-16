@@ -42,12 +42,16 @@ mod media_register;
 mod mouse_register;
 #[cfg(any(feature = "net", feature = "all"))]
 mod net_register;
+#[cfg(any(feature = "operating_system_security", feature = "all"))]
+mod operating_system_security_register;
+#[cfg(any(feature = "operating_system_services", feature = "all"))]
+mod operating_system_services_register;
 #[cfg(any(feature = "operating_system", feature = "all"))]
 mod os_register;
 #[cfg(any(feature = "operating_system", feature = "all"))]
 mod process_register;
-#[cfg(any(feature = "scheduler_task", feature = "all"))]
-mod scheduled_task_register;
+#[cfg(any(feature = "scheduled_tasks", feature = "all"))]
+mod scheduled_tasks_register;
 #[cfg(any(feature = "social_platform", feature = "all"))]
 mod socialplatform_register;
 #[cfg(any(feature = "speech_speak", feature = "all"))]

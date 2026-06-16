@@ -1,10 +1,14 @@
+//! File list skill
+
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 
+use super::common::{list_directory, validate_path};
 use crate::{
-    SkillCategory, types::{Skill, SkillParameter}, validate_path
+    SkillCategory,
+    types::{Skill, SkillParameter},
 };
 
 #[derive(Debug)]
@@ -39,6 +43,15 @@ impl Skill for ListDirectorySkill {
                 name: "show_hidden".to_string(),
                 param_type: "boolean".to_string(),
                 description: "Show hidden files (starting with dot)".to_string(),
+                required: false,
+                default: Some(Value::Bool(false)),
+                example: Some(Value::Bool(true)),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "recursive".to_string(),
+                param_type: "boolean".to_string(),
+                description: "List directory contents recursively".to_string(),
                 required: false,
                 default: Some(Value::Bool(false)),
                 example: Some(Value::Bool(true)),
@@ -82,37 +95,63 @@ impl Skill for ListDirectorySkill {
             .get("show_hidden")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+        let recursive = parameters
+            .get("recursive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let detail = parameters
             .get("detail")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+
         let validated_path = validate_path(path, None)?;
+
         if !validated_path.is_dir() {
             anyhow::bail!("Not a directory: {}", path);
         }
-        let entries = fs::read_dir(&validated_path)?;
+
+        let entries = list_directory(&validated_path.to_string_lossy(), recursive, show_hidden)?;
+
+        if entries.is_empty() {
+            return Ok(format!("Directory is empty: {}", path));
+        }
+
         let mut result = Vec::new();
-        for entry in entries {
-            let entry = entry?;
-            let file_name = entry.file_name();
-            let name = file_name.to_string_lossy().to_string();
-            if !show_hidden && name.starts_with('.') {
-                continue;
+
+        if detail {
+            for entry_path in &entries {
+                let name = entry_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+
+                if let Ok(metadata) = fs::metadata(entry_path) {
+                    let file_type = if metadata.is_dir() { "DIR" } else { "FILE" };
+                    let size = metadata.len();
+                    result.push(format!("{}  {}  {} bytes", file_type, name, size));
+                } else {
+                    result.push(name);
+                }
             }
-            if detail {
-                let metadata = entry.metadata()?;
-                let file_type = if metadata.is_dir() { "DIR" } else { "FILE" };
-                let size = metadata.len();
-                result.push(format!("{}  {}  {} bytes", file_type, name, size));
-            } else {
+        } else {
+            for entry_path in entries {
+                let name = entry_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 result.push(name);
             }
         }
-        if result.is_empty() {
-            Ok(format!("Directory is empty: {}", path))
+
+        let header = if recursive {
+            format!("Contents of {} (recursive):", path)
         } else {
-            Ok(format!("Contents of {}:\n{}", path, result.join("\n")))
-        }
+            format!("Contents of {}:", path)
+        };
+
+        Ok(format!("{}\n{}", header, result.join("\n")))
     }
 
     fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {

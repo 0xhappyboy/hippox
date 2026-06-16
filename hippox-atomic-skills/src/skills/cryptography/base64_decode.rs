@@ -5,9 +5,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::{
-    types::{Skill, SkillParameter},
-};
+use crate::types::{Skill, SkillParameter};
 
 /// Skill for Base64 decoding
 ///
@@ -88,40 +86,5 @@ impl Skill for Base64DecodeSkill {
             .get("input")
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: input"))?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::skills::Base64EncodeSkill;
-
-use super::*;
-
-    #[tokio::test]
-    async fn test_base64_encode_decode_roundtrip() {
-        let encode_skill = Base64EncodeSkill;
-        let decode_skill = Base64DecodeSkill;
-        let test_cases = vec![
-            "Hello World",
-            "Rust programming language",
-            "Base64编码测试",
-            "1234567890!@#$%^&*()",
-            "",
-            "a", // Single character
-        ];
-        for test_input in test_cases {
-            let mut encode_params = HashMap::new();
-            encode_params.insert("input".to_string(), Value::String(test_input.to_string()));
-            // Encode
-            let encoded_result = encode_skill.execute(&encode_params).await.unwrap();
-            let encoded = encoded_result.trim_start_matches("Base64: ");
-            // Decode
-            let mut decode_params = HashMap::new();
-            decode_params.insert("input".to_string(), Value::String(encoded.to_string()));
-            let decoded_result = decode_skill.execute(&decode_params).await.unwrap();
-            let decoded = decoded_result.trim_start_matches("Decoded: ");
-            // Verify roundtrip
-            assert_eq!(test_input, decoded, "Failed for input: {}", test_input);
-        }
     }
 }

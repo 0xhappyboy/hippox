@@ -56,7 +56,6 @@ clipboard-win = "5.4.1"
 cron = "0.16.0"
 pdf-extract = "0.10.0"
 md5 = "0.8.0"
-sha2 = "0.11.0"
 lopdf = "0.40.0"
 rand = { version = "0.10.1", features = ["std_rng"] }
 uuid = { version = "1.23.1", features = ["v4"] }
@@ -100,11 +99,26 @@ windows = { version = "0.58", features = [
 widestring = "1.0"
 xcap = "0.9.6"
 tempfile = "3.27.0"
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.5"
-objc2-app-kit = "0.2"
-core-graphics = "0.23"
+sha1 = "0.11.0"
+blake3 = "1.8.5"
+aes = "0.9.1"
+aes-gcm = "0.10.3"
+hmac = "0.13.0"
+password-hash = "0.6.1"
+pbkdf2 = "0.13.0"
+bcrypt = "0.19.2"
+argon2 = "0.5.3"
+cbc = "0.2.1"
+pkcs8 = "0.11.0"
 
+digest = "0.10.7"
+signature = "2.2.0"
+rand_core = "0.6.4"
+ring = "0.17.14"
+pem = "3.0.6"
+rsa = "0.9.10"
+sha2 = "0.11.0"
+getrandom = "0.4.2"
 
 [features]
 default = [
@@ -136,6 +150,9 @@ default = [
     "email",
     "scheduler_task",
     "cryptography",
+    "operating_system_services",
+    "operating_system_security",
+    "scheduled_tasks",
 ]
 all = [
     "blockchain",
@@ -166,7 +183,13 @@ all = [
     "email",
     "scheduler_task",
     "cryptography",
+    "operating_system_services",
+    "operating_system_security",
+    "scheduled_tasks",
 ]
+scheduled_tasks = []
+operating_system_security = []
+operating_system_services = []
 cryptography = []
 scheduler_task = []
 email = []

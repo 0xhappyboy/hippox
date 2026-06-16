@@ -1,9 +1,15 @@
+//! File write skill
+
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+use super::common::{
+    ensure_dir, file_exists, read_file_content, validate_path, write_file_content,
+};
 use crate::{
-    SkillCategory, ensure_dir, file_exists, read_file_content, types::{Skill, SkillParameter}, validate_path, write_file_content
+    SkillCategory,
+    types::{Skill, SkillParameter},
 };
 
 #[derive(Debug)]
@@ -86,10 +92,13 @@ impl Skill for WriteFileSkill {
             .get("append")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+
         let validated_path = validate_path(path, None)?;
+
         if let Some(parent) = validated_path.parent() {
             ensure_dir(&parent.to_string_lossy())?;
         }
+
         if append {
             let existing = if file_exists(&validated_path.to_string_lossy()) {
                 read_file_content(&validated_path.to_string_lossy())?

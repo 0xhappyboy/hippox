@@ -32,6 +32,9 @@
 //! let result = skill.execute(&params).await?;
 //! ```
 
+use crate::SkillCategory;
+use crate::skills::{file_exists, validate_path};
+use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use bzip2::Compression as BzCompression;
 use bzip2::read::BzDecoder;
@@ -49,9 +52,6 @@ use walkdir::WalkDir;
 use zip::ZipWriter;
 use zip::read::ZipArchive;
 use zip::write::FileOptions;
-
-use crate::types::{Skill, SkillParameter};
-use crate::{SkillCategory, file_exists, validate_path};
 
 /// Skill for creating ZIP archives from files and directories.
 ///

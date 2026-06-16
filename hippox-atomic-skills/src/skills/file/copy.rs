@@ -1,10 +1,14 @@
+//! File copy skill
+
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 
+use super::common::{copy_directory, copy_file, ensure_dir, validate_path};
 use crate::{
-    SkillCategory, ensure_dir, types::{Skill, SkillParameter}, validate_path
+    SkillCategory,
+    types::{Skill, SkillParameter},
 };
 
 #[derive(Debug)]
@@ -17,11 +21,11 @@ impl Skill for CopyFileSkill {
     }
 
     fn description(&self) -> &str {
-        "Copy or move a file"
+        "Copy or move a file or directory"
     }
 
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to copy, move, rename, or duplicate a file"
+        "Use this skill when the user wants to copy, move, rename, or duplicate a file or directory"
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -29,7 +33,7 @@ impl Skill for CopyFileSkill {
             SkillParameter {
                 name: "source".to_string(),
                 param_type: "string".to_string(),
-                description: "Source file path".to_string(),
+                description: "Source file or directory path".to_string(),
                 required: true,
                 default: None,
                 example: Some(Value::String("/tmp/source.txt".to_string())),
@@ -38,7 +42,7 @@ impl Skill for CopyFileSkill {
             SkillParameter {
                 name: "destination".to_string(),
                 param_type: "string".to_string(),
-                description: "Destination file path".to_string(),
+                description: "Destination file or directory path".to_string(),
                 required: true,
                 default: None,
                 example: Some(Value::String("/tmp/dest.txt".to_string())),
@@ -48,6 +52,15 @@ impl Skill for CopyFileSkill {
                 name: "move".to_string(),
                 param_type: "boolean".to_string(),
                 description: "Move instead of copy (rename/move)".to_string(),
+                required: false,
+                default: Some(Value::Bool(false)),
+                example: Some(Value::Bool(true)),
+                enum_values: None,
+            },
+            SkillParameter {
+                name: "recursive".to_string(),
+                param_type: "boolean".to_string(),
+                description: "Copy directory recursively (if source is a directory)".to_string(),
                 required: false,
                 default: Some(Value::Bool(false)),
                 example: Some(Value::Bool(true)),
@@ -87,20 +100,53 @@ impl Skill for CopyFileSkill {
             .get("move")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+        let recursive = parameters
+            .get("recursive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let validated_source = validate_path(source, None)?;
         let validated_dest = validate_path(destination, None)?;
+
         if !validated_source.exists() {
             anyhow::bail!("Source not found: {}", source);
         }
+
         if let Some(parent) = validated_dest.parent() {
             ensure_dir(&parent.to_string_lossy())?;
         }
+
         if move_file {
+            // If destination exists, remove it first (for move)
+            if validated_dest.exists() {
+                if validated_dest.is_dir() {
+                    fs::remove_dir_all(&validated_dest)?;
+                } else {
+                    fs::remove_file(&validated_dest)?;
+                }
+            }
             fs::rename(&validated_source, &validated_dest)?;
             Ok(format!("Moved {} to {}", source, destination))
         } else {
-            fs::copy(&validated_source, &validated_dest)?;
-            Ok(format!("Copied {} to {}", source, destination))
+            // Copy
+            let size = if validated_source.is_dir() {
+                if !recursive {
+                    anyhow::bail!("Source is a directory. Use recursive=true to copy directories.");
+                }
+                copy_directory(
+                    &validated_source.to_string_lossy(),
+                    &validated_dest.to_string_lossy(),
+                )?
+            } else {
+                copy_file(
+                    &validated_source.to_string_lossy(),
+                    &validated_dest.to_string_lossy(),
+                )?
+            };
+            Ok(format!(
+                "Copied {} to {} ({} bytes)",
+                source, destination, size
+            ))
         }
     }
 

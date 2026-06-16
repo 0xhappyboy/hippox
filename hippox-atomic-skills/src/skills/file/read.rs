@@ -1,9 +1,13 @@
+//! File read skill
+
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+use super::common::{file_exists, read_file_content, validate_path};
 use crate::{
-    SkillCategory, file_exists, read_file_content, types::{Skill, SkillParameter}, validate_path
+    SkillCategory,
+    types::{Skill, SkillParameter},
 };
 
 #[derive(Debug)]
@@ -68,15 +72,19 @@ impl Skill for ReadFileSkill {
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+
         let validated_path = validate_path(path, None)?;
+
         if !file_exists(&validated_path.to_string_lossy()) {
             anyhow::bail!("File not found: {}", path);
         }
+
         let content = read_file_content(&validated_path.to_string_lossy())?;
         let max_size = parameters
             .get("max_size")
             .and_then(|v| v.as_u64())
             .unwrap_or(1024 * 1024);
+
         if content.len() > max_size as usize {
             Ok(format!(
                 "File too large ({} bytes). Showing first {} bytes:\n{}",

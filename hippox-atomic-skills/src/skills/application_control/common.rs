@@ -133,7 +133,6 @@ pub fn close_process_window(pid: u32) -> Result<()> {
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowThreadProcessId, PostMessageW, WM_CLOSE,
     };
-
     unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let target_pid = lparam.0 as u32;
         let mut pid = 0u32;
@@ -143,11 +142,9 @@ pub fn close_process_window(pid: u32) -> Result<()> {
         }
         BOOL::from(true)
     }
-
     unsafe {
         EnumWindows(Some(enum_callback), LPARAM(pid as isize));
     }
-
     Ok(())
 }
 
@@ -163,10 +160,8 @@ pub fn close_process_window(pid: u32) -> Result<()> {
 /// Check if process is running using sysinfo
 pub fn is_process_running(pid: u32) -> bool {
     use sysinfo::{ProcessesToUpdate, System};
-
     let mut sys = System::new();
     sys.refresh_processes(ProcessesToUpdate::All, true);
-
     sys.processes().iter().any(|(p, _)| p.as_u32() == pid)
 }
 

@@ -1,7 +1,7 @@
 #[cfg(feature = "blockchain")]
 pub mod blockchain;
 #[cfg(feature = "db")]
-pub mod db;
+pub mod database;
 #[cfg(feature = "devops")]
 pub mod devops;
 #[cfg(feature = "document")]
@@ -22,6 +22,8 @@ pub mod media;
 pub mod net;
 #[cfg(feature = "operating_system")]
 pub mod operating_system;
+#[cfg(feature = "operating_system_services")]
+pub mod operating_system_services;
 #[cfg(feature = "scheduler_task")]
 pub mod scheduler_task;
 #[cfg(feature = "social_platform")]
@@ -53,6 +55,8 @@ pub mod display_control;
 pub mod keyboard_control;
 #[cfg(feature = "mouse_control")]
 pub mod mouse_control;
+#[cfg(feature = "operating_system_security")]
+pub mod operating_system_security;
 
 // Re-exports
 #[cfg(feature = "application_control")]
@@ -66,7 +70,7 @@ pub use bluetooth::*;
 #[cfg(feature = "cryptography")]
 pub use cryptography::*;
 #[cfg(feature = "db")]
-pub use db::*;
+pub use database::*;
 #[cfg(feature = "devops")]
 pub use devops::*;
 #[cfg(feature = "display_control")]
@@ -93,6 +97,10 @@ pub use mouse_control::*;
 pub use net::*;
 #[cfg(feature = "operating_system")]
 pub use operating_system::*;
+#[cfg(feature = "operating_system_security")]
+pub use operating_system_security::*;
+#[cfg(feature = "operating_system_services")]
+pub use operating_system_services::*;
 #[cfg(feature = "scheduler_task")]
 pub use scheduler_task::*;
 #[cfg(feature = "social_platform")]

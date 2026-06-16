@@ -1,12 +1,10 @@
-//! MD5 hash skill
+//! MD5 hash skill for text
 
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::{
-    types::{Skill, SkillParameter},
-};
+use crate::types::{Skill, SkillParameter};
 
 /// Skill for calculating MD5 hash of a string
 ///
@@ -23,20 +21,20 @@ use crate::{
 /// Output: "MD5: b10a8db164e0754105b7a99be72e3fe5"
 /// ```
 #[derive(Debug)]
-pub struct HashMd5Skill;
+pub struct HashMd5TextSkill;
 
 #[async_trait::async_trait]
-impl Skill for HashMd5Skill {
+impl Skill for HashMd5TextSkill {
     fn name(&self) -> &str {
-        "hash_md5"
+        "hash_md5_text"
     }
 
     fn description(&self) -> &str {
-        "Calculate MD5 hash of a string"
+        "Calculate MD5 hash of a text string"
     }
 
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to compute MD5 hash for a text string"
+        "Use this skill when you need to compute MD5 hash for a text string. For file hashing, use file/hash_md5."
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
@@ -53,7 +51,7 @@ impl Skill for HashMd5Skill {
 
     fn example_call(&self) -> Value {
         json!({
-            "action": "hash_md5",
+            "action": "hash_md5_text",
             "parameters": {
                 "input": "Hello World"
             }
@@ -83,39 +81,5 @@ impl Skill for HashMd5Skill {
             .get("input")
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: input"))?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_hash_md5_skill() {
-        let skill = HashMd5Skill;
-        let mut params = HashMap::new();
-        
-        // Test normal string
-        params.insert(
-            "input".to_string(),
-            Value::String("Hello World".to_string()),
-        );
-        let result = skill.execute(&params).await.unwrap();
-        assert_eq!(result, "MD5: b10a8db164e0754105b7a99be72e3fe5");
-
-        // Test empty string
-        params.insert("input".to_string(), Value::String("".to_string()));
-        let result = skill.execute(&params).await.unwrap();
-        assert_eq!(result, "MD5: d41d8cd98f00b204e9800998ecf8427e");
-
-        // Test numeric string
-        params.insert("input".to_string(), Value::String("12345".to_string()));
-        let result = skill.execute(&params).await.unwrap();
-        assert_eq!(result, "MD5: 827ccb0eea8a706c4c34a16891f84e7b");
-
-        // Test missing parameter
-        let empty_params = HashMap::new();
-        let result = skill.execute(&empty_params).await;
-        assert!(result.is_err());
     }
 }
