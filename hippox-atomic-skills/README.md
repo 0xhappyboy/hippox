@@ -46,7 +46,7 @@ Query:
 pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill>>>;
 ```
 
-### Main Functions
+## Main Functions
 
 | Function                                       | Description                             |
 | ---------------------------------------------- | --------------------------------------- |
@@ -68,7 +68,7 @@ pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill
 | get_skill_category_name_and_describe()         | Get category names with descriptions    |
 | generate_skill_registry_table_json_str()       | Generate registry JSON string           |
 
-### SkillCategory Methods
+## SkillCategory Methods
 
 | Method           | Description                          |
 | ---------------- | ------------------------------------ |

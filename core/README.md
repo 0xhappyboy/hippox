@@ -390,26 +390,76 @@ Pending ──► Running ──► Completed
   </tr>
 </table>
 
-## Atomic Skill Unit List
+## Atomic Skill Registry
 
-| Category             | Skills    | Description                                                                                                                                                                 |
-| -------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **File System**      | 5 skills  | Read, write, delete, list, copy files                                                                                                                                       |
-| **Archive**          | 5 skills  | Create/extract ZIP/TAR archives, compress files                                                                                                                             |
-| **Math**             | 4 skills  | Expression calculator, power/root, statistics, unit conversion                                                                                                              |
-| **Crypto/Random**    | 10 skills | MD5, SHA256, SHA512, file hash, Base64 encode/decode, random number/string/uuid/password                                                                                    |
-| **Time**             | 1 skill   | Get current date/time                                                                                                                                                       |
-| **Network**          | 20 skills | HTTP requests, URL fetch, ICMP/TCP/batch ping, DNS lookup/reverse/batch/test, IP info/validate/range/local, TCP/UDP send/receive/broadcast, FTP upload/download/list/delete |
-| **OS Management**    | 18 skills | Reboot, shutdown, sleep, lock, logout, hibernate, uptime, load average, hostname, time, user info, disk/memory/CPU/network/battery info, desktop notification               |
-| **Process**          | 6 skills  | List, kill (by PID/name), check running, get PID, detailed process info                                                                                                     |
-| **System**           | 7 skills  | System info, exec command, port scan/lookup/test, clipboard get/set/clear                                                                                                   |
-| **Document**         | 11 skills | Markdown, CSV, XML, Excel, PDF read/write/parse                                                                                                                             |
-| **Messaging**        | 5 skills  | Email, Telegram, DingTalk, Feishu, WeCom                                                                                                                                    |
-| **Database**         | 12 skills | PostgreSQL, MySQL, Redis, SQLite query/execute/list                                                                                                                         |
-| **Text Processing**  | 4 skills  | Diff, sort, deduplicate, filter                                                                                                                                             |
-| **Regex**            | 4 skills  | Match, find, replace, extract                                                                                                                                               |
-| **K8s**              | 18 skills | Pod/deployment/service/node/namespace/event/configmap/secret/ingress/statefulset management, logs, exec, scale, restart, port-forward, apply YAML, delete                   |
-| **Docker**           | 5 skills  | List, start/stop, logs, inspect, exec                                                                                                                                       |
-| **GitHub**           | 7 skills  | Get repo, create/list issues, star, search, get user, list PRs                                                                                                              |
-| **Task Scheduler**   | 3 skills  | Schedule, unschedule, list tasks                                                                                                                                            |
-| **Image Processing** | 6 skills  | Resize, convert, info, rotate, crop, compress                                                                                                                               |
+> 💡 **Hint**：In Hippox, an atomic skill represents a smallest indivisible unit of execution, This is a different concept from "Skill" in user business.
+
+### Working Principle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      SKILL REGISTRY                        │
+│                                                           │
+│  SkillRegistryMap = HashMap<SkillCategory,               │
+│                      HashMap<String, Arc<dyn Skill>>>    │
+│                                                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │ File     │  │ Math     │  │ Net      │              │
+│  ├──────────┤  ├──────────┤  ├──────────┤              │
+│  │ read     │  │ calc     │  │ http     │              │
+│  │ write    │  │ power    │  │ ping     │              │
+│  │ delete   │  │ stats    │  │ dns      │              │
+│  │ ...      │  │ ...      │  │ ...      │              │
+│  └──────────┘  └──────────┘  └──────────┘              │
+└─────────────────────────────────────────────────────────────┘
+
+Registration:
+
+  Compile-time: file_register() / math_register() / net_register()
+  Runtime: register_skill(category, name, skill)
+
+Query:
+
+  get_skill_by_name("read") → Skill impl → execute()
+```
+
+### Core Type
+
+```rust
+pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill>>>;
+```
+
+### Main Functions
+
+| Function                                       | Description                             |
+| ---------------------------------------------- | --------------------------------------- |
+| get_registry()                                 | Get read lock on the registry           |
+| get_registry_mut()                             | Get write lock on the registry          |
+| register_skill(category, name, skill)          | Dynamically register a skill            |
+| get_all_skills()                               | Get all registered skills               |
+| get_skill_by_name(name)                        | Find a skill by name                    |
+| get_skill_by_name_and_category(name, category) | Find a skill by name and category       |
+| has_skill(name)                                | Check if a skill exists                 |
+| list_skills_names()                            | List all skill names                    |
+| list_skills_name_by_category(category)         | List skill names in a category          |
+| get_skills_by_category(category)               | Get skills by category string           |
+| get_skills_by_category_list(categories)        | Get skills by multiple categories       |
+| list_skills_name_by_category_list(categories)  | List skill names by multiple categories |
+| get_all_categorys()                            | Get all category names                  |
+| get_skill_category()                           | Get categories with skill counts        |
+| get_skill_category_names()                     | Get all category names                  |
+| get_skill_category_name_and_describe()         | Get category names with descriptions    |
+| generate_skill_registry_table_json_str()       | Generate registry JSON string           |
+
+### SkillCategory Methods
+
+| Method           | Description                          |
+| ---------------- | ------------------------------------ |
+| from_str(s)      | Convert string to enum               |
+| name()           | Convert enum to string (lowercase)   |
+| display_name()   | Get human-readable display name      |
+| description()    | Get category description             |
+| icon()           | Get category icon/emoji              |
+| priority()       | Get display priority (lower = first) |
+| metadata()       | Get complete category metadata       |
+| all_categories() | Get metadata for all categories      |

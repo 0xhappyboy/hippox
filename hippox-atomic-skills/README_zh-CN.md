@@ -46,7 +46,7 @@ Hippox中所有不可分割的原子skill单元.
 pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill>>>;
 ```
 
-### 主要函数
+## 主要函数
 
 | 函数                                           | 说明                   |
 | ---------------------------------------------- | ---------------------- |
@@ -68,7 +68,7 @@ pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill
 | get_skill_category_name_and_describe()         | 获取分类名称及描述     |
 | generate_skill_registry_table_json_str()       | 生成注册表 JSON 字符串 |
 
-### SkillCategory 方法
+## SkillCategory 方法
 
 | 方法             | 说明                 |
 | ---------------- | -------------------- |

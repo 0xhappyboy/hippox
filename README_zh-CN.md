@@ -392,26 +392,76 @@ pub struct IdentityInformation {
   </tr>
 </table>
 
-## 原子Skill单元清单
+## 原子Skill注册表
 
-| 分类           | 数量 | 说明                                                                                                                                  |
-| -------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **文件系统**   | 5    | 读取、写入、删除、列表、复制文件                                                                                                      |
-| **压缩归档**   | 5    | 创建/解压 ZIP/TAR 归档、文件压缩                                                                                                      |
-| **数学计算**   | 4    | 表达式计算、幂/开方、统计、单位换算                                                                                                   |
-| **加密/随机**  | 10   | MD5、SHA256、SHA512、文件哈希、Base64编解码、随机数/字符串/UUID/密码                                                                  |
-| **时间**       | 1    | 获取当前日期时间                                                                                                                      |
-| **网络**       | 20   | HTTP请求、URL获取、ICMP/TCP/批量Ping、DNS查询/反向/批量/测试、IP信息/验证/范围/本地、TCP/UDP收发/广播、FTP上传/下载/列表/删除         |
-| **操作系统**   | 18   | 重启、关机、睡眠、锁屏、注销、休眠、运行时间、负载、主机名、时间、用户信息、磁盘/内存/CPU/网络/电池信息、桌面通知                     |
-| **进程管理**   | 6    | 列表、终止(按PID/名称)、检查运行状态、获取PID、进程详细信息                                                                           |
-| **系统工具**   | 7    | 系统信息、执行命令、端口扫描/查询/测试、剪贴板获取/设置/清除                                                                          |
-| **文档处理**   | 11   | Markdown、CSV、XML、Excel、PDF 读写/解析                                                                                              |
-| **消息通知**   | 5    | 邮件、Telegram、钉钉、飞书、企业微信                                                                                                  |
-| **数据库**     | 12   | PostgreSQL、MySQL、Redis、SQLite 查询/执行/列表                                                                                       |
-| **文本处理**   | 4    | 差异对比、排序、去重、过滤                                                                                                            |
-| **正则表达式** | 4    | 匹配、查找、替换、提取                                                                                                                |
-| **K8s**        | 18   | Pod/部署/服务/节点/命名空间/事件/ConfigMap/Secret/Ingress/StatefulSet管理、日志、执行命令、扩缩容、重启、端口转发、应用YAML、删除资源 |
-| **Docker**     | 5    | 列表、启停、日志、详情、执行命令                                                                                                      |
-| **GitHub**     | 7    | 获取仓库、创建/列表Issue、Star、搜索、获取用户、列表PR                                                                                |
-| **定时任务**   | 3    | 创建、取消、列表任务                                                                                                                  |
-| **图片处理**   | 6    | 缩放、格式转换、信息、旋转、裁剪、压缩                                                                                                |
+> 💡 **提示**：在Hippox中, 原子Skill代表执行的最小不可分割单元, 这与用户业务中的"Skill"概念不同。
+
+## 工作原理
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                      技 能 注 册 表                        │
+│                                                           │
+│  SkillRegistryMap = HashMap<SkillCategory,               │
+│                      HashMap<String, Arc<dyn Skill>>>    │
+│                                                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │ 文件     │  │ 数学     │  │ 网络     │              │
+│  ├──────────┤  ├──────────┤  ├──────────┤              │
+│  │ 读文件   │  │ 计算器   │  │ HTTP     │              │
+│  │ 写文件   │  │ 幂运算   │  │ Ping     │              │
+│  │ 删文件   │  │ 统计     │  │ DNS      │              │
+│  │ ...      │  │ ...      │  │ ...      │              │
+│  └──────────┘  └──────────┘  └──────────┘              │
+└─────────────────────────────────────────────────────────────┘
+
+注册方式:
+
+  编译时: file_register() / math_register() / net_register()
+  运行时: register_skill(分类, 名称, 技能)
+
+查询方式:
+
+  get_skill_by_name("读文件") → 技能实现 → execute()
+```
+
+## 核心类型
+
+```rust
+pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill>>>;
+```
+
+## 主要函数
+
+| 函数                                           | 说明                   |
+| ---------------------------------------------- | ---------------------- |
+| get_registry()                                 | 获取注册表读锁         |
+| get_registry_mut()                             | 获取注册表写锁         |
+| register_skill(category, name, skill)          | 动态注册技能           |
+| get_all_skills()                               | 获取所有技能           |
+| get_skill_by_name(name)                        | 按名称查找技能         |
+| get_skill_by_name_and_category(name, category) | 按名称和分类查找       |
+| has_skill(name)                                | 检查技能是否存在       |
+| list_skills_names()                            | 列出所有技能名称       |
+| list_skills_name_by_category(category)         | 列出指定分类的技能名称 |
+| get_skills_by_category(category)               | 按分类字符串获取技能   |
+| get_skills_by_category_list(categories)        | 按多个分类获取技能     |
+| list_skills_name_by_category_list(categories)  | 按多个分类获取技能名称 |
+| get_all_categorys()                            | 获取所有分类名称       |
+| get_skill_category()                           | 获取各分类及其技能数量 |
+| get_skill_category_names()                     | 获取所有分类名称       |
+| get_skill_category_name_and_describe()         | 获取分类名称及描述     |
+| generate_skill_registry_table_json_str()       | 生成注册表 JSON 字符串 |
+
+## SkillCategory 方法
+
+| 方法             | 说明                 |
+| ---------------- | -------------------- |
+| from_str(s)      | 字符串转枚举         |
+| name()           | 枚举转字符串（小写） |
+| display_name()   | 获取显示名称         |
+| description()    | 获取分类描述         |
+| icon()           | 获取分类图标         |
+| priority()       | 获取显示优先级       |
+| metadata()       | 获取完整元数据       |
+| all_categories() | 获取所有分类元数据   |
