@@ -2,7 +2,7 @@
 
 use crate::prompts::build_react_prompt;
 use crate::{SkillScheduler, t};
-use hippox_atomic_skills::SkillCall;
+use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -231,7 +231,19 @@ pub async fn execute_react(
                             .await;
                     }
                 }
-                match executor.get_executor().execute(&call).await {
+                let skill_context = SkillContext {
+                    task_id: task_id.clone(),
+                    step_index: Some(step_index),
+                    step_name: Some(call.action.clone()),
+                    extra: HashMap::new(),
+                };
+                let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
+                    executor.get_skill_callback();
+                match executor
+                    .get_executor()
+                    .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
+                    .await
+                {
                     Ok(output) => {
                         let duration = step_start.elapsed().as_millis() as u64;
                         if let Some(cb) = executor.get_callback() {
@@ -491,7 +503,21 @@ pub async fn execute_react_with_categories(
                     }
                 }
 
-                match executor.get_executor().execute(&call).await {
+                let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
+                    executor.get_skill_callback();
+
+                let skill_context = SkillContext {
+                    task_id: task_id.clone(),
+                    step_index: Some(step_index),
+                    step_name: Some(step_name.clone()),
+                    extra: HashMap::new(),
+                };
+
+                match executor
+                    .get_executor()
+                    .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
+                    .await
+                {
                     Ok(output) => {
                         let duration = step_start.elapsed().as_millis() as u64;
                         if let Some(cb) = executor.get_callback() {

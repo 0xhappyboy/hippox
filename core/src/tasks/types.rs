@@ -146,7 +146,6 @@ pub struct Task {
     pub interruptible: bool,
     pub resume_data: Option<String>,
     pub(crate) executable: Option<Arc<dyn ExecutableTask>>,
-    pub callback: Option<Arc<dyn WorkflowCallback>>,
     pub input_token_count: u64,
     pub output_token_count: u64,
 }
@@ -170,7 +169,6 @@ impl Clone for Task {
             interruptible: self.interruptible,
             resume_data: self.resume_data.clone(),
             executable: self.executable.clone(),
-            callback: self.callback.clone(),
             input_token_count: self.input_token_count.clone(),
             output_token_count: self.output_token_count.clone(),
         }
@@ -196,7 +194,6 @@ impl Debug for Task {
             .field("interruptible", &self.interruptible)
             .field("resume_data", &self.resume_data)
             .field("executable", &"<skipped>")
-            .field("callback", &self.callback.as_ref().map(|_| "<callback>"))
             .finish()
     }
 }
@@ -221,7 +218,6 @@ impl Task {
             interruptible: true,
             resume_data: None,
             executable: None,
-            callback: None,
             input_token_count: 0,
             output_token_count: 0,
         }
@@ -231,11 +227,6 @@ impl Task {
         self.task_type = executable.task_type().to_string();
         self.input = executable.input().to_string();
         self.executable = Some(executable);
-        self
-    }
-
-    pub fn with_callback(mut self, callback: Option<Arc<dyn WorkflowCallback>>) -> Self {
-        self.callback = callback;
         self
     }
 
@@ -406,11 +397,8 @@ impl TaskPool {
         task_type: String,
         input: String,
         executable: Arc<dyn ExecutableTask>,
-        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> String {
-        let task = Task::new(task_type, input)
-            .with_executable(executable)
-            .with_callback(callback);
+        let task = Task::new(task_type, input).with_executable(executable);
         let task_id = task.id.clone();
         self.task_counter.fetch_add(1, Ordering::Relaxed);
         self.tasks.insert(task_id.clone(), task);

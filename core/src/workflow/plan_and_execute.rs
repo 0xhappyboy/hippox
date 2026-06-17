@@ -3,7 +3,7 @@
 use crate::SkillScheduler;
 use crate::prompts::build_plan_prompt;
 use crate::t;
-use hippox_atomic_skills::SkillCall;
+use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -176,6 +176,7 @@ async fn execute_step_with_retry(
     parameters: HashMap<String, Value>,
     step: &WorkflowStep,
     step_index: usize,
+    task_id: Option<String>,
 ) -> anyhow::Result<String> {
     let max_retries = step
         .on_error
@@ -188,7 +189,20 @@ async fn execute_step_with_retry(
             action: skill_name.to_string(),
             parameters: parameters.clone(),
         };
-        match executor.get_executor().execute(&call).await {
+
+        let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+        let skill_context = SkillContext {
+            task_id: task_id.clone(),
+            step_index: Some(step_index),
+            step_name: Some(skill_name.to_string()),
+            extra: HashMap::new(),
+        };
+
+        match executor
+            .get_executor()
+            .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
+            .await
+        {
             Ok(output) => return Ok(output),
             Err(e) => {
                 last_error = Some(e);
@@ -242,24 +256,27 @@ async fn execute_workflow_plan(
                 return Err(anyhow::anyhow!("{:?}", result));
             }
         }
-
         if let Some(condition) = &step.condition {
             if !evaluate_condition(condition, &context) {
                 info!("Step {} condition not met, skipping", step.id);
                 continue;
             }
         }
-
         let mut resolved_params = HashMap::new();
         for (key, value_ref) in &step.parameters {
             let resolved = resolve_value_ref(value_ref, &context);
             let final_resolved = resolve_variables_deep(&resolved, &string_context);
             resolved_params.insert(key.clone(), final_resolved);
         }
-
-        let result =
-            execute_step_with_retry(executor, &step.action, resolved_params, step, idx).await;
-
+        let result = execute_step_with_retry(
+            executor,
+            &step.action,
+            resolved_params,
+            step,
+            idx,
+            task_id.map(|s| s.to_string()),
+        )
+        .await;
         match result {
             Ok(output) => {
                 if let Some(output_as) = &step.output_as {

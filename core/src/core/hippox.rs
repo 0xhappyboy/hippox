@@ -10,7 +10,9 @@ use crate::{
     HippoxVoidResult, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
     WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
-use hippox_atomic_skills::{Executor, SkillCategory, get_all_skills, list_skills_names};
+use hippox_atomic_skills::{
+    Executor, SkillCallback, SkillCategory, get_all_skills, list_skills_names,
+};
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
 use serde_json::{Value, json};
@@ -158,17 +160,19 @@ impl Hippox {
         &self,
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
+        skill_callback: Option<Arc<dyn SkillCallback>>,
     ) -> HippoxStringResult {
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
             self.workflow_executor.clone(),
             self.scheduler.clone(),
+            callback,
+            skill_callback,
         ));
         let task_id = futures::executor::block_on(tasks::create_task_with_executable(
             "natural_language".to_string(),
             input.to_string(),
             executable,
-            callback,
         ));
         info!(
             "Created natural language task: {} with input: {}",
@@ -180,38 +184,55 @@ impl Hippox {
     /// Submit multiple natural language tasks in batch and return task IDs immediately
     ///
     /// # Arguments
-    /// * `inputs` - Vector of tuples (input, session_id, callback)
+    /// * `inputs` - Vector of tuples (input, session_id, workflow_callback, skill_callback)
     ///
     /// # Returns
     /// Vector of task IDs in the same order as inputs wrapped in HippoxResult
     pub fn submit_batch(
         &self,
-        inputs: Vec<(String, Option<String>, Option<Arc<dyn WorkflowCallback>>)>,
+        inputs: Vec<(
+            String,
+            Option<String>,
+            Option<Arc<dyn WorkflowCallback>>,
+            Option<Arc<dyn SkillCallback>>,
+        )>,
     ) -> HippoxBatchResult {
         let task_ids: Vec<String> = inputs
             .into_iter()
-            .map(|(input, _session_id, callback)| {
-                self.submit(&input, callback).unwrap_or(String::new())
+            .map(|(input, _session_id, workflow_callback, skill_callback)| {
+                self.submit(&input, workflow_callback, skill_callback)
+                    .unwrap_or(String::new())
             })
             .collect();
         HippoxResult::ok(task_ids)
     }
 
+    /// Execute multiple natural language tasks in batch and return results directly
+    ///
+    /// # Arguments
+    /// * `inputs` - Vector of tuples (input, workflow_callback, skill_callback)
+    ///
+    /// # Returns
+    /// Vector of results in the same order as inputs wrapped in HippoxBatchResult
     pub async fn execute_batch(
         &self,
-        inputs: Vec<(String, Option<Arc<dyn WorkflowCallback>>)>,
+        inputs: Vec<(
+            String,
+            Option<Arc<dyn WorkflowCallback>>,
+            Option<Arc<dyn SkillCallback>>,
+        )>,
     ) -> HippoxBatchResult {
         let mut results = Vec::new();
-        for (input, callback) in inputs {
+        for (input, workflow_callback, skill_callback) in inputs {
             results.push(
-                self.execute(&input, callback)
+                self.execute(&input, workflow_callback, skill_callback)
                     .await
                     .unwrap_or(String::new()),
             );
         }
         HippoxResult::ok(results)
     }
-
+    
     /// Execute natural language directly without task pool, returning the result asynchronously.
     ///
     /// Note: This function uses the task pool **only** for token counting via `TaskStateUpdater`.
@@ -234,6 +255,7 @@ impl Hippox {
         &self,
         input: &str,
         callback: Option<Arc<dyn WorkflowCallback>>,
+        skill_callback: Option<Arc<dyn SkillCallback>>,
     ) -> HippoxStringResult {
         let temp_task_id = uuid::Uuid::new_v4().to_string();
         {

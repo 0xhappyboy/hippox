@@ -1,5 +1,6 @@
 //! Executor trait and state updater for tasks
 
+use hippox_atomic_skills::SkillCallback;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -16,7 +17,6 @@ pub trait ExecutableTask: Send + Sync + Debug {
     fn execute(
         &self,
         state_updater: TaskStateUpdater,
-        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 
     /// Get the task type identifier
@@ -24,6 +24,16 @@ pub trait ExecutableTask: Send + Sync + Debug {
 
     /// Get the input for the task
     fn input(&self) -> &str;
+
+    /// Get the workflow callback if available
+    fn get_workflow_callback(&self) -> Option<Arc<dyn WorkflowCallback>> {
+        None
+    }
+
+    /// Get the skill callback if available
+    fn get_skill_callback(&self) -> Option<Arc<dyn SkillCallback>> {
+        None
+    }
 }
 
 /// Task state updater - updates internal task pool state

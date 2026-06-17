@@ -3,7 +3,7 @@
 use crate::SkillScheduler;
 use crate::prompts::build_chain_prompt;
 use crate::t;
-use hippox_atomic_skills::SkillCall;
+use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -301,7 +301,19 @@ pub async fn execute_chain(
             parameters: resolved_params,
         };
 
-        match executor.get_executor().execute(&call).await {
+        let skill_context = SkillContext {
+            task_id: task_id.clone(),
+            step_index: Some(idx),
+            step_name: Some(step.action.clone()),
+            extra: HashMap::new(),
+        };
+        let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+
+        match executor
+            .get_executor()
+            .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
+            .await
+        {
             Ok(output) => {
                 let duration = step_start.elapsed().as_millis() as u64;
                 if let Some(cb) = executor.get_callback() {
@@ -426,7 +438,20 @@ pub async fn execute_chain_with_categories(
             parameters: resolved_params,
         };
 
-        match executor.get_executor().execute(&call).await {
+        let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+
+        let skill_context = SkillContext {
+            task_id: task_id.clone(),
+            step_index: Some(idx),
+            step_name: Some(step_name.clone()),
+            extra: HashMap::new(),
+        };
+
+        match executor
+            .get_executor()
+            .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
+            .await
+        {
             Ok(output) => {
                 if let Some(output_as) = &step.output_as {
                     if let Ok(num) = output.parse::<f64>() {

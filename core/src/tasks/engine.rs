@@ -62,22 +62,18 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
                     continue;
                 }
             }
-            // Get the executable task and its callback
-            let (executable, callback) = {
+            // Get the executable task
+            let executable = {
                 let pool = task_pool.read().await;
                 if let Some(task) = pool.get_task(&task_id) {
-                    if let Some(executable) = task.get_executable() {
-                        (Some(executable), task.callback.clone())
-                    } else {
-                        (None, None)
-                    }
+                    task.get_executable()
                 } else {
-                    (None, None)
+                    None
                 }
             };
             if let Some(executable_task) = executable {
                 let state_updater = TaskStateUpdater::new(task_id.clone(), task_pool.clone());
-                executable_task.execute(state_updater, callback).await;
+                executable_task.execute(state_updater).await;
             } else {
                 let mut pool = task_pool.write().await;
                 if let Some(task) = pool.get_task_mut(&task_id) {

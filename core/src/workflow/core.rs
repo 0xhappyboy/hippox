@@ -1,15 +1,18 @@
 //! Core WorkflowExecutor implementation
 
-use hippox_atomic_skills::Executor;
+use hippox_atomic_skills::{Executor, SkillCallback};
 
 use super::batch::execute_batch;
 use super::chain::execute_chain;
 use super::plan_and_execute::execute_plan_and_execute;
 use super::react::execute_react;
 use super::types::*;
-use crate::{execute_batch_with_categories, execute_chain_with_categories, execute_plan_and_execute_with_categories, execute_react_with_categories};
 use crate::prompts::{build_react_prompt, build_skill_md_prompt};
 use crate::skill_scheduler::SkillScheduler;
+use crate::{
+    execute_batch_with_categories, execute_chain_with_categories,
+    execute_plan_and_execute_with_categories, execute_react_with_categories,
+};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -17,8 +20,9 @@ pub(crate) struct WorkflowExecutor {
     pub(crate) mode: WorkflowMode,
     pub(crate) executor: Executor,
     pub(crate) max_iterations: usize,
-    pub(crate) callback: Option<Arc<dyn WorkflowCallback>>,
     pub(crate) task_id: Option<String>,
+    pub(crate) callback: Option<Arc<dyn WorkflowCallback>>,
+    pub(crate) skill_callback: Option<Arc<dyn SkillCallback>>,
 }
 
 impl WorkflowExecutor {
@@ -27,9 +31,19 @@ impl WorkflowExecutor {
             mode,
             executor: Executor::new(),
             max_iterations: 10,
-            callback: None,
             task_id: None,
+            callback: None,
+            skill_callback: None,
         }
+    }
+
+    pub fn with_skill_callback(mut self, skill_callback: Arc<dyn SkillCallback>) -> Self {
+        self.skill_callback = Some(skill_callback);
+        self
+    }
+
+    pub fn get_skill_callback(&self) -> Option<Arc<dyn SkillCallback>> {
+        self.skill_callback.clone()
     }
 
     pub fn with_task_id(mut self, task_id: String) -> Self {

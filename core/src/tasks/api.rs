@@ -12,15 +12,14 @@ pub async fn create_task(task_type: String, input: String) -> String {
     pool.create_task(task_type, input)
 }
 
-/// Create a new task with executable and callback
+/// Create a new task with executable
 pub async fn create_task_with_executable(
     task_type: String,
     input: String,
     executable: Arc<dyn ExecutableTask>,
-    callback: Option<Arc<dyn WorkflowCallback>>,
 ) -> String {
     let mut pool = TASK_POOL.write().await;
-    pool.create_task_with_executable(task_type, input, executable, callback)
+    pool.create_task_with_executable(task_type, input, executable)
 }
 
 /// Get task by ID
@@ -60,11 +59,12 @@ pub async fn resume_task(task_id: &str) -> bool {
         pool.resume_task(task_id)
     };
     if result {
-        // Send task_resumed event
         let pool = TASK_POOL.read().await;
         if let Some(task) = pool.get_task(task_id) {
-            if let Some(callback) = &task.callback {
-                callback.on_workflow_resumed(task_id, 0, 0).await;
+            if let Some(executable) = task.get_executable() {
+                if let Some(callback) = executable.get_workflow_callback() {
+                    callback.on_workflow_resumed(task_id, 0, 0).await;
+                }
             }
         }
     }

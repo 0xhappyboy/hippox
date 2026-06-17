@@ -3,7 +3,7 @@
 use crate::prompts::build_batch_prompt;
 use crate::{SkillScheduler, t};
 use futures::future::join_all;
-use hippox_atomic_skills::SkillCall;
+use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,13 +52,19 @@ pub async fn execute_batch_plan(
             }
         }
     }
-    let futures = steps.iter().enumerate().map(|(idx, step)| {
-        let step = step.clone();
+    let step_metadata: Vec<(usize, String)> = steps
+        .iter()
+        .enumerate()
+        .map(|(idx, step)| (idx, step.action.clone()))
+        .collect();
+    let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+    let futures = step_metadata.into_iter().map(|(idx, step_name)| {
+        let step = steps[idx].clone();
         let executor = executor_clone.clone();
         let callback = callback.clone();
         let task_id = task_id.clone();
+        let skill_callback = skill_callback_arc.clone();
         tokio::spawn(async move {
-            let step_name = step.action.clone();
             let step_start = Instant::now();
             if let Some(ref tid) = task_id {
                 if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -96,7 +102,17 @@ pub async fn execute_batch_plan(
                         .await;
                 }
             }
-            match executor.execute(&step).await {
+            // set skill context and callback
+            let skill_context = SkillContext {
+                task_id: task_id.clone(),
+                step_index: Some(idx),
+                step_name: Some(step_name.clone()),
+                extra: HashMap::new(),
+            };
+            match executor
+                .execute(&step, skill_callback.as_deref(), Some(&skill_context))
+                .await
+            {
                 Ok(output) => {
                     let duration = step_start.elapsed().as_millis() as u64;
                     if let Some(cb) = &callback {

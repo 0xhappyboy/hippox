@@ -287,7 +287,7 @@ impl SkillContext {
 /// Atomic skill progress callback
 ///
 /// Implemented by the external layer and injected into skills.
-pub trait SkillCallback: Send + Sync {
+pub trait SkillCallback: Send + Sync + Debug {
     /// Progress update
     fn on_progress(&self, progress: u8, message: &str);
 
@@ -432,7 +432,7 @@ pub trait Skill: Send + Sync + Debug {
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn SkillCallback >,
+        callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String>;
 
@@ -581,7 +581,7 @@ mod tests {
         async fn execute(
             &self,
             params: &HashMap<String, Value>,
-            callback: Option<&dyn SkillCallback >,
+            callback: Option<&dyn SkillCallback>,
             context: Option<&SkillContext>,
         ) -> Result<String> {
             let result = params
@@ -640,7 +640,7 @@ mod tests {
         async fn execute(
             &self,
             params: &HashMap<String, Value>,
-            callback: Option<&dyn SkillCallback >,
+            callback: Option<&dyn SkillCallback>,
             context: Option<&SkillContext>,
         ) -> Result<String> {
             Ok(format!("Validated: {:?}", params))

@@ -1,5 +1,6 @@
 //! Internal task implementations for Hippox core
 
+use hippox_atomic_skills::SkillCallback;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::future::Future;
@@ -19,6 +20,8 @@ pub(crate) struct NaturalLanguageTask {
     input: String,
     workflow_executor: WorkflowExecutor,
     scheduler: SkillScheduler,
+    workflow_callback: Option<Arc<dyn WorkflowCallback>>,
+    skill_callback: Option<Arc<dyn SkillCallback>>,
 }
 
 impl NaturalLanguageTask {
@@ -26,11 +29,15 @@ impl NaturalLanguageTask {
         input: String,
         workflow_executor: WorkflowExecutor,
         scheduler: SkillScheduler,
+        workflow_callback: Option<Arc<dyn WorkflowCallback>>,
+        skill_callback: Option<Arc<dyn SkillCallback>>,
     ) -> Self {
         Self {
             input,
             workflow_executor,
             scheduler,
+            workflow_callback,
+            skill_callback,
         }
     }
 }
@@ -39,8 +46,8 @@ impl ExecutableTask for NaturalLanguageTask {
     fn execute(
         &self,
         state_updater: TaskStateUpdater,
-        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        let workflow_callback = self.workflow_callback.clone();
         let input = self.input.clone();
         let workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
@@ -61,7 +68,7 @@ impl ExecutableTask for NaturalLanguageTask {
             let clean_intent = &intent_result.clean_intent;
             let categories = &intent_result.categories;
             let mut executor_with_callback = workflow_executor.clone();
-            if let Some(ref cb) = callback {
+            if let Some(ref cb) = workflow_callback {
                 executor_with_callback = executor_with_callback.with_callback(cb.clone());
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
@@ -99,7 +106,7 @@ impl ExecutableTask for NaturalLanguageTask {
                 WorkflowExecutionResult::Completed(_)
                 | WorkflowExecutionResult::CompletedWithRaw { .. } => {
                     state_updater.update_workflow_complete(&final_output).await;
-                    if let Some(ref cb) = callback {
+                    if let Some(ref cb) = workflow_callback {
                         cb.on_workflow_complete(
                             &task_id,
                             &final_output,
@@ -117,7 +124,7 @@ impl ExecutableTask for NaturalLanguageTask {
                 }
                 WorkflowExecutionResult::Failed { error, .. } => {
                     state_updater.update_workflow_failed(&error).await;
-                    if let Some(ref cb) = callback {
+                    if let Some(ref cb) = workflow_callback {
                         cb.on_workflow_failed(&task_id, &error, total_duration, total_steps)
                             .await;
                     }
@@ -132,5 +139,13 @@ impl ExecutableTask for NaturalLanguageTask {
 
     fn input(&self) -> &str {
         &self.input
+    }
+
+    fn get_workflow_callback(&self) -> Option<Arc<dyn WorkflowCallback>> {
+        self.workflow_callback.clone()
+    }
+
+    fn get_skill_callback(&self) -> Option<Arc<dyn SkillCallback>> {
+        self.skill_callback.clone()
     }
 }

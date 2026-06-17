@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use hippox_atomic_skills::{
-    generate_skill_registry_table_json_str, get_skill_by_name, has_skill, list_skills_names,
+    SkillCallback, SkillContext, generate_skill_registry_table_json_str, get_skill_by_name, has_skill, list_skills_names
 };
 
 /// Skill execution scheduler
@@ -112,13 +112,17 @@ impl SkillScheduler {
         skill_name: &str,
         user_input: &str,
         conversation_history: &str,
+        skill_callback: Option<&dyn SkillCallback>,
+        skill_context: Option<&SkillContext>,
     ) -> anyhow::Result<String> {
         println!("{}", t!("skill.executing", skill_name));
         let skill = get_skill_by_name(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
         let mut parameters = HashMap::new();
         parameters.insert("input".to_string(), Value::String(user_input.to_string()));
-        skill.execute(&parameters).await
+        skill
+            .execute(&parameters, skill_callback, skill_context)
+            .await
     }
 
     /// Execute a skill with explicit parameters
@@ -137,11 +141,15 @@ impl SkillScheduler {
         user_input: &str,
         parameters: &HashMap<String, Value>,
         conversation_history: &str,
+        skill_callback: Option<&dyn SkillCallback>,
+        skill_context: Option<&SkillContext>,
     ) -> anyhow::Result<String> {
         println!("{}", t!("skill.executing", skill_name));
         let skill = get_skill_by_name(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
-        skill.execute(parameters).await
+        skill
+            .execute(parameters, skill_callback, skill_context)
+            .await
     }
 
     /// Execute a skill with chat messages as context
@@ -159,6 +167,8 @@ impl SkillScheduler {
         &self,
         skill_name: &str,
         messages: Vec<ChatMessage>,
+        skill_callback: Option<&dyn SkillCallback>,
+        skill_context: Option<&SkillContext>,
     ) -> anyhow::Result<String> {
         let skill = get_skill_by_name(skill_name)
             .ok_or_else(|| anyhow::anyhow!("Skill not found: {}", skill_name))?;
@@ -170,7 +180,9 @@ impl SkillScheduler {
                 break;
             }
         }
-        skill.execute(&parameters).await
+        skill
+            .execute(&parameters, skill_callback, skill_context)
+            .await
     }
 
     /// Fallback chat when no skill matches
