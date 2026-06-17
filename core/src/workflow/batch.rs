@@ -21,7 +21,7 @@ pub async fn execute_batch_plan(
     if steps.is_empty() {
         return Vec::new();
     }
-    let callback = executor.get_callback().clone();
+    let callback = executor.get_workflow_callback().clone();
     let executor_clone = executor.get_executor().clone();
     let task_id = executor.get_task_id().map(|s| s.to_string());
     if let Some(ref tid) = task_id {
@@ -169,7 +169,7 @@ pub async fn execute_batch(
                 if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
                 {
                     // Notify that workflow is resumed
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         cb.on_workflow_resumed(
                             tid,
                             overall_start.elapsed().as_millis() as u64,
@@ -204,13 +204,13 @@ pub async fn execute_batch(
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_cancelled(tid, 0, 0).await;
                 }
                 return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_paused(tid, None, 0, 0).await;
                 }
                 return WorkflowExecutionResult::Paused {
@@ -245,14 +245,14 @@ pub async fn execute_batch(
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
                 return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
                         last_completed_step: 0,
                         variables: HashMap::new(),

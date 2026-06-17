@@ -170,7 +170,7 @@ pub async fn execute_chain(
                     restored_results = checkpoint.completed_results;
                     last_completed_idx = checkpoint.last_completed_step;
                     checkpoint_restored = true;
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         cb.on_workflow_resumed(
                             tid,
                             overall_start.elapsed().as_millis() as u64,
@@ -185,13 +185,13 @@ pub async fn execute_chain(
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_cancelled(tid, 0, 0).await;
                 }
                 return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_paused(tid, None, 0, 0).await;
                 }
                 return WorkflowExecutionResult::Paused {
@@ -218,14 +218,14 @@ pub async fn execute_chain(
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
                 return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_paused(tid, None, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
@@ -273,7 +273,7 @@ pub async fn execute_chain(
 
         if let Err(result) = check_step_interruption(
             task_id.as_deref(),
-            executor.get_callback(),
+            executor.get_workflow_callback(),
             idx,
             &step_name,
             checkpoint.clone(),
@@ -282,25 +282,21 @@ pub async fn execute_chain(
         {
             return result;
         }
-
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
             let resolved = resolve_variables_deep(value, &context);
             resolved_params.insert(key.clone(), resolved);
         }
-
-        if let Some(cb) = executor.get_callback() {
+        if let Some(cb) = executor.get_workflow_callback() {
             if let Some(ref tid) = task_id {
                 cb.on_step_start(tid, &step_name, idx, Some(&resolved_params))
                     .await;
             }
         }
-
         let call = SkillCall {
             action: step.action.clone(),
             parameters: resolved_params,
         };
-
         let skill_context = SkillContext {
             task_id: task_id.clone(),
             step_index: Some(idx),
@@ -308,7 +304,6 @@ pub async fn execute_chain(
             extra: HashMap::new(),
         };
         let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
-
         match executor
             .get_executor()
             .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
@@ -316,7 +311,7 @@ pub async fn execute_chain(
         {
             Ok(output) => {
                 let duration = step_start.elapsed().as_millis() as u64;
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_success(tid, &step_name, idx, &output, duration)
                             .await;
@@ -339,7 +334,7 @@ pub async fn execute_chain(
             Err(e) => {
                 let duration = step_start.elapsed().as_millis() as u64;
                 let error_msg = e.to_string();
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_failure(tid, &step_name, idx, &error_msg, duration)
                             .await;
@@ -351,7 +346,7 @@ pub async fn execute_chain(
                     output: error_msg.clone(),
                     status: ExecutionStatus::Failure,
                 });
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
                         let total_duration = overall_start.elapsed().as_millis() as u64;
                         cb.on_workflow_failed(tid, &error_msg, total_duration, results.len())
@@ -365,7 +360,6 @@ pub async fn execute_chain(
             }
         }
     }
-
     let final_display = format_step_results(&results);
     let raw_json = serde_json::json!({
         "mode": "chain",

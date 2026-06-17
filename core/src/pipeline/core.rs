@@ -36,7 +36,6 @@ impl SystemPipeline {
             Err(e) => IntentParseResult::fallback(raw_input),
         }
     }
-    
 }
 
 #[async_trait]
@@ -62,7 +61,6 @@ impl Pipeline for SystemPipeline {
         executor: &WorkflowExecutor,
         scheduler: &SkillScheduler,
         input: &str,
-        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> WorkflowExecResult {
         // Execute workflow (format requirements are ignored at this stage)
         let result = executor.execute(scheduler, input).await;

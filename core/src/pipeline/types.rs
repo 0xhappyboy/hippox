@@ -46,7 +46,6 @@ pub trait Pipeline: Send + Sync {
         executor: &WorkflowExecutor,
         scheduler: &SkillScheduler,
         input: &str,
-        callback: Option<Arc<dyn WorkflowCallback>>,
     ) -> WorkflowExecResult;
 
     /// Step 3: Format conversion based on user's structure requirements

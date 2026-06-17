@@ -243,7 +243,7 @@ async fn execute_workflow_plan(
         .ok();
         match check_step_interruption(
             task_id,
-            executor.get_callback(),
+            executor.get_workflow_callback(),
             &step.id,
             &step.action,
             idx,
@@ -361,7 +361,7 @@ pub async fn execute_plan_and_execute(
             if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
                 if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
                 {
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         cb.on_workflow_resumed(
                             tid,
                             overall_start.elapsed().as_millis() as u64,
@@ -377,13 +377,13 @@ pub async fn execute_plan_and_execute(
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_cancelled(tid, 0, 0).await;
                 }
                 return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_paused(tid, None, 0, 0).await;
                 }
                 return WorkflowExecutionResult::Paused {
@@ -410,14 +410,14 @@ pub async fn execute_plan_and_execute(
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if state_updater.is_cancelled().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
                 return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
             }
             if state_updater.is_paused().await {
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     cb.on_workflow_paused(tid, None, overall_start.elapsed().as_millis() as u64, 0)
                         .await;
                 }
@@ -429,7 +429,6 @@ pub async fn execute_plan_and_execute(
             }
         }
     }
-
     let instruction = match parse_plan_response(&llm_response) {
         Ok(instr) => instr,
         Err(e) => {
@@ -439,7 +438,6 @@ pub async fn execute_plan_and_execute(
             };
         }
     };
-
     match instruction {
         PlanInstruction {
             mode,
@@ -452,7 +450,6 @@ pub async fn execute_plan_and_execute(
                     message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
                 return WorkflowExecutionResult::Completed(final_msg);
             }
-
             if let Some(plan) = plan {
                 match execute_workflow_plan(executor, &plan, task_id.as_deref()).await {
                     Ok((result, success_count, failed_count)) => {
@@ -473,7 +470,7 @@ pub async fn execute_plan_and_execute(
                     Err(e) => {
                         let total_duration = overall_start.elapsed().as_millis() as u64;
                         let error_msg = e.to_string();
-                        if let Some(cb) = executor.get_callback() {
+                        if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
                                 cb.on_workflow_failed(tid, &error_msg, total_duration, 0)
                                     .await;

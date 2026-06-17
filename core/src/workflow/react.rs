@@ -127,7 +127,7 @@ pub async fn execute_react(
                             result.skill, result.output
                         )));
                     }
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         cb.on_workflow_resumed(
                             tid,
                             overall_start.elapsed().as_millis() as u64,
@@ -144,7 +144,7 @@ pub async fn execute_react(
         if let Some(ref tid) = task_id {
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
                 if state_updater.is_cancelled().await {
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         cb.on_workflow_cancelled(
                             tid,
                             overall_start.elapsed().as_millis() as u64,
@@ -157,7 +157,7 @@ pub async fn execute_react(
                     };
                 }
                 if state_updater.is_paused().await {
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
                             last_completed_step: step_results.len(),
                             variables: HashMap::new(),
@@ -216,7 +216,7 @@ pub async fn execute_react(
 
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
-                    executor.get_callback(),
+                    executor.get_workflow_callback(),
                     step_index,
                     &step_name,
                     None,
@@ -225,7 +225,7 @@ pub async fn execute_react(
                 {
                     return result;
                 }
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
                             .await;
@@ -246,7 +246,7 @@ pub async fn execute_react(
                 {
                     Ok(output) => {
                         let duration = step_start.elapsed().as_millis() as u64;
-                        if let Some(cb) = executor.get_callback() {
+                        if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
                                 cb.on_step_success(tid, &step_name, step_index, &output, duration)
                                     .await;
@@ -266,7 +266,7 @@ pub async fn execute_react(
                     Err(e) => {
                         let duration = step_start.elapsed().as_millis() as u64;
                         let error_msg = e.to_string();
-                        if let Some(cb) = executor.get_callback() {
+                        if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
                                 cb.on_step_failure(
                                     tid, &step_name, step_index, &error_msg, duration,
@@ -295,7 +295,7 @@ pub async fn execute_react(
                 let step_name = format!("batch_{}_steps", steps.len());
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
-                    executor.get_callback(),
+                    executor.get_workflow_callback(),
                     step_index,
                     &step_name,
                     None,
@@ -396,7 +396,7 @@ pub async fn execute_react_with_categories(
                             result.skill, result.output
                         )));
                     }
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         cb.on_workflow_resumed(
                             tid,
                             overall_start.elapsed().as_millis() as u64,
@@ -413,7 +413,7 @@ pub async fn execute_react_with_categories(
         if let Some(ref tid) = task_id {
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
                 if state_updater.is_cancelled().await {
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         cb.on_workflow_cancelled(
                             tid,
                             overall_start.elapsed().as_millis() as u64,
@@ -426,7 +426,7 @@ pub async fn execute_react_with_categories(
                     };
                 }
                 if state_updater.is_paused().await {
-                    if let Some(cb) = executor.get_callback() {
+                    if let Some(cb) = executor.get_workflow_callback() {
                         let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
                             last_completed_step: step_results.len(),
                             variables: HashMap::new(),
@@ -486,7 +486,7 @@ pub async fn execute_react_with_categories(
 
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
-                    executor.get_callback(),
+                    executor.get_workflow_callback(),
                     step_index,
                     &step_name,
                     None,
@@ -496,7 +496,7 @@ pub async fn execute_react_with_categories(
                     return result;
                 }
 
-                if let Some(cb) = executor.get_callback() {
+                if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
                             .await;
@@ -520,7 +520,7 @@ pub async fn execute_react_with_categories(
                 {
                     Ok(output) => {
                         let duration = step_start.elapsed().as_millis() as u64;
-                        if let Some(cb) = executor.get_callback() {
+                        if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
                                 cb.on_step_success(tid, &step_name, step_index, &output, duration)
                                     .await;
@@ -540,7 +540,7 @@ pub async fn execute_react_with_categories(
                     Err(e) => {
                         let duration = step_start.elapsed().as_millis() as u64;
                         let error_msg = e.to_string();
-                        if let Some(cb) = executor.get_callback() {
+                        if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
                                 cb.on_step_failure(
                                     tid, &step_name, step_index, &error_msg, duration,
@@ -570,7 +570,7 @@ pub async fn execute_react_with_categories(
 
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
-                    executor.get_callback(),
+                    executor.get_workflow_callback(),
                     step_index,
                     &step_name,
                     None,

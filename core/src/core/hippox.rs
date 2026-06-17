@@ -159,14 +159,14 @@ impl Hippox {
     pub fn submit(
         &self,
         input: &str,
-        callback: Option<Arc<dyn WorkflowCallback>>,
+        workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         skill_callback: Option<Arc<dyn SkillCallback>>,
     ) -> HippoxStringResult {
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
             self.workflow_executor.clone(),
             self.scheduler.clone(),
-            callback,
+            workflow_callback,
             skill_callback,
         ));
         let task_id = futures::executor::block_on(tasks::create_task_with_executable(
@@ -232,7 +232,7 @@ impl Hippox {
         }
         HippoxResult::ok(results)
     }
-    
+
     /// Execute natural language directly without task pool, returning the result asynchronously.
     ///
     /// Note: This function uses the task pool **only** for token counting via `TaskStateUpdater`.
@@ -254,7 +254,7 @@ impl Hippox {
     pub async fn execute(
         &self,
         input: &str,
-        callback: Option<Arc<dyn WorkflowCallback>>,
+        workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         skill_callback: Option<Arc<dyn SkillCallback>>,
     ) -> HippoxStringResult {
         let temp_task_id = uuid::Uuid::new_v4().to_string();
@@ -285,18 +285,30 @@ impl Hippox {
             .workflow_executor
             .clone()
             .with_task_id(temp_task_id.clone());
+        // workflow callback
+        let workflow_executor_with_callbacks = if let Some(cb) = workflow_callback {
+            workflow_executor_with_id.with_workflow_callback(cb)
+        } else {
+            workflow_executor_with_id
+        };
+        // skill callback
+        let workflow_executor_with_skill_cb = if let Some(cb) = skill_callback {
+            workflow_executor_with_callbacks.with_skill_callback(cb)
+        } else {
+            workflow_executor_with_callbacks
+        };
         let workflow_result = if categories.is_empty() {
             pipeline
                 .workflow_execution(
                     self.workflow_mode,
-                    &workflow_executor_with_id,
+                    &workflow_executor_with_skill_cb,
                     &self.scheduler,
                     clean_intent,
-                    callback,
                 )
                 .await
         } else {
-            let result = workflow_executor_with_id
+            let result = workflow_executor_with_skill_cb
+                .clone()
                 .execute_with_categories(&self.scheduler, clean_intent, categories)
                 .await;
             let json_output = match result {

@@ -289,16 +289,36 @@ impl SkillContext {
 /// Implemented by the external layer and injected into skills.
 pub trait SkillCallback: Send + Sync + Debug {
     /// Progress update
-    fn on_progress(&self, progress: u8, message: &str);
+    fn on_progress(
+        &self,
+        task_id: Option<String>,
+        step_index: Option<usize>,
+        progress: u8,
+        message: &str,
+    );
 
     /// Step started (optional, default implementation does nothing)
-    fn on_start(&self, _skill_name: &str) {}
+    fn on_start(&self, task_id: Option<String>, step_index: Option<usize>, _skill_name: &str) {}
 
     /// Step completed (optional, default implementation does nothing)
-    fn on_complete(&self, _skill_name: &str, _result: &str) {}
+    fn on_complete(
+        &self,
+        task_id: Option<String>,
+        step_index: Option<usize>,
+        skill_name: &str,
+        result: &str,
+    ) {
+    }
 
     /// Step failed (optional, default implementation does nothing)
-    fn on_error(&self, _skill_name: &str, _error: &str) {}
+    fn on_error(
+        &self,
+        task_id: Option<String>,
+        step_index: Option<usize>,
+        skill_name: &str,
+        error: &str,
+    ) {
+    }
 }
 
 /// Skill execution trait

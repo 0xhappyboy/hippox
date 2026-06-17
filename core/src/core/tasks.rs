@@ -69,7 +69,7 @@ impl ExecutableTask for NaturalLanguageTask {
             let categories = &intent_result.categories;
             let mut executor_with_callback = workflow_executor.clone();
             if let Some(ref cb) = workflow_callback {
-                executor_with_callback = executor_with_callback.with_callback(cb.clone());
+                executor_with_callback = executor_with_callback.with_workflow_callback(cb.clone());
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
             let result = if categories.is_empty() {

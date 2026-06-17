@@ -15,4 +15,5 @@ pub use crate::pipeline::*;
 pub use crate::skill_scheduler::*;
 pub use crate::tasks::*;
 pub use crate::workflow::*;
+pub use hippox_atomic_skills::types::SkillCallback;
 pub use langhub::types::ModelProvider;
