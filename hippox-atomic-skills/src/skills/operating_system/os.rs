@@ -21,7 +21,7 @@
 //! - `OsNotificationSkill`: Send desktop notifications
 
 use crate::{
-    SkillCategory,
+    SkillCallback, SkillCategory, SkillContext,
     types::{Skill, SkillParameter},
 };
 use anyhow::Result;
@@ -87,7 +87,12 @@ impl Skill for OsRebootSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let delay = parameters
             .get("delay")
             .and_then(|v| v.as_u64())
@@ -187,7 +192,12 @@ impl Skill for OsShutdownSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let delay = parameters
             .get("delay")
             .and_then(|v| v.as_u64())
@@ -265,7 +275,12 @@ impl Skill for OsSleepSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         #[cfg(target_os = "windows")]
         {
             use crate::exec_async;
@@ -324,7 +339,12 @@ impl Skill for OsLockSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         #[cfg(target_os = "windows")]
         {
             use crate::exec_async;
@@ -387,7 +407,12 @@ impl Skill for OsLogoutSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let _force = parameters
             .get("force")
             .and_then(|v| v.as_bool())
@@ -451,7 +476,12 @@ impl Skill for OsHibernateSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         #[cfg(target_os = "windows")]
         {
             use crate::exec_async;
@@ -513,7 +543,12 @@ impl Skill for OsGetUptimeSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let human_readable = parameters
             .get("human_readable")
             .and_then(|v| v.as_bool())
@@ -582,7 +617,12 @@ impl Skill for OsGetLoadAverageSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let load_avg = System::load_average();
         Ok(format!(
             "Load average: 1 min: {:.2}, 5 min: {:.2}, 15 min: {:.2}",
@@ -635,7 +675,12 @@ impl Skill for OsGetHostnameSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let new_hostname = parameters.get("set_hostname").and_then(|v| v.as_str());
         if let Some(name) = new_hostname {
             #[cfg(not(target_os = "windows"))]
@@ -699,7 +744,12 @@ impl Skill for OsGetUserSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let users = Users::new_with_refreshed_list();
         let current_user = users.iter().next();
         if let Some(user) = current_user {
@@ -764,7 +814,12 @@ impl Skill for OsDiskUsageSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let _specific_path = parameters.get("path").and_then(|v| v.as_str());
         let disks = Disks::new_with_refreshed_list();
         let mut output = vec![format!(
@@ -834,7 +889,12 @@ impl Skill for OsMemoryInfoSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let mut system = System::new();
         system.refresh_memory();
         let total_gb = system.total_memory() as f64 / (1024.0 * 1024.0);
@@ -888,7 +948,12 @@ impl Skill for OsCpuInfoSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let mut system = System::new();
         system.refresh_cpu_all();
         let physical_cores = System::physical_core_count().unwrap_or(0);
@@ -951,7 +1016,12 @@ impl Skill for OsNetworkInfoSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let filter_interface = parameters.get("interface").and_then(|v| v.as_str());
         let networks = Networks::new_with_refreshed_list();
         let mut output = Vec::new();
@@ -1031,7 +1101,12 @@ impl Skill for OsBatteryInfoSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let detailed = parameters
             .get("detailed")
             .and_then(|v| v.as_bool())
@@ -1162,7 +1237,12 @@ impl Skill for OsNotificationSkill {
         SkillCategory::OperatingSystem
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let title = parameters
             .get("title")
             .and_then(|v| v.as_str())
@@ -1227,7 +1307,7 @@ mod tests {
     async fn test_os_get_uptime() {
         let skill = OsGetUptimeSkill;
         let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("uptime"));
     }
 
@@ -1235,7 +1315,7 @@ mod tests {
     async fn test_os_get_load_average() {
         let skill = OsGetLoadAverageSkill;
         let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("Load average"));
     }
 
@@ -1243,7 +1323,7 @@ mod tests {
     async fn test_os_memory_info() {
         let skill = OsMemoryInfoSkill;
         let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("Memory"));
     }
 
@@ -1251,7 +1331,7 @@ mod tests {
     async fn test_os_cpu_info() {
         let skill = OsCpuInfoSkill;
         let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("CPU"));
     }
 }

@@ -1,13 +1,14 @@
 //! Detailed process information skill
 
+use crate::{SkillCallback, SkillContext};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
     SkillCategory,
+    operating_system_process::common::{format_memory, get_process_by_pid},
     types::{Skill, SkillParameter},
-    operating_system_process::common::{get_process_by_pid, format_memory},
 };
 
 /// Skill for getting detailed information about a process
@@ -57,7 +58,12 @@ impl Skill for ProcessInfoSkill {
         SkillCategory::OperatingSystemProcess
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let pid = parameters
             .get("pid")
             .and_then(|v| v.as_u64())
@@ -72,11 +78,17 @@ impl Skill for ProcessInfoSkill {
         info.push(format!("PID: {}", process.pid));
         info.push(format!(
             "Parent PID: {}",
-            process.parent_pid.map(|p| p.to_string()).unwrap_or_else(|| "None".to_string())
+            process
+                .parent_pid
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "None".to_string())
         ));
         info.push(format!("CPU Usage: {:.1}%", process.cpu_usage));
         info.push(format!("Memory: {}", format_memory(process.memory)));
-        info.push(format!("Virtual Memory: {}", format_memory(process.virtual_memory)));
+        info.push(format!(
+            "Virtual Memory: {}",
+            format_memory(process.virtual_memory)
+        ));
         info.push(format!("Status: {}", process.status));
 
         if let Some(start_time) = process.start_time {
@@ -120,7 +132,7 @@ mod tests {
         let skill = ProcessInfoSkill;
         let mut params = HashMap::new();
         params.insert("pid".to_string(), json!(99999999));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_err());
     }
 }

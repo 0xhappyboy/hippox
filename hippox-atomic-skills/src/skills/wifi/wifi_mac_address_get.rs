@@ -1,11 +1,15 @@
 //! WiFi MAC address get skill - get current MAC address
 
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
-
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiMacAddressGetSkill;
@@ -50,7 +54,12 @@ impl Skill for WifiMacAddressGetSkill {
         SkillCategory::Wifi
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let interface = parameters
             .get("interface")
             .and_then(|v| v.as_str())

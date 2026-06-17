@@ -1,11 +1,15 @@
 //! WiFi list connections skill - list saved/connected WiFi networks
 
+use super::common::{get_wifi_status, list_saved_networks};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{get_wifi_status, list_saved_networks};
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiListConnectionsSkill;
@@ -42,7 +46,12 @@ impl Skill for WifiListConnectionsSkill {
         SkillCategory::Wifi
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let status = get_wifi_status()?;
         let current_ssid = status.ssid.clone();
 

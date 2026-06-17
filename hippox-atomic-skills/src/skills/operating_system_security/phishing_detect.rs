@@ -1,11 +1,14 @@
 //! Phishing URL detection skill
 
+use crate::{SkillCallback, SkillContext};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, operating_system_security::common::detect_phishing, types::{Skill, SkillParameter}
+    SkillCategory,
+    operating_system_security::common::detect_phishing,
+    types::{Skill, SkillParameter},
 };
 
 #[derive(Debug)]
@@ -56,7 +59,12 @@ impl Skill for PhishingDetectSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let url = parameters
             .get("url")
             .and_then(|v| v.as_str())

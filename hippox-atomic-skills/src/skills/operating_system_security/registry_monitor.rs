@@ -5,8 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
 };
 
 #[cfg(target_os = "windows")]
@@ -60,7 +59,12 @@ impl Skill for RegistryMonitorSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         #[cfg(not(target_os = "windows"))]
         {
             return Ok("Registry monitor is only supported on Windows systems".to_string());
@@ -76,7 +80,10 @@ impl Skill for RegistryMonitorSkill {
             let info = monitor_registry_key(key);
 
             let mut output = String::new();
-            output.push_str(&format!("Registry Monitor Results:\n\nKey: {}\n", info.path));
+            output.push_str(&format!(
+                "Registry Monitor Results:\n\nKey: {}\n",
+                info.path
+            ));
             output.push_str(&format!("Name: {}\n", info.name));
             output.push_str(&format!("Value: {}\n", info.value));
             output.push_str(&format!("Value Type: {}\n", info.value_type));

@@ -1,12 +1,16 @@
 // mouse_control/mouse_control_position_get.rs
 //! Mouse position get skill
 
+use super::common::get_mouse_position;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::get_mouse_position;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct MouseControlPositionGetSkill;
@@ -43,7 +47,12 @@ impl Skill for MouseControlPositionGetSkill {
         SkillCategory::Mouse
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let pos = get_mouse_position()?;
         Ok(format!("Mouse position: x={}, y={}", pos.x, pos.y))
     }

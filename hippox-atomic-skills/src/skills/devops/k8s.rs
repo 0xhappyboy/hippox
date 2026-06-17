@@ -21,7 +21,8 @@
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 use crate::{ExecOptions, SkillCategory, exec_async, exec_with_stdin_async};
 
@@ -162,7 +163,12 @@ impl Skill for K8sGetPodsSkill {
         "NAME                     READY   STATUS    RESTARTS   AGE   IP           NODE\nweb-7b4c8d9f6-abc12       1/1     Running   0          5d    10.244.1.2   node-1\nweb-7b4c8d9f6-def34       1/1     Running   0          5d    10.244.2.3   node-2".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
@@ -285,7 +291,12 @@ impl Skill for K8sDescribePodSkill {
         "Name:         nginx-7b4c8d9f6-abc12\nNamespace:    default\nPriority:     0\nNode:         node-1/192.168.1.10\n...".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let pod = get_param_string(parameters, "pod")?;
@@ -425,7 +436,12 @@ impl Skill for K8sGetLogsSkill {
         "2024-01-15T10:30:00Z [info] Server started\n2024-01-15T10:30:01Z [info] Listening on port 80".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let pod = get_param_string(parameters, "pod")?;
@@ -578,7 +594,12 @@ impl Skill for K8sExecSkill {
         "Database\ninformation_schema\nmysql\nperformance_schema\nsys".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let pod = get_param_string(parameters, "pod")?;
@@ -708,7 +729,12 @@ impl Skill for K8sGetDeploymentsSkill {
             .to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let namespace = parameters.get("namespace").and_then(|v| v.as_str());
@@ -836,7 +862,12 @@ impl Skill for K8sScaleDeploymentSkill {
         "Deployment 'nginx' scaled to 5 replicas".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let deployment = get_param_string(parameters, "deployment")?;
@@ -939,7 +970,12 @@ impl Skill for K8sRestartDeploymentSkill {
         "Deployment 'nginx' restarted successfully".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let deployment = get_param_string(parameters, "deployment")?;
@@ -1031,7 +1067,12 @@ impl Skill for K8sGetNodesSkill {
         "NAME     STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP\nnode-1   Ready    master   10d   v1.28.0   192.168.1.10   <none>\nnode-2   Ready    worker   10d   v1.28.0   192.168.1.11   <none>".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let output = parameters
@@ -1137,7 +1178,12 @@ impl Skill for K8sGetNamespacesSkill {
         "NAME              STATUS   AGE\ndefault           Active   10d\nkube-system       Active   10d\nkube-public       Active   10d".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let output = parameters
@@ -1247,7 +1293,12 @@ impl Skill for K8sApplyYamlSkill {
         "pod/nginx created".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let manifest = get_param_string(parameters, "manifest")?;
@@ -1372,7 +1423,12 @@ impl Skill for K8sDeleteResourceSkill {
         "deployment.apps/nginx deleted".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+   async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let kubeconfig = parameters.get("kubeconfig").and_then(|v| v.as_str());
         let context = parameters.get("context").and_then(|v| v.as_str());
         let resource_type = get_param_string(parameters, "resource_type")?;

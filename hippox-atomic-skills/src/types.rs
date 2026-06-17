@@ -164,6 +164,143 @@ pub struct SkillMetadata {
     pub category: SkillCategory,
 }
 
+/// Atomic skill execution context
+///
+/// Passed from the external layer to atomic skills. Skills are read-only consumers
+/// and do not know the implementation details of the upper layer.
+#[derive(Debug, Clone, Default)]
+pub struct SkillContext {
+    /// Task ID, used for logging and tracing
+    pub task_id: Option<String>,
+    /// Current step index (starting from 0)
+    pub step_index: Option<usize>,
+    /// Current step name
+    pub step_name: Option<String>,
+    /// Extended data for future needs
+    pub extra: HashMap<String, Value>,
+}
+
+impl SkillContext {
+    /// Create a new empty context
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a new context with task_id
+    pub fn with_task_id(task_id: impl Into<String>) -> Self {
+        Self {
+            task_id: Some(task_id.into()),
+            ..Default::default()
+        }
+    }
+
+    /// Get task_id
+    pub fn task_id(&self) -> Option<&str> {
+        self.task_id.as_deref()
+    }
+
+    /// Get step_index
+    pub fn step_index(&self) -> Option<usize> {
+        self.step_index
+    }
+
+    /// Get step_name
+    pub fn step_name(&self) -> Option<&str> {
+        self.step_name.as_deref()
+    }
+
+    /// Get extra value by key
+    pub fn get_extra(&self, key: &str) -> Option<&Value> {
+        self.extra.get(key)
+    }
+
+    /// Set task_id
+    pub fn set_task_id(&mut self, task_id: impl Into<String>) -> &mut Self {
+        self.task_id = Some(task_id.into());
+        self
+    }
+
+    /// Set step_index
+    pub fn set_step_index(&mut self, step_index: usize) -> &mut Self {
+        self.step_index = Some(step_index);
+        self
+    }
+
+    /// Set step_name
+    pub fn set_step_name(&mut self, step_name: impl Into<String>) -> &mut Self {
+        self.step_name = Some(step_name.into());
+        self
+    }
+
+    /// Insert extra value
+    pub fn insert_extra(&mut self, key: impl Into<String>, value: Value) -> &mut Self {
+        self.extra.insert(key.into(), value);
+        self
+    }
+
+    /// Remove extra value
+    pub fn remove_extra(&mut self, key: &str) -> Option<Value> {
+        self.extra.remove(key)
+    }
+
+    /// Check if extra contains key
+    pub fn has_extra(&self, key: &str) -> bool {
+        self.extra.contains_key(key)
+    }
+
+    /// Builder: set task_id
+    pub fn with_task_id_builder(mut self, task_id: impl Into<String>) -> Self {
+        self.task_id = Some(task_id.into());
+        self
+    }
+
+    /// Builder: set step_index
+    pub fn with_step_index(mut self, step_index: usize) -> Self {
+        self.step_index = Some(step_index);
+        self
+    }
+
+    /// Builder: set step_name
+    pub fn with_step_name(mut self, step_name: impl Into<String>) -> Self {
+        self.step_name = Some(step_name.into());
+        self
+    }
+
+    /// Builder: insert extra value
+    pub fn with_extra(mut self, key: impl Into<String>, value: Value) -> Self {
+        self.extra.insert(key.into(), value);
+        self
+    }
+
+    /// Builder: merge extra values from a HashMap
+    pub fn with_extra_map(mut self, extra: HashMap<String, Value>) -> Self {
+        self.extra.extend(extra);
+        self
+    }
+
+    /// Builder: build the context
+    pub fn build(self) -> Self {
+        self
+    }
+}
+
+/// Atomic skill progress callback
+///
+/// Implemented by the external layer and injected into skills.
+pub trait SkillCallback: Send + Sync {
+    /// Progress update
+    fn on_progress(&self, progress: u8, message: &str);
+
+    /// Step started (optional, default implementation does nothing)
+    fn on_start(&self, _skill_name: &str) {}
+
+    /// Step completed (optional, default implementation does nothing)
+    fn on_complete(&self, _skill_name: &str, _result: &str) {}
+
+    /// Step failed (optional, default implementation does nothing)
+    fn on_error(&self, _skill_name: &str, _error: &str) {}
+}
+
 /// Skill execution trait
 ///
 /// This trait defines the contract for all skills in the system. Any type
@@ -292,7 +429,12 @@ pub trait Skill: Send + Sync + Debug {
     ///
     /// Returns an error if execution fails for any reason (invalid
     /// parameters, I/O errors, etc.).
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String>;
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback >,
+        context: Option<&SkillContext>,
+    ) -> Result<String>;
 
     /// Validate parameters before execution
     ///
@@ -436,7 +578,12 @@ mod tests {
             &self.description
         }
 
-        async fn execute(&self, params: &HashMap<String, Value>) -> Result<String> {
+        async fn execute(
+            &self,
+            params: &HashMap<String, Value>,
+            callback: Option<&dyn SkillCallback >,
+            context: Option<&SkillContext>,
+        ) -> Result<String> {
             let result = params
                 .get("input")
                 .and_then(|v| v.as_str())
@@ -490,7 +637,12 @@ mod tests {
             "Validates parameters"
         }
 
-        async fn execute(&self, params: &HashMap<String, Value>) -> Result<String> {
+        async fn execute(
+            &self,
+            params: &HashMap<String, Value>,
+            callback: Option<&dyn SkillCallback >,
+            context: Option<&SkillContext>,
+        ) -> Result<String> {
             Ok(format!("Validated: {:?}", params))
         }
 
@@ -548,7 +700,7 @@ mod tests {
         };
         let mut params = HashMap::new();
         params.insert("input".to_string(), json!("Hello, World!"));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert_eq!(result, "Executed echo_skill with: Hello, World!");
     }
 
@@ -661,5 +813,62 @@ mod tests {
                 .unwrap()
                 .contains(&"fast".to_string())
         );
+    }
+
+    #[test]
+    fn test_context_new() {
+        let ctx = SkillContext::new();
+        assert!(ctx.task_id().is_none());
+        assert!(ctx.step_index().is_none());
+        assert!(ctx.step_name().is_none());
+        assert!(ctx.extra.is_empty());
+    }
+
+    #[test]
+    fn test_context_with_task_id() {
+        let ctx = SkillContext::with_task_id("task-123");
+        assert_eq!(ctx.task_id(), Some("task-123"));
+    }
+
+    #[test]
+    fn test_context_getters_setters() {
+        let mut ctx = SkillContext::new();
+        ctx.set_task_id("task-456")
+            .set_step_index(3)
+            .set_step_name("download_file");
+
+        assert_eq!(ctx.task_id(), Some("task-456"));
+        assert_eq!(ctx.step_index(), Some(3));
+        assert_eq!(ctx.step_name(), Some("download_file"));
+    }
+
+    #[test]
+    fn test_context_extra_operations() {
+        let mut ctx = SkillContext::new();
+        ctx.insert_extra("url", json!("https://example.com"))
+            .insert_extra("timeout", json!(30));
+
+        assert!(ctx.has_extra("url"));
+        assert_eq!(ctx.get_extra("url"), Some(&json!("https://example.com")));
+        assert_eq!(ctx.get_extra("timeout"), Some(&json!(30)));
+
+        let removed = ctx.remove_extra("timeout");
+        assert_eq!(removed, Some(json!(30)));
+        assert!(!ctx.has_extra("timeout"));
+    }
+
+    #[test]
+    fn test_context_builder() {
+        let ctx = SkillContext::new()
+            .with_task_id_builder("task-789")
+            .with_step_index(5)
+            .with_step_name("process_data")
+            .with_extra("retry_count", json!(3))
+            .build();
+
+        assert_eq!(ctx.task_id(), Some("task-789"));
+        assert_eq!(ctx.step_index(), Some(5));
+        assert_eq!(ctx.step_name(), Some("process_data"));
+        assert_eq!(ctx.get_extra("retry_count"), Some(&json!(3)));
     }
 }

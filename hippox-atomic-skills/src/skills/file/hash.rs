@@ -1,17 +1,18 @@
 //! File hash calculation skills
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
-use crate::{
-    calculate_all_hashes, calculate_md5, calculate_sha1, calculate_sha256, calculate_sha512,
-    file_exists, validate_path,
-};
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{
+    calculate_all_hashes, calculate_md5, calculate_sha1, calculate_sha256, calculate_sha512,
+    file_exists, validate_path,
+};
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 /// Skill for calculating MD5 hash of a file
 #[derive(Debug)]
@@ -60,7 +61,12 @@ impl Skill for HashMd5Skill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -121,7 +127,12 @@ impl Skill for HashSha1Skill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -182,7 +193,12 @@ impl Skill for HashSha256Skill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -243,7 +259,12 @@ impl Skill for HashSha512Skill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -304,7 +325,12 @@ impl Skill for HashFileSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())

@@ -5,9 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
+    SkillCallback, SkillCategory, SkillContext,
     operating_system_process::common::get_pids_by_name,
+    types::{Skill, SkillParameter},
 };
 
 /// Skill for getting the PID of a process by name
@@ -77,7 +77,12 @@ impl Skill for ProcessGetPidSkill {
         SkillCategory::OperatingSystemProcess
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let name = parameters
             .get("name")
             .and_then(|v| v.as_str())
@@ -120,7 +125,7 @@ mod tests {
         let skill = ProcessGetPidSkill;
         let mut params = HashMap::new();
         params.insert("name".to_string(), json!("system"));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
     }
 
@@ -130,7 +135,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("name".to_string(), json!("system"));
         params.insert("first_only".to_string(), json!(true));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("PID:"));

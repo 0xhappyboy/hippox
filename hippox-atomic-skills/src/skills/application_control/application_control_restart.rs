@@ -1,12 +1,16 @@
 // application_control/application_control_restart.rs
 //! Application restart skill
 
+use super::common::{close_process_window, find_process_by_name, launch_app, wait_for_exit};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{close_process_window, find_process_by_name, launch_app, wait_for_exit};
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ApplicationControlRestartSkill;
@@ -68,7 +72,12 @@ impl Skill for ApplicationControlRestartSkill {
         SkillCategory::Application
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let name = parameters
             .get("name")
             .and_then(|v| v.as_str())

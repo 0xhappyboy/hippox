@@ -1,11 +1,14 @@
 //! Browser close skill
-
+use crate::{SkillCallback, SkillContext};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::shared::*;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct HaveHeadBrowserCloseSkill;
@@ -42,7 +45,12 @@ impl Skill for HaveHeadBrowserCloseSkill {
         SkillCategory::HaveHeadBrowser
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         close_browser()?;
         Ok("Browser closed".to_string())
     }

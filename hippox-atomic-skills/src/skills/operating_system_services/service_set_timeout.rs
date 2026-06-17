@@ -1,11 +1,15 @@
 //! Service timeout skill
 
+use super::common::set_startup_timeout;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::set_startup_timeout;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ServiceSetTimeoutSkill;
@@ -43,7 +47,7 @@ impl Skill for ServiceSetTimeoutSkill {
                 default: None,
                 example: Some(Value::Number(60.into())),
                 enum_values: None,
-            }
+            },
         ]
     }
 
@@ -65,7 +69,12 @@ impl Skill for ServiceSetTimeoutSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
@@ -73,8 +82,12 @@ impl Skill for ServiceSetTimeoutSkill {
         let timeout = parameters
             .get("timeout_seconds")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'timeout_seconds' parameter"))? as u32;
+            .ok_or_else(|| anyhow::anyhow!("Missing 'timeout_seconds' parameter"))?
+            as u32;
         set_startup_timeout(service_name, timeout)?;
-        Ok(format!("Service {} startup timeout set to {} seconds", service_name, timeout))
+        Ok(format!(
+            "Service {} startup timeout set to {} seconds",
+            service_name, timeout
+        ))
     }
 }

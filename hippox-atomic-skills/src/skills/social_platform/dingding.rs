@@ -1,9 +1,10 @@
+use crate::{SkillCallback, SkillCategory, SkillContext, execute};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+use crate::RequestConfig;
 use crate::types::{Skill, SkillParameter};
-use crate::{RequestConfig, SkillCategory, execute};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -125,7 +126,12 @@ impl Skill for SendDingDingSkill {
         "DingDing message sent successfully".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let access_token = get_param_string(parameters, "access_token")?;
         let text = get_param_string(parameters, "text")?;
         let msg_type = parameters
@@ -185,7 +191,6 @@ impl Skill for SendDingDingSkill {
         if !at.is_empty() {
             body.insert("at".to_string(), Value::Object(at));
         }
-
         let http_config = RequestConfig {
             url: webhook,
             method: "POST".to_string(),
@@ -193,7 +198,6 @@ impl Skill for SendDingDingSkill {
             body: Some(serde_json::to_string(&body)?),
             timeout_secs: Some(30),
         };
-
         let response = execute(&http_config).await?;
         if response.is_success {
             if let Ok(resp_json) = serde_json::from_str::<Value>(&response.body) {

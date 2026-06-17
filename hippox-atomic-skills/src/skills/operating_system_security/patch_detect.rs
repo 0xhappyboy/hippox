@@ -1,14 +1,15 @@
 //! Patch detection skill
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     operating_system_security::common::check_patch_status,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct PatchDetectSkill;
@@ -32,7 +33,8 @@ impl Skill for PatchDetectSkill {
             SkillParameter {
                 name: "show_all".to_string(),
                 param_type: "boolean".to_string(),
-                description: "Show all patches including installed ones (default: false)".to_string(),
+                description: "Show all patches including installed ones (default: false)"
+                    .to_string(),
                 required: false,
                 default: Some(Value::Bool(false)),
                 example: Some(Value::Bool(true)),
@@ -73,7 +75,12 @@ impl Skill for PatchDetectSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let show_all = parameters
             .get("show_all")
             .and_then(|v| v.as_bool())
@@ -84,7 +91,10 @@ impl Skill for PatchDetectSkill {
         let result = check_patch_status();
 
         let mut output = String::new();
-        output.push_str(&format!("Patch Detection Results:\n\nTotal checked: {}\n", result.total_checked));
+        output.push_str(&format!(
+            "Patch Detection Results:\n\nTotal checked: {}\n",
+            result.total_checked
+        ));
         output.push_str(&format!("Installed: {}\n", result.installed));
         output.push_str(&format!("Missing: {}\n", result.missing));
 
@@ -93,7 +103,9 @@ impl Skill for PatchDetectSkill {
             return Ok(output);
         }
 
-        let missing_patches: Vec<_> = result.patches.iter()
+        let missing_patches: Vec<_> = result
+            .patches
+            .iter()
             .filter(|p| !p.installed)
             .filter(|p| {
                 if let Some(sev) = severity_filter {
@@ -105,7 +117,10 @@ impl Skill for PatchDetectSkill {
             .collect();
 
         if missing_patches.is_empty() {
-            output.push_str(&format!("\nNo missing patches match the specified severity filter: {}", severity_filter.unwrap_or("none")));
+            output.push_str(&format!(
+                "\nNo missing patches match the specified severity filter: {}",
+                severity_filter.unwrap_or("none")
+            ));
             return Ok(output);
         }
 
@@ -117,21 +132,28 @@ impl Skill for PatchDetectSkill {
                 "medium" => "[MEDIUM]",
                 _ => "[LOW]",
             };
-            output.push_str(&format!("  - {} {} ({})\n", patch.name, severity_icon, patch.version));
+            output.push_str(&format!(
+                "  - {} {} ({})\n",
+                patch.name, severity_icon, patch.version
+            ));
             if !patch.description.is_empty() {
                 output.push_str(&format!("    {}\n", patch.description));
             }
         }
 
-        let critical_count = missing_patches.iter().filter(|p| p.severity == "critical").count();
+        let critical_count = missing_patches
+            .iter()
+            .filter(|p| p.severity == "critical")
+            .count();
         if critical_count > 0 {
-            output.push_str(&format!("\nWarning: {} critical patches missing!", critical_count));
+            output.push_str(&format!(
+                "\nWarning: {} critical patches missing!",
+                critical_count
+            ));
         }
 
         if show_all {
-            let installed_patches: Vec<_> = result.patches.iter()
-                .filter(|p| p.installed)
-                .collect();
+            let installed_patches: Vec<_> = result.patches.iter().filter(|p| p.installed).collect();
 
             if !installed_patches.is_empty() {
                 output.push_str("\n\nInstalled patches:\n");
@@ -139,7 +161,10 @@ impl Skill for PatchDetectSkill {
                     output.push_str(&format!("  - {} ({})\n", patch.name, patch.version));
                 }
                 if installed_patches.len() > 10 {
-                    output.push_str(&format!("  ... and {} more\n", installed_patches.len() - 10));
+                    output.push_str(&format!(
+                        "  ... and {} more\n",
+                        installed_patches.len() - 10
+                    ));
                 }
             }
         }

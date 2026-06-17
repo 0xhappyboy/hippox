@@ -1,11 +1,12 @@
 //! Password verification skill
 
+use super::common::{argon2_verify, bcrypt_verify};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{argon2_verify, bcrypt_verify};
-use crate::types::{Skill, SkillParameter};
 
 /// Skill for verifying passwords
 ///
@@ -79,7 +80,12 @@ impl Skill for PasswordVerifySkill {
         crate::SkillCategory::Cryptography
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let password = parameters
             .get("password")
             .and_then(|v| v.as_str())

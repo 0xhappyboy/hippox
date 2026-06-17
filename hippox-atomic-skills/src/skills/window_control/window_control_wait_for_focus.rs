@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use super::common::{find_window, get_focus_window};
-use crate::SkillCategory;
+use crate::{SkillCallback, SkillCategory, SkillContext};
 use crate::types::{Skill, SkillParameter};
 
 #[derive(Debug)]
@@ -76,7 +76,12 @@ impl Skill for WindowControlWaitForFocusSkill {
         SkillCategory::Window
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
         let timeout_ms = parameters

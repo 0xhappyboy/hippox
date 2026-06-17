@@ -1,17 +1,18 @@
 //! Service detection skill
 
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    common::net::{get_probe_for_port, identify_service, parse_ports, resolve_host, tcp_connect},
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
-
-use crate::{
-    SkillCategory,
-    common::net::{get_probe_for_port, identify_service, parse_ports, resolve_host, tcp_connect},
-    types::{Skill, SkillParameter},
-};
 
 #[derive(Debug)]
 pub struct ServiceDetectSkill;
@@ -89,7 +90,12 @@ impl Skill for ServiceDetectSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let target = get_param_string(parameters, "target")?;
         let ports_spec = get_param_string(parameters, "ports")?;
         let timeout_secs = get_param_u64(parameters, "timeout", 5);

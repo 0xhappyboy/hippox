@@ -1,3 +1,4 @@
+use crate::{SkillCallback, SkillContext};
 use anyhow::Result;
 use serde_json::{Value, json};
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -155,7 +156,12 @@ impl Skill for PostgresQuerySkill {
         r#"{"rows": [{"id": 1, "name": "John", "age": 25}], "row_count": 1}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 5432) as u16;
         let database = get_param_string(parameters, "database")?;
@@ -332,7 +338,12 @@ impl Skill for PostgresExecuteSkill {
         r#"{"rows_affected": 1}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 5432) as u16;
         let database = get_param_string(parameters, "database")?;
@@ -460,7 +471,12 @@ impl Skill for PostgresListTablesSkill {
         r#"["users", "orders", "products"]"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 5432) as u16;
         let database = get_param_string(parameters, "database")?;

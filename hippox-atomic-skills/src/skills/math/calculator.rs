@@ -1,10 +1,13 @@
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory, format_number,
+    types::{Skill, SkillParameter},
+    validate_number,
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use crate::{
-    SkillCategory, format_number, types::{Skill, SkillParameter}, validate_number
-};
 
 /// Mathematical expression evaluator with support for:
 /// - Basic arithmetic: +, -, *, /, %
@@ -81,7 +84,12 @@ impl Skill for CalculatorSkill {
         SkillCategory::Math
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let expression = parameters
             .get("expression")
             .and_then(|v| v.as_str())

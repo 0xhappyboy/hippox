@@ -1,15 +1,16 @@
 //! DNS zone transfer skill
 
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use trust_dns_resolver::Resolver;
 use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
-
-use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
-};
 
 #[derive(Debug)]
 pub struct DnsZoneTransferSkill;
@@ -77,9 +78,17 @@ impl Skill for DnsZoneTransferSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let domain = get_param_string(parameters, "domain")?;
-        let dns_server = parameters.get("dns_server").and_then(|v| v.as_str()).unwrap_or("8.8.8.8");
+        let dns_server = parameters
+            .get("dns_server")
+            .and_then(|v| v.as_str())
+            .unwrap_or("8.8.8.8");
 
         let resolver_config = ResolverConfig::from_parts(
             None,
@@ -116,13 +125,19 @@ impl Skill for DnsZoneTransferSkill {
                             results.push(format!("AAAA: {}", ip));
                         }
                         trust_dns_proto::rr::RData::MX(mx) => {
-                            results.push(format!("MX: {} (priority {})", mx.exchange(), mx.preference()));
+                            results.push(format!(
+                                "MX: {} (priority {})",
+                                mx.exchange(),
+                                mx.preference()
+                            ));
                         }
                         trust_dns_proto::rr::RData::NS(ns) => {
                             results.push(format!("NS: {}", ns));
                         }
                         trust_dns_proto::rr::RData::TXT(txt) => {
-                            let text: String = txt.txt_data().iter()
+                            let text: String = txt
+                                .txt_data()
+                                .iter()
                                 .map(|d| String::from_utf8_lossy(d))
                                 .collect::<Vec<_>>()
                                 .join("");
@@ -132,7 +147,11 @@ impl Skill for DnsZoneTransferSkill {
                             results.push(format!("CNAME: {}", cname));
                         }
                         trust_dns_proto::rr::RData::SOA(soa) => {
-                            results.push(format!("SOA: {} (serial: {})", soa.mname(), soa.serial()));
+                            results.push(format!(
+                                "SOA: {} (serial: {})",
+                                soa.mname(),
+                                soa.serial()
+                            ));
                         }
                         trust_dns_proto::rr::RData::PTR(ptr) => {
                             results.push(format!("PTR: {}", ptr));
@@ -148,6 +167,9 @@ impl Skill for DnsZoneTransferSkill {
 }
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
-    params.get(name).and_then(|v| v.as_str()).map(|s| s.to_string())
+    params
+        .get(name)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
         .ok_or_else(|| anyhow::anyhow!("Missing parameter: {}", name))
 }

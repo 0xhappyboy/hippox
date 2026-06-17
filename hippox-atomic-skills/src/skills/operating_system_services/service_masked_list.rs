@@ -1,11 +1,15 @@
 //! Service masked list skill
 
+use super::common::list_masked_services;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::list_masked_services;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ServiceMaskedListSkill;
@@ -42,7 +46,12 @@ impl Skill for ServiceMaskedListSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let services = list_masked_services()?;
         if services.is_empty() {
             return Ok("No masked services found".to_string());

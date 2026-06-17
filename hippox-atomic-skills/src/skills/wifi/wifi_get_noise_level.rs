@@ -1,12 +1,16 @@
 //! WiFi get noise level skill - get noise level and SNR
 
+use super::common::get_wifi_status;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
-
-use super::common::get_wifi_status;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiGetNoiseLevelSkill;
@@ -43,7 +47,12 @@ impl Skill for WifiGetNoiseLevelSkill {
         SkillCategory::Wifi
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        _parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let status = get_wifi_status()?;
 
         if !status.connected {

@@ -1,15 +1,18 @@
 //! Permission check skill
 
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    operating_system_security::common::{
+        PermissionScanResult, check_file_permissions, scan_permissions,
+    },
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::Path;
-
-use crate::{
-    SkillCategory,
-    operating_system_security::common::{check_file_permissions, scan_permissions, PermissionScanResult},
-    types::{Skill, SkillParameter},
-};
 
 #[derive(Debug)]
 pub struct PermissionCheckSkill;
@@ -69,7 +72,12 @@ impl Skill for PermissionCheckSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -109,10 +117,15 @@ impl Skill for PermissionCheckSkill {
             }
         } else {
             let scan_result = scan_permissions(path, recursive);
-            output.push_str(&format!("Total files scanned: {}\n", scan_result.total_files));
+            output.push_str(&format!(
+                "Total files scanned: {}\n",
+                scan_result.total_files
+            ));
             output.push_str(&format!("Issues found: {}\n\n", scan_result.issues_found));
 
-            let issues: Vec<_> = scan_result.results.iter()
+            let issues: Vec<_> = scan_result
+                .results
+                .iter()
                 .filter(|r| !r.issues.is_empty())
                 .collect();
 

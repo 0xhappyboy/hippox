@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_connected_devices;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct BluetoothGetConnectedDevicesSkill;
@@ -42,7 +44,12 @@ impl Skill for BluetoothGetConnectedDevicesSkill {
         SkillCategory::Bluetooth
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        _parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let devices = get_connected_devices()?;
         if devices.is_empty() {
             return Ok("No Bluetooth devices currently connected".to_string());

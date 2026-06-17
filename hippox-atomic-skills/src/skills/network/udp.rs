@@ -1,3 +1,6 @@
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{Skill, SkillCategory, SkillParameter};
 use anyhow::Result;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -5,8 +8,6 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
-
-use crate::{Skill, SkillCategory, SkillParameter};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -101,7 +102,12 @@ impl Skill for UdpSendSkill {
         "Successfully sent 5 bytes to 127.0.0.1:9999".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 0) as u16;
         let data_str = get_param_string(parameters, "data")?;
@@ -222,7 +228,12 @@ impl Skill for UdpReceiveSkill {
         "Received 11 bytes from 127.0.0.1:54321:\nHello, UDP!".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let port = get_param_u64(parameters, "port", 0) as u16;
         let bind_address = parameters
             .get("bind_address")
@@ -337,7 +348,12 @@ impl Skill for UdpBroadcastSkill {
         "Successfully broadcasted 7 bytes to port 9999".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let port = get_param_u64(parameters, "port", 0) as u16;
         let data_str = get_param_string(parameters, "data")?;
         let encoding = parameters

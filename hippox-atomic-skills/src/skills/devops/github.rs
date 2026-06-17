@@ -4,7 +4,8 @@
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 use crate::{RequestConfig, SkillCategory, execute};
 
@@ -211,7 +212,12 @@ impl Skill for GithubGetRepo {
         r#"{"name": "rust", "full_name": "rust-lang/rust", "description": "Empowering everyone...", "stargazers_count": 85000, "forks_count": 11000}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let token = get_param_string(parameters, "token")?;
         let owner = get_param_string(parameters, "owner")?;
         let repo = get_param_string(parameters, "repo")?;
@@ -331,7 +337,12 @@ impl Skill for GithubCreateIssue {
             .to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let token = get_param_string(parameters, "token")?;
         let owner = get_param_string(parameters, "owner")?;
         let repo = get_param_string(parameters, "repo")?;
@@ -461,7 +472,12 @@ impl Skill for GithubListIssues {
         r#"[{"number": 12345, "title": "Bug report", "state": "open"}]"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let token = get_param_string(parameters, "token")?;
         let owner = get_param_string(parameters, "owner")?;
         let repo = get_param_string(parameters, "repo")?;
@@ -561,7 +577,12 @@ impl Skill for GithubStarRepo {
         "Successfully starred rust-lang/rust".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let token = get_param_string(parameters, "token")?;
         let owner = get_param_string(parameters, "owner")?;
         let repo = get_param_string(parameters, "repo")?;
@@ -654,7 +675,12 @@ impl Skill for GithubSearchRepos {
         r#"{"total_count": 12345, "items": [{"full_name": "rust-lang/rust", "description": "..."}]}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let token = get_param_string(parameters, "token")?;
         let query = get_param_string(parameters, "query")?;
         let limit = get_param_u64(parameters, "limit", 10);
@@ -738,7 +764,12 @@ impl Skill for GithubGetUser {
         r#"{"login": "octocat", "name": "The Octocat", "public_repos": 8}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let token = get_param_string(parameters, "token")?;
         let username = get_param_string(parameters, "username")?;
         let api_url = parameters
@@ -851,7 +882,12 @@ impl Skill for GithubListPRs {
         r#"[{"number": 123, "title": "Add feature", "user": {"login": "contributor"}}]"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let token = get_param_string(parameters, "token")?;
         let owner = get_param_string(parameters, "owner")?;
         let repo = get_param_string(parameters, "repo")?;

@@ -1,14 +1,15 @@
 //! Directory scanning skill
 
-use anyhow::Result;
-use reqwest::Client;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use reqwest::Client;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 const COMMON_DIRS: &[&str] = &[
     "admin",
@@ -163,7 +164,12 @@ impl Skill for DirScanSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let target = get_param_string(parameters, "target")?;
         let timeout_secs = get_param_u64(parameters, "timeout", 5);
         let concurrency = get_param_u64(parameters, "concurrency", 10) as usize;

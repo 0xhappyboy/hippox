@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, operating_system_security::common::query_threat_intel, types::{Skill, SkillParameter}
+    SkillCallback, SkillCategory, SkillContext, operating_system_security::common::query_threat_intel, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -54,7 +54,12 @@ impl Skill for ThreatIntelSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let indicator = parameters
             .get("indicator")
             .and_then(|v| v.as_str())

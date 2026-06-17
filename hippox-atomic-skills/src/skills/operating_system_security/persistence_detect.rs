@@ -5,9 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    operating_system_security::common::check_persistence_mechanisms,
-    types::{Skill, SkillParameter},
+    SkillCallback, SkillCategory, SkillContext, operating_system_security::common::check_persistence_mechanisms, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -68,7 +66,12 @@ impl Skill for PersistenceDetectSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let show_all = parameters
             .get("show_all")
             .and_then(|v| v.as_bool())
@@ -77,7 +80,10 @@ impl Skill for PersistenceDetectSkill {
         let entries = check_persistence_mechanisms();
 
         let mut output = String::new();
-        output.push_str(&format!("Persistence Detection Results:\n\nTotal entries found: {}\n", entries.len()));
+        output.push_str(&format!(
+            "Persistence Detection Results:\n\nTotal entries found: {}\n",
+            entries.len()
+        ));
 
         if entries.is_empty() {
             output.push_str("\nNo persistence mechanisms found.");
@@ -88,7 +94,10 @@ impl Skill for PersistenceDetectSkill {
         let legitimate: Vec<_> = entries.iter().filter(|e| !e.suspicious).collect();
 
         if !suspicious.is_empty() {
-            output.push_str(&format!("\nSuspicious entries found: {}\n", suspicious.len()));
+            output.push_str(&format!(
+                "\nSuspicious entries found: {}\n",
+                suspicious.len()
+            ));
             for (i, entry) in suspicious.iter().enumerate() {
                 output.push_str(&format!("\n{}. {} [SUSPICIOUS]\n", i + 1, entry.name));
                 if !entry.path.is_empty() {

@@ -1,3 +1,6 @@
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{Skill, SkillCategory, SkillParameter};
 use anyhow::Result;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -6,8 +9,6 @@ use std::collections::HashMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
-
-use crate::{Skill, SkillCategory, SkillParameter};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -145,7 +146,12 @@ impl Skill for TcpSendSkill {
         "Successfully sent 5 bytes to 127.0.0.1:8080\nResponse: ACK".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 0) as u16;
         let data_str = get_param_string(parameters, "data")?;
@@ -305,7 +311,12 @@ impl Skill for TcpReceiveSkill {
         "Received 42 bytes from 127.0.0.1:54321:\nHello, TCP Server!\nResponse sent: OK".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let port = get_param_u64(parameters, "port", 0) as u16;
         let bind_address = parameters
             .get("bind_address")

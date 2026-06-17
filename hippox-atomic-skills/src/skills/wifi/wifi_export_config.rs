@@ -1,14 +1,18 @@
 //! WiFi export config skill - export WiFi configuration for backup
 
+use super::common::list_saved_networks;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-
-use super::common::list_saved_networks;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiExportConfigSkill;
@@ -70,7 +74,12 @@ impl Skill for WifiExportConfigSkill {
         SkillCategory::Wifi
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let file_path = parameters
             .get("file_path")
             .and_then(|v| v.as_str())

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::{generate_random_bytes, validate_password_strength};
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCallback, SkillContext, types::{Skill, SkillParameter}};
 
 /// Skill for generating secure passwords
 #[derive(Debug)]
@@ -75,7 +75,12 @@ impl Skill for GeneratePasswordSkill {
         crate::SkillCategory::Cryptography
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let length = parameters
             .get("length")
             .and_then(|v| v.as_u64())

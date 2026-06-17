@@ -1,14 +1,13 @@
-use anyhow::Result;
-use serde_json::{Value, from_str, json, to_string_pretty};
-use std::collections::HashMap;
-
-use crate::{
-    ensure_dir, file_exists, read_file_content, validate_path, write_file_content,
-};
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use crate::{ensure_dir, file_exists, read_file_content, validate_path, write_file_content};
+use anyhow::Result;
+use serde_json::{Value, from_str, json, to_string_pretty};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct JsonReadSkill;
@@ -78,7 +77,12 @@ impl Skill for JsonReadSkill {
         SkillCategory::Document
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -194,7 +198,12 @@ impl Skill for JsonWriteSkill {
         SkillCategory::Document
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -303,7 +312,12 @@ impl Skill for JsonValidateSkill {
         SkillCategory::Document
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())

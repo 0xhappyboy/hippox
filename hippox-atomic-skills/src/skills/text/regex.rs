@@ -6,6 +6,7 @@
 //! - `RegexReplaceSkill`: Replace pattern matches with a replacement string
 //! - `RegexExtractSkill`: Extract capture groups from matches
 
+use crate::{SkillCallback, SkillContext};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
@@ -91,7 +92,12 @@ impl Skill for RegexMatchSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let pattern = parameters
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -190,7 +196,12 @@ impl Skill for RegexFindSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let pattern = parameters
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -309,7 +320,12 @@ impl Skill for RegexReplaceSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let pattern = parameters
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -413,7 +429,12 @@ impl Skill for RegexExtractSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let pattern = parameters
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -472,7 +493,7 @@ mod tests {
         params.insert("pattern".to_string(), json!(r"^\d+$"));
         params.insert("text".to_string(), json!("12345"));
 
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("true"));
     }
 
@@ -483,7 +504,7 @@ mod tests {
         params.insert("pattern".to_string(), json!(r"\d+"));
         params.insert("text".to_string(), json!("42 and 100"));
 
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("42"));
         assert!(result.contains("100"));
     }
@@ -496,7 +517,7 @@ mod tests {
         params.insert("text".to_string(), json!("ID: 12345"));
         params.insert("replacement".to_string(), json!("[HIDDEN]"));
 
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("ID: [HIDDEN]"));
     }
 
@@ -507,7 +528,7 @@ mod tests {
         params.insert("pattern".to_string(), json!(r"(\w+)-(\d+)"));
         params.insert("text".to_string(), json!("item-42"));
 
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("item"));
         assert!(result.contains("42"));
     }

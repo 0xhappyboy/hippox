@@ -6,7 +6,10 @@
 //! - `TextDeduplicateSkill`: Remove duplicate lines while preserving order
 //! - `TextFilterSkill`: Filter lines by keyword or regex pattern
 
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use similar::{Algorithm, ChangeTag, TextDiff};
@@ -88,7 +91,12 @@ impl Skill for TextDiffSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let text1 = parameters
             .get("text1")
             .and_then(|v| v.as_str())
@@ -215,7 +223,12 @@ impl Skill for TextSortSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let text = parameters
             .get("text")
             .and_then(|v| v.as_str())
@@ -327,7 +340,12 @@ impl Skill for TextDeduplicateSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let text = parameters
             .get("text")
             .and_then(|v| v.as_str())
@@ -447,7 +465,12 @@ impl Skill for TextFilterSkill {
         SkillCategory::Text
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let text = parameters
             .get("text")
             .and_then(|v| v.as_str())
@@ -517,7 +540,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("text1".to_string(), json!("Hello World"));
         params.insert("text2".to_string(), json!("Hello Rust"));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("World") || result.contains("Rust"));
     }
 
@@ -526,7 +549,7 @@ mod tests {
         let skill = TextSortSkill;
         let mut params = HashMap::new();
         params.insert("text".to_string(), json!("c\na\nb"));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert_eq!(result, "a\nb\nc");
     }
 
@@ -535,7 +558,7 @@ mod tests {
         let skill = TextDeduplicateSkill;
         let mut params = HashMap::new();
         params.insert("text".to_string(), json!("a\nb\na\nc"));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert_eq!(result, "a\nb\nc");
     }
 
@@ -545,7 +568,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("text".to_string(), json!("error\ninfo\nerror\nwarning"));
         params.insert("pattern".to_string(), json!("error"));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert_eq!(result, "error\nerror");
     }
 }

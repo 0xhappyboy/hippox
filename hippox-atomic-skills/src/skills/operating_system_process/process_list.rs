@@ -5,9 +5,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
-    operating_system_process::common::{get_all_processes, get_processes_by_filter, sort_processes, ProcessFilter, ProcessSortBy, format_memory},
+    SkillCallback, SkillCategory, SkillContext, operating_system_process::common::{
+        ProcessFilter, ProcessSortBy, format_memory, get_all_processes, get_processes_by_filter,
+        sort_processes,
+    }, types::{Skill, SkillParameter}
 };
 
 /// Skill for listing running processes
@@ -101,7 +102,12 @@ impl Skill for ProcessListSkill {
         SkillCategory::OperatingSystemProcess
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let filter_name = parameters.get("filter").and_then(|v| v.as_str());
         let exact_match = parameters
             .get("exact_match")
@@ -163,11 +169,7 @@ impl Skill for ProcessListSkill {
             let mem_str = format_memory(p.memory);
             output.push(format!(
                 "{:<8} {:<30} {:<10.1} {:<12} {:<10}",
-                p.pid,
-                p.name,
-                p.cpu_usage,
-                mem_str,
-                p.status
+                p.pid, p.name, p.cpu_usage, mem_str, p.status
             ));
         }
 
@@ -183,7 +185,7 @@ mod tests {
     async fn test_process_list() {
         let skill = ProcessListSkill;
         let params = HashMap::new();
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("PID") || output.contains("No matching processes"));
@@ -194,7 +196,7 @@ mod tests {
         let skill = ProcessListSkill;
         let mut params = HashMap::new();
         params.insert("filter".to_string(), json!("system"));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
     }
 
@@ -203,7 +205,7 @@ mod tests {
         let skill = ProcessListSkill;
         let mut params = HashMap::new();
         params.insert("top_n".to_string(), json!(5));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
     }
 }

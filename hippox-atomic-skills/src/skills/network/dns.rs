@@ -6,7 +6,9 @@
 //! - `DnsBatchLookupSkill`: Perform multiple DNS lookups simultaneously
 //! - `DnsTestSkill`: Test DNS server performance and reliability
 
+use crate::SkillCallback;
 use crate::SkillCategory;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -122,7 +124,12 @@ impl Skill for DnsLookupSkill {
     ///
     /// # Returns
     /// A formatted string containing the DNS lookup results
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let domain = parameters
             .get("domain")
             .and_then(|v| v.as_str())
@@ -274,7 +281,12 @@ impl Skill for ReverseDnsSkill {
     ///
     /// # Returns
     /// A formatted string containing the PTR record(s) for the IP address
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let ip = parameters
             .get("ip")
             .and_then(|v| v.as_str())
@@ -406,7 +418,12 @@ impl Skill for DnsBatchLookupSkill {
     ///
     /// # Returns
     /// A formatted string containing results for all queried domains
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let domains = parameters
             .get("domains")
             .and_then(|v| v.as_array())
@@ -536,7 +553,12 @@ impl Skill for DnsTestSkill {
     ///
     /// # Returns
     /// A formatted string containing response time and status information
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let dns_server = parameters
             .get("dns_server")
             .and_then(|v| v.as_str())
@@ -601,7 +623,7 @@ mod tests {
         params.insert("domain".to_string(), json!("google.com"));
         params.insert("record_type".to_string(), json!("A"));
 
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("DNS lookup for google.com (A record):"));
@@ -616,7 +638,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("ip".to_string(), json!("8.8.8.8"));
 
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("Reverse DNS lookup for 8.8.8.8:"));
@@ -632,7 +654,7 @@ mod tests {
         params.insert("dns_server".to_string(), json!("8.8.8.8"));
         params.insert("domain".to_string(), json!("google.com"));
 
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("DNS Server Test: 8.8.8.8"));

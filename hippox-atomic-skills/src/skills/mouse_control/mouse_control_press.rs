@@ -1,12 +1,16 @@
 // mouse_control/mouse_control_press.rs
 //! Mouse press skill
 
+use super::common::{MouseButton, mouse_press};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{MouseButton, mouse_press};
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct MouseControlPressSkill;
@@ -80,7 +84,12 @@ impl Skill for MouseControlPressSkill {
         SkillCategory::Mouse
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let button_str = parameters
             .get("button")
             .and_then(|v| v.as_str())

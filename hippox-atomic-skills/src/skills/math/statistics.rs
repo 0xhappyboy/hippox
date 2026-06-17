@@ -1,9 +1,11 @@
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
-    SkillCategory, format_number, types::{Skill, SkillParameter}
+    SkillCategory, format_number,
+    types::{Skill, SkillParameter},
 };
 
 #[derive(Debug)]
@@ -82,7 +84,12 @@ impl Skill for StatisticsSkill {
         SkillCategory::Math
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let numbers_json = parameters
             .get("numbers")
             .ok_or_else(|| anyhow::anyhow!("Missing 'numbers' parameter"))?;

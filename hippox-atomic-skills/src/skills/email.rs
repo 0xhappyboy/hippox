@@ -2,7 +2,9 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -156,7 +158,12 @@ impl Skill for SendEmailSkill {
         "Email sent successfully to user@example.com".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let smtp_host = get_param_string(parameters, "smtp_host")?;
         let smtp_port = get_param_u64(parameters, "smtp_port", 587) as u16;
         let username = get_param_string(parameters, "username")?;
@@ -168,13 +175,11 @@ impl Skill for SendEmailSkill {
         let cc = parameters.get("cc").and_then(|v| v.as_str());
         let bcc = parameters.get("bcc").and_then(|v| v.as_str());
         let is_html = get_param_bool(parameters, "is_html", true);
-
         use lettre::message::Mailbox;
         use lettre::{
             AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
             transport::smtp::authentication::Credentials,
         };
-
         let to_parsed: Mailbox = to_addr.parse()?;
         let from_parsed: Mailbox = from_addr.parse()?;
         let mut email_builder = Message::builder()
@@ -187,7 +192,6 @@ impl Skill for SendEmailSkill {
         if let Some(bcc_addr) = bcc {
             email_builder = email_builder.bcc(bcc_addr.parse()?);
         }
-
         let email = if is_html {
             email_builder.multipart(lettre::message::MultiPart::alternative_plain_html(
                 String::new(),
@@ -196,13 +200,11 @@ impl Skill for SendEmailSkill {
         } else {
             email_builder.body(body)?
         };
-
         let creds = Credentials::new(username, password);
         let mailer = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp_host)?
             .port(smtp_port)
             .credentials(creds)
             .build();
-
         mailer.send(email).await?;
         Ok(format!("Email sent successfully to {}", to_addr))
     }

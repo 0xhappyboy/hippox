@@ -3,9 +3,13 @@
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use super::shared::*;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct HaveHeadBrowserTypeSkill;
@@ -74,7 +78,12 @@ impl Skill for HaveHeadBrowserTypeSkill {
         SkillCategory::HaveHeadBrowser
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let selector = parameters
             .get("selector")
             .and_then(|v| v.as_str())

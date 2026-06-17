@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_service_security;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct ServiceSecuritySkill;
@@ -46,21 +48,30 @@ impl Skill for ServiceSecuritySkill {
     }
 
     fn example_output(&self) -> String {
-        "Service nginx security settings:\nUser: www-data\nGroup: www-data\nProtectSystem: full".to_string()
+        "Service nginx security settings:\nUser: www-data\nGroup: www-data\nProtectSystem: full"
+            .to_string()
     }
 
     fn category(&self) -> SkillCategory {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
         let security = get_service_security(service_name)?;
         if security.is_empty() {
-            return Ok(format!("No security settings found for service {}", service_name));
+            return Ok(format!(
+                "No security settings found for service {}",
+                service_name
+            ));
         }
         let mut result = format!("Service {} security settings:\n", service_name);
         for (key, value) in security {

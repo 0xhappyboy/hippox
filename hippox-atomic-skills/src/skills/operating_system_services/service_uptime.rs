@@ -5,7 +5,11 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_service_uptime;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{SkillCallback, SkillContext};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct ServiceUptimeSkill;
@@ -53,7 +57,12 @@ impl Skill for ServiceUptimeSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
@@ -62,7 +71,10 @@ impl Skill for ServiceUptimeSkill {
         if let Some(uptime) = uptime {
             Ok(format!("Service {} uptime: {}", service_name, uptime))
         } else {
-            Ok(format!("Service {} is not running or no uptime information available", service_name))
+            Ok(format!(
+                "Service {} is not running or no uptime information available",
+                service_name
+            ))
         }
     }
 }

@@ -1,5 +1,7 @@
 //! Port lookup and testing utilities
 
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     common::net::get_service_name,
@@ -59,7 +61,12 @@ impl Skill for PortLookupSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let port = parameters
             .get("port")
             .and_then(|v| v.as_u64())
@@ -165,7 +172,12 @@ impl Skill for PortTestSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = parameters
             .get("host")
             .and_then(|v| v.as_str())
@@ -240,7 +252,7 @@ mod tests {
         let skill = PortLookupSkill;
         let mut params = HashMap::new();
         params.insert("port".to_string(), json!(22));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("Port 22: SSH"));
         assert!(result.contains("Secure Shell"));
     }
@@ -252,7 +264,7 @@ mod tests {
         params.insert("host".to_string(), json!("google.com"));
         params.insert("port".to_string(), json!(80));
         params.insert("timeout".to_string(), json!(5));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("Testing connection to google.com:80"));

@@ -1,4 +1,6 @@
+use crate::SkillCallback;
 use crate::SkillCategory;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use ethers::abi::Bytes;
@@ -11,7 +13,6 @@ use reqwest::Response;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::str::FromStr;
-
 #[derive(Debug)]
 pub struct BitcoinWalletSkill;
 
@@ -116,7 +117,12 @@ impl Skill for BitcoinWalletSkill {
         SkillCategory::Blockchain
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let operation = parameters
             .get("operation")
             .and_then(|v| v.as_str())
@@ -387,7 +393,12 @@ impl Skill for EvmWalletSkill {
         SkillCategory::Blockchain
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let operation = parameters
             .get("operation")
             .and_then(|v| v.as_str())
@@ -874,7 +885,12 @@ impl Skill for SolanaWalletSkill {
         SkillCategory::Blockchain
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let operation = parameters
             .get("operation")
             .and_then(|v| v.as_str())

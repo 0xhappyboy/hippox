@@ -4,7 +4,7 @@ use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
 use sqlx::{Column, Row};
 use std::collections::HashMap;
 
-use crate::SkillCategory;
+use crate::{SkillCallback, SkillCategory, SkillContext};
 use crate::types::{Skill, SkillParameter};
 
 async fn get_sqlite_pool(path: &str, pool_size: u32) -> Result<SqlitePool> {
@@ -98,7 +98,12 @@ impl Skill for SqliteQuerySkill {
         r#"{"rows": [{"id": 1, "name": "John", "age": 25}], "row_count": 1}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = get_param_string(parameters, "path")?;
         let query = get_param_string(parameters, "query")?;
         let limit = get_param_u64(parameters, "limit", 100);
@@ -229,7 +234,12 @@ impl Skill for SqliteExecuteSkill {
         r#"{"rows_affected": 1}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = get_param_string(parameters, "path")?;
         let query = get_param_string(parameters, "query")?;
         let default_params = vec![];
@@ -305,7 +315,12 @@ impl Skill for SqliteListTablesSkill {
         r#"["users", "orders", "products"]"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = get_param_string(parameters, "path")?;
         let pool = get_sqlite_pool(&path, 5).await?;
         let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")

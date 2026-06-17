@@ -5,9 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
-    operating_system_process::common::{kill_process, get_process_by_pid},
+    SkillCallback, SkillCategory, SkillContext, operating_system_process::common::{get_process_by_pid, kill_process}, types::{Skill, SkillParameter}
 };
 
 /// Skill for terminating a process by PID
@@ -68,7 +66,12 @@ impl Skill for ProcessKillSkill {
         SkillCategory::OperatingSystemProcess
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let pid = parameters
             .get("pid")
             .and_then(|v| v.as_u64())
@@ -99,7 +102,7 @@ mod tests {
         let skill = ProcessKillSkill;
         let mut params = HashMap::new();
         params.insert("pid".to_string(), json!(99999999));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_err());
     }
 }

@@ -6,7 +6,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::list_running_processes;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct ApplicationControlListRunningSkill;
@@ -62,7 +64,12 @@ impl Skill for ApplicationControlListRunningSkill {
         SkillCategory::Application
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let filter = parameters.get("filter").and_then(|v| v.as_str());
         let limit = parameters
             .get("limit")

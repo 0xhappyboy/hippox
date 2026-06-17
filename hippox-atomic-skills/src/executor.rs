@@ -30,7 +30,7 @@ use std::sync::Arc;
 /// - Invalid JSON input during parsing
 /// - Unknown skill name (not found in registry)
 /// - Skill execution failure (delegated to the skill itself)
-use crate::{Skill, SkillCall, get_registry, get_skill_by_name};
+use crate::{SkillCall, SkillCallback, SkillContext, get_skill_by_name};
 use anyhow::Result;
 use serde_json::Value;
 
@@ -233,10 +233,15 @@ impl Executor {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn execute(&self, call: &SkillCall) -> Result<String> {
+    pub async fn execute(
+        &self,
+        call: &SkillCall,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let skill = get_skill_by_name(&call.action)
             .ok_or_else(|| anyhow::anyhow!("Unknown skill: {}", call.action))?;
-        skill.execute(&call.parameters).await
+        skill.execute(&call.parameters, callback, context).await
     }
 }
 
@@ -260,7 +265,7 @@ mod tests {
         let executor = Executor::new();
         let llm_response = r#"{"action": "helloworld", "parameters": {"name": "Alice"}}"#;
         let call = executor.parse_skill_call(llm_response).unwrap();
-        let result = executor.execute(&call).await.unwrap();
+        let result = executor.execute(&call, None, None).await.unwrap();
         assert_eq!(result, "Hello, Alice!");
     }
 
@@ -269,7 +274,7 @@ mod tests {
         let executor = Executor::new();
         let llm_response = r#"{"action": "helloworld"}"#;
         let call = executor.parse_skill_call(llm_response).unwrap();
-        let result = executor.execute(&call).await.unwrap();
+        let result = executor.execute(&call, None, None).await.unwrap();
         assert_eq!(result, "Hello, World!");
     }
 
@@ -278,7 +283,7 @@ mod tests {
         let executor = Executor::new();
         let llm_response = r#"{"action": "nonexistent_skill", "parameters": {}}"#;
         let call = executor.parse_skill_call(llm_response).unwrap();
-        let result = executor.execute(&call).await;
+        let result = executor.execute(&call, None, None).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Unknown skill"));
     }
@@ -306,7 +311,7 @@ mod tests {
         let call = executor.parse_skill_call_from_value(&json_value).unwrap();
         assert_eq!(call.action, "helloworld");
         assert!(!call.parameters.is_empty());
-        let result = executor.execute(&call).await.unwrap();
+        let result = executor.execute(&call, None, None).await.unwrap();
         assert_eq!(result, "Hello, TestUser!");
     }
 
@@ -322,7 +327,7 @@ mod tests {
         let call = executor.parse_skill_call_from_value(&json_value).unwrap();
         assert_eq!(call.action, "helloworld");
         assert!(call.parameters.is_empty());
-        let result = executor.execute(&call).await.unwrap();
+        let result = executor.execute(&call, None, None).await.unwrap();
         assert_eq!(result, "Hello, World!");
     }
 
@@ -336,7 +341,7 @@ mod tests {
         let call = executor.parse_skill_call(llm_response).unwrap();
         assert_eq!(call.action, "helloworld");
         assert!(!call.parameters.is_empty());
-        let result = executor.execute(&call).await.unwrap();
+        let result = executor.execute(&call, None, None).await.unwrap();
         assert_eq!(result, "Hello, World!");
     }
 }

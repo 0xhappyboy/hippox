@@ -45,7 +45,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time;
 
-use crate::SkillCategory;
+use crate::{SkillCallback, SkillCategory, SkillContext};
 use crate::types::{Skill, SkillParameter};
 
 /// Type alias for a thread-safe map storing scheduled task handles
@@ -206,7 +206,12 @@ impl Skill for ScheduleTaskSkill {
     /// # Returns
     ///
     /// * `Result<String>` - Success message or error
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let task_id = parameters
             .get("task_id")
             .and_then(|v| v.as_str())
@@ -448,7 +453,12 @@ impl Skill for UnscheduleTaskSkill {
     /// # Returns
     ///
     /// * `Result<String>` - Success message or error
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let task_id = parameters
             .get("task_id")
             .and_then(|v| v.as_str())
@@ -547,7 +557,12 @@ impl Skill for ListScheduledTasksSkill {
     /// # Returns
     ///
     /// * `Result<String>` - Formatted list of scheduled tasks
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        _parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let tasks = SCHEDULER_TASKS.lock().unwrap();
         if tasks.is_empty() {
             Ok("No scheduled tasks".to_string())

@@ -1,12 +1,16 @@
 //! Window screenshot skill
 
+use super::common::{find_window, get_window_rect};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
+use image::GenericImageView;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{find_window, get_window_rect};
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
-use image::GenericImageView;
 
 #[derive(Debug)]
 pub struct WindowControlScreenshotSkill;
@@ -75,7 +79,12 @@ impl Skill for WindowControlScreenshotSkill {
         SkillCategory::Window
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
         let path = parameters

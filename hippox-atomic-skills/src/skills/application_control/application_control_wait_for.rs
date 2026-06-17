@@ -6,7 +6,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::find_process_by_name;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct ApplicationControlWaitForSkill;
@@ -66,7 +68,12 @@ impl Skill for ApplicationControlWaitForSkill {
         SkillCategory::Application
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let name = parameters
             .get("name")
             .and_then(|v| v.as_str())

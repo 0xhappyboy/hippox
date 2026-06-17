@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::set_service_env;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct ServiceSetEnvSkill;
@@ -52,7 +54,7 @@ impl Skill for ServiceSetEnvSkill {
                 default: None,
                 example: Some(Value::String("my_value".to_string())),
                 enum_values: None,
-            }
+            },
         ]
     }
 
@@ -75,7 +77,12 @@ impl Skill for ServiceSetEnvSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
@@ -89,6 +96,9 @@ impl Skill for ServiceSetEnvSkill {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'value' parameter"))?;
         set_service_env(service_name, key, value)?;
-        Ok(format!("Service {} environment variable {} set to {}", service_name, key, value))
+        Ok(format!(
+            "Service {} environment variable {} set to {}",
+            service_name, key, value
+        ))
     }
 }

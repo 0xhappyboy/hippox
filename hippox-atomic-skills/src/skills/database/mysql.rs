@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use crate::SkillCategory;
 use crate::types::{Skill, SkillParameter};
+use crate::{SkillCallback, SkillContext};
 
 async fn get_mysql_pool(
     host: &str,
@@ -143,7 +144,12 @@ impl Skill for MysqlQuerySkill {
         r#"{"rows": [{"id": 1, "name": "John", "age": 25}], "row_count": 1}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 3306) as u16;
         let database = get_param_string(parameters, "database")?;
@@ -328,7 +334,12 @@ impl Skill for MysqlExecuteSkill {
         r#"{"rows_affected": 1}"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 3306) as u16;
         let database = get_param_string(parameters, "database")?;
@@ -447,7 +458,12 @@ impl Skill for MysqlListTablesSkill {
         r#"["users", "orders", "products"]"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 3306) as u16;
         let database = get_param_string(parameters, "database")?;

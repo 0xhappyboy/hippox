@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_service_user;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct ServiceUserSkill;
@@ -53,7 +55,12 @@ impl Skill for ServiceUserSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
@@ -62,7 +69,10 @@ impl Skill for ServiceUserSkill {
         if let Some(user) = user {
             Ok(format!("Service {} runs as user: {}", service_name, user))
         } else {
-            Ok(format!("No user information available for service {}", service_name))
+            Ok(format!(
+                "No user information available for service {}",
+                service_name
+            ))
         }
     }
 }

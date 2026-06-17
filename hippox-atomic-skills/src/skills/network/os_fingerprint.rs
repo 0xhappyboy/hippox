@@ -1,16 +1,17 @@
 //! OS fingerprinting skill
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::net::TcpStream;
-use std::time::Duration;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     common::net::resolve_host,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::net::TcpStream;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct OsFingerprintSkill;
@@ -78,7 +79,12 @@ impl Skill for OsFingerprintSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let target = get_param_string(parameters, "target")?;
         let port = get_param_u64(parameters, "port", 80) as u16;
         let timeout_secs = get_param_u64(parameters, "timeout", 5);

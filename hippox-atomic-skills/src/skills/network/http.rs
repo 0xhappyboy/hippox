@@ -1,10 +1,12 @@
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
-    SkillCategory, execute, parse_config, types::{Skill, SkillParameter}
+    SkillCategory, execute, parse_config,
+    types::{Skill, SkillParameter},
 };
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
 #[derive(Debug)]
 pub struct HttpRequestSkill;
 
@@ -95,12 +97,17 @@ impl Skill for HttpRequestSkill {
     fn example_output(&self) -> String {
         "HTTP 200:\n{\"full_name\": \"rust-lang/rust\", ...}".to_string()
     }
-    
+
     fn category(&self) -> SkillCategory {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let config = parse_config(parameters)?;
         let response = execute(&config).await?;
         Ok(response.to_formatted_string())

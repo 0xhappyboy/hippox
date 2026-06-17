@@ -1,12 +1,16 @@
 // audio_control/audio_control_volume_set.rs
 //! Audio volume set skill
 
+use super::common::set_volume;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::set_volume;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct AudioControlVolumeSetSkill;
@@ -54,7 +58,12 @@ impl Skill for AudioControlVolumeSetSkill {
         SkillCategory::Audio
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let volume = parameters
             .get("volume")
             .and_then(|v| v.as_u64())

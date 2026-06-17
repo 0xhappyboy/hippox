@@ -1,11 +1,14 @@
 //! Service failure action skill
 
+use super::common::set_failure_action;
+use crate::{SkillCallback, SkillContext};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::set_failure_action;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ServiceFailureActionSkill;
@@ -42,8 +45,12 @@ impl Skill for ServiceFailureActionSkill {
                 required: true,
                 default: None,
                 example: Some(Value::String("restart".to_string())),
-                enum_values: Some(vec!["restart".to_string(), "stop".to_string(), "ignore".to_string()]),
-            }
+                enum_values: Some(vec![
+                    "restart".to_string(),
+                    "stop".to_string(),
+                    "ignore".to_string(),
+                ]),
+            },
         ]
     }
 
@@ -65,7 +72,12 @@ impl Skill for ServiceFailureActionSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
@@ -75,6 +87,9 @@ impl Skill for ServiceFailureActionSkill {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'action' parameter"))?;
         set_failure_action(service_name, action)?;
-        Ok(format!("Service {} failure action set to {}", service_name, action))
+        Ok(format!(
+            "Service {} failure action set to {}",
+            service_name, action
+        ))
     }
 }

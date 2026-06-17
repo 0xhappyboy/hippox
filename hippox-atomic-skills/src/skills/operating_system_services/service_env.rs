@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_service_env;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct ServiceEnvSkill;
@@ -46,21 +48,30 @@ impl Skill for ServiceEnvSkill {
     }
 
     fn example_output(&self) -> String {
-        "Service nginx environment variables:\nPATH=/usr/local/bin:/usr/bin\nUSER=www-data".to_string()
+        "Service nginx environment variables:\nPATH=/usr/local/bin:/usr/bin\nUSER=www-data"
+            .to_string()
     }
 
     fn category(&self) -> SkillCategory {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
         let env = get_service_env(service_name)?;
         if env.is_empty() {
-            return Ok(format!("No environment variables found for service {}", service_name));
+            return Ok(format!(
+                "No environment variables found for service {}",
+                service_name
+            ));
         }
         let mut result = format!("Service {} environment variables:\n", service_name);
         for (key, value) in env {

@@ -1,11 +1,15 @@
 //! Browser element exists check skill
 
+use super::shared::*;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::shared::*;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct HaveHeadBrowserElementExistsSkill;
@@ -49,11 +53,16 @@ impl Skill for HaveHeadBrowserElementExistsSkill {
         "Element exists: true".to_string()
     }
 
-     fn category(&self) -> SkillCategory {
+    fn category(&self) -> SkillCategory {
         SkillCategory::HaveHeadBrowser
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let selector = parameters
             .get("selector")
             .and_then(|v| v.as_str())

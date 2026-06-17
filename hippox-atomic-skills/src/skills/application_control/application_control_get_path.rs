@@ -6,7 +6,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::get_app_path;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct ApplicationControlGetPathSkill;
@@ -50,11 +53,16 @@ impl Skill for ApplicationControlGetPathSkill {
         "Application path: C:\\Windows\\System32\\notepad.exe".to_string()
     }
 
-    fn category(&self) -> SkillCategory{
+    fn category(&self) -> SkillCategory {
         SkillCategory::Application
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let name = parameters
             .get("name")
             .and_then(|v| v.as_str())

@@ -9,7 +9,10 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use sysinfo::{Disks, System};
 
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext,
+    types::{Skill, SkillParameter},
+};
 
 /// A skill for retrieving comprehensive system information.
 ///
@@ -100,7 +103,12 @@ impl Skill for SystemInfoSkill {
     ///
     /// # Returns
     /// A formatted string containing the requested system information
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let info_type = parameters
             .get("info_type")
             .and_then(|v| v.as_str())
@@ -244,7 +252,7 @@ fn get_all_info(sys: &System) -> String {
 mod tests {
     use crate::SkillCategory;
 
-use super::*;
+    use super::*;
     use sysinfo::System;
 
     /// Verify that the skill returns valid strings for each info type and that responses are non-empty and contain expected keywords.
@@ -255,7 +263,7 @@ use super::*;
         for info_type in info_types {
             let mut params = HashMap::new();
             params.insert("info_type".to_string(), json!(info_type));
-            let result = skill.execute(&params).await;
+            let result = skill.execute(&params, None, None).await;
             assert!(result.is_ok(), "Failed for info_type: {}", info_type);
             let output = result.unwrap();
             assert!(
@@ -301,7 +309,7 @@ use super::*;
     async fn test_system_info_skill_default_parameter() {
         let skill = SystemInfoSkill;
         let empty_params = HashMap::new();
-        let result = skill.execute(&empty_params).await;
+        let result = skill.execute(&empty_params, None, None).await;
         assert!(result.is_ok(), "Execution with empty parameters failed");
         let default_output = result.unwrap();
         assert!(
@@ -310,7 +318,7 @@ use super::*;
         );
         let mut all_params = HashMap::new();
         all_params.insert("info_type".to_string(), json!("all"));
-        let all_result = skill.execute(&all_params).await.unwrap();
+        let all_result = skill.execute(&all_params, None, None).await.unwrap();
         assert!(
             default_output.contains("OS:")
                 || default_output.contains("CPU:")

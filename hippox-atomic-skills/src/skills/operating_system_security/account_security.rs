@@ -1,5 +1,6 @@
 //! Account security check skill
 
+use crate::{SkillCallback, SkillContext};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -67,7 +68,12 @@ impl Skill for AccountSecuritySkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let username = parameters.get("username").and_then(|v| v.as_str());
         let check_all = parameters
             .get("check_all")

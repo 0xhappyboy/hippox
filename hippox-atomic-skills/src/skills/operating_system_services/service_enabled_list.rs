@@ -1,11 +1,14 @@
 //! Service enabled list skill
 
+use super::common::list_enabled_services;
+use crate::{SkillCallback, SkillContext};
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::list_enabled_services;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ServiceEnabledListSkill;
@@ -42,7 +45,12 @@ impl Skill for ServiceEnabledListSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let services = list_enabled_services()?;
         if services.is_empty() {
             return Ok("No enabled services found".to_string());

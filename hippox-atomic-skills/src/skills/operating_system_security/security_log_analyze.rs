@@ -5,9 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    operating_system_security::common::analyze_security_logs,
-    types::{Skill, SkillParameter},
+    SkillCallback, SkillCategory, SkillContext, operating_system_security::common::analyze_security_logs, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -68,7 +66,12 @@ impl Skill for SecurityLogAnalyzeSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let time_range = parameters
             .get("time_range")
             .and_then(|v| v.as_u64())
@@ -77,7 +80,10 @@ impl Skill for SecurityLogAnalyzeSkill {
         let findings = analyze_security_logs(time_range);
 
         let mut output = String::new();
-        output.push_str(&format!("Security Log Analysis Results:\n\nTime range: Last {} hours\n\n", time_range));
+        output.push_str(&format!(
+            "Security Log Analysis Results:\n\nTime range: Last {} hours\n\n",
+            time_range
+        ));
 
         if findings.is_empty() {
             output.push_str("No security events found.");

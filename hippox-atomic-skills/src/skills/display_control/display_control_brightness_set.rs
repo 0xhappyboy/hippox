@@ -1,12 +1,16 @@
 // display_control/display_control_brightness_set.rs
 //! Display brightness set skill
 
+use super::common::set_brightness;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::set_brightness;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlBrightnessSetSkill;
@@ -54,7 +58,12 @@ impl Skill for DisplayControlBrightnessSetSkill {
         SkillCategory::Display
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let brightness = parameters
             .get("brightness")
             .and_then(|v| v.as_u64())

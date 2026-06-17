@@ -32,8 +32,10 @@
 //! let result = skill.execute(&params).await?;
 //! ```
 
-use crate::{SkillCategory, file_exists, validate_path};
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
+use crate::{SkillCategory, file_exists, validate_path};
 use anyhow::Result;
 use bzip2::Compression as BzCompression;
 use bzip2::read::BzDecoder;
@@ -158,7 +160,12 @@ impl Skill for ArchiveZipCreateSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let sources = parameters
             .get("sources")
             .and_then(|v| v.as_array())
@@ -360,7 +367,12 @@ impl Skill for ArchiveZipExtractSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let archive = parameters
             .get("archive")
             .and_then(|v| v.as_str())
@@ -518,7 +530,12 @@ impl Skill for ArchiveTarCreateSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let sources = parameters
             .get("sources")
             .and_then(|v| v.as_array())
@@ -769,7 +786,12 @@ impl Skill for ArchiveTarExtractSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let archive = parameters
             .get("archive")
             .and_then(|v| v.as_str())
@@ -958,7 +980,12 @@ impl Skill for ArchiveCompressSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let source = parameters
             .get("source")
             .and_then(|v| v.as_str())
@@ -1050,6 +1077,7 @@ impl Skill for ArchiveCompressSkill {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::encode::IsNull::No;
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
@@ -1077,7 +1105,7 @@ mod tests {
             json!([file1_path.to_str().unwrap(), file2_path.to_str().unwrap()]),
         );
         params.insert("destination".to_string(), json!(zip_path.to_str().unwrap()));
-        let result = create_skill.execute(&params).await.unwrap();
+        let result = create_skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("Successfully created ZIP archive"));
         assert!(zip_path.exists());
         let extract_skill = ArchiveZipExtractSkill;
@@ -1088,7 +1116,10 @@ mod tests {
             json!(extract_dir.to_str().unwrap()),
         );
         extract_params.insert("overwrite".to_string(), json!(true));
-        let extract_result = extract_skill.execute(&extract_params).await.unwrap();
+        let extract_result = extract_skill
+            .execute(&extract_params, None, None)
+            .await
+            .unwrap();
         assert!(extract_result.contains("Successfully extracted"));
         assert!(extract_dir.join("test1.txt").exists());
         assert!(extract_dir.join("test2.txt").exists());
@@ -1108,7 +1139,7 @@ mod tests {
         params.insert("source".to_string(), json!(source_file.to_str().unwrap()));
         params.insert("format".to_string(), json!("gzip"));
         params.insert("keep_original".to_string(), json!(true));
-        let result = compress_skill.execute(&params).await.unwrap();
+        let result = compress_skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("Successfully compressed"));
         let gz_file = temp_dir.path().join("test.txt.gz");
         assert!(gz_file.exists());
@@ -1153,7 +1184,7 @@ mod tests {
         );
         params.insert("destination".to_string(), json!(tar_path.to_str().unwrap()));
         params.insert("preserve_paths".to_string(), json!(true));
-        let create_result = create_skill.execute(&params).await.unwrap();
+        let create_result = create_skill.execute(&params, None, None).await.unwrap();
         assert!(create_result.contains("Successfully created"));
         assert!(tar_path.exists());
         let extract_skill = ArchiveTarExtractSkill;
@@ -1164,7 +1195,10 @@ mod tests {
             json!(extract_dir.to_str().unwrap()),
         );
         extract_params.insert("overwrite".to_string(), json!(true));
-        let extract_result = extract_skill.execute(&extract_params).await.unwrap();
+        let extract_result = extract_skill
+            .execute(&extract_params, None, None)
+            .await
+            .unwrap();
         assert!(extract_result.contains("Successfully extracted"));
         assert!(extract_dir.join("doc1.txt").exists());
         assert!(extract_dir.join("doc2.txt").exists());
@@ -1190,7 +1224,7 @@ mod tests {
         params.insert("format".to_string(), json!("bzip2"));
         params.insert("compression_level".to_string(), json!(9));
         params.insert("keep_original".to_string(), json!(false));
-        let result = compress_skill.execute(&params).await.unwrap();
+        let result = compress_skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("Successfully compressed"));
         assert!(result.contains("ratio:"));
         assert!(!source_file.exists());

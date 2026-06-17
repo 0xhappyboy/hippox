@@ -19,7 +19,9 @@
 //! // let result = skill.execute(&params).await?;
 //! ```
 
+use crate::SkillCallback;
 use crate::SkillCategory;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use regex::Regex;
@@ -94,7 +96,12 @@ impl Skill for IpInfoSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let ip_param = parameters.get("ip").and_then(|v| v.as_str());
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
@@ -243,7 +250,12 @@ impl Skill for IpValidateSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let ip_str = parameters
             .get("ip")
             .and_then(|v| v.as_str())
@@ -338,7 +350,12 @@ impl Skill for IpRangeSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let cidr = parameters
             .get("cidr")
             .and_then(|v| v.as_str())
@@ -447,7 +464,12 @@ impl Skill for LocalIpSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let ip_type = parameters
             .get("type")
             .and_then(|v| v.as_str())

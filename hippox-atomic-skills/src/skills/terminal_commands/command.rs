@@ -3,8 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    ExecOptions, SkillCategory, exec_async,
-    types::{Skill, SkillParameter},
+    ExecOptions, SkillCallback, SkillCategory, SkillContext, exec_async, types::{Skill, SkillParameter}
 };
 
 /// A skill for executing system commands and capturing their output.
@@ -93,7 +92,12 @@ impl Skill for ExecCommandSkill {
         SkillCategory::Terminal
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let timeout_secs = parameters
             .get("timeout")
             .and_then(|v| v.as_u64())
@@ -180,7 +184,7 @@ mod tests {
         let skill = ExecCommandSkill;
         let mut params = HashMap::new();
         params.insert("command".to_string(), json!("echo Hello World"));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("Hello World"));
@@ -195,7 +199,7 @@ mod tests {
         #[cfg(target_family = "windows")]
         let args = json!(["cmd.exe", "/c", "echo", "Testing", "args", "array"]);
         params.insert("args".to_string(), args);
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("Testing") && output.contains("args") && output.contains("array"));

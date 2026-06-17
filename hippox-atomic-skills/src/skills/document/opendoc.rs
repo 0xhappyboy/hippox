@@ -1,13 +1,14 @@
-use anyhow::Result;
-use quick_xml::{Reader, events::Event};
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
 use crate::{file_exists, validate_path};
+use anyhow::Result;
+use quick_xml::{Reader, events::Event};
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct OdsReadSkill;
@@ -75,7 +76,12 @@ impl Skill for OdsReadSkill {
         SkillCategory::Document
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -197,7 +203,12 @@ impl Skill for OdtReadSkill {
         SkillCategory::Document
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())

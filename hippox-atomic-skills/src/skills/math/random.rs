@@ -18,16 +18,16 @@
 //! ```
 //!
 //! All skills implement the `Skill` trait and can be executed asynchronously.
-
-use anyhow::Result;
-use rand::RngExt;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use rand::RngExt;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 /// # Random Number Generation Skill
 ///
@@ -125,7 +125,12 @@ impl Skill for RandomNumberSkill {
     ///
     /// # Errors
     /// Returns error if min value is greater than max value
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let min = parameters.get("min").and_then(|v| v.as_i64()).unwrap_or(0);
         let max = parameters
             .get("max")
@@ -252,7 +257,12 @@ impl Skill for RandomStringSkill {
     ///
     /// # Returns
     /// Formatted string with the generated random string
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let length = parameters
             .get("length")
             .and_then(|v| v.as_u64())
@@ -362,7 +372,12 @@ impl Skill for RandomUuidSkill {
     ///
     /// # Returns
     /// Formatted string with the generated UUID v4
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let uuid = uuid::Uuid::new_v4();
         Ok(format!("UUID: {}", uuid))
     }
@@ -501,7 +516,12 @@ impl Skill for RandomPasswordSkill {
     ///
     /// # Errors
     /// Returns error if no character types are enabled
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let length = parameters
             .get("length")
             .and_then(|v| v.as_u64())
@@ -567,6 +587,8 @@ impl Skill for RandomPasswordSkill {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::encode::IsNull::No;
+
     use super::*;
     use std::collections::HashMap;
 
@@ -576,7 +598,7 @@ mod tests {
         let skill = RandomNumberSkill;
         // Default values (min=0, max=100)
         let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.starts_with("Random number: "));
         let num = result
             .trim_start_matches("Random number: ")
@@ -587,7 +609,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("min".to_string(), json!(10));
         params.insert("max".to_string(), json!(20));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         let num = result
             .trim_start_matches("Random number: ")
             .parse::<i64>()
@@ -597,7 +619,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("min".to_string(), json!(100));
         params.insert("max".to_string(), json!(1));
-        assert!(skill.execute(&params).await.is_err());
+        assert!(skill.execute(&params, None, None).await.is_err());
     }
 
     /// Test RandomStringSkill functionality
@@ -606,14 +628,14 @@ mod tests {
         let skill = RandomStringSkill;
         // Default values (length=10, alphanumeric)
         let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         let s = result.trim_start_matches("Random string: ");
         assert_eq!(s.len(), 10);
         // Numeric only
         let mut params = HashMap::new();
         params.insert("length".to_string(), json!(8));
         params.insert("charset".to_string(), json!("numeric"));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         let s = result.trim_start_matches("Random string: ");
         assert_eq!(s.len(), 8);
         assert!(s.chars().all(|c| c.is_ascii_digit()));
@@ -621,7 +643,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("length".to_string(), json!(6));
         params.insert("charset".to_string(), json!("hex"));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         let s = result.trim_start_matches("Random string: ");
         assert_eq!(s.len(), 6);
         assert!(s.chars().all(|c| c.is_ascii_hexdigit()));
@@ -637,14 +659,14 @@ mod tests {
         let skill = RandomPasswordSkill;
         // Default values (length=16, all character types enabled)
         let params = HashMap::new();
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         let password = result.trim_start_matches("Password: ");
         assert_eq!(password.len(), 16);
         // Custom length without symbols
         let mut params = HashMap::new();
         params.insert("length".to_string(), json!(12));
         params.insert("use_symbols".to_string(), json!(false));
-        let result = skill.execute(&params).await.unwrap();
+        let result = skill.execute(&params, None, None).await.unwrap();
         let password = result.trim_start_matches("Password: ");
         assert_eq!(password.len(), 12);
         // Should only contain alphanumeric characters

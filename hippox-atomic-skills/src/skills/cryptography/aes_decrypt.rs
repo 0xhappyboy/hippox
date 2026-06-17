@@ -1,11 +1,12 @@
 //! AES decryption skill
 
+use super::common::{aes_cbc_decrypt, aes_gcm_decrypt, from_hex, to_hex};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{aes_cbc_decrypt, aes_gcm_decrypt, from_hex, to_hex};
-use crate::types::{Skill, SkillParameter};
 
 /// Skill for AES decryption
 ///
@@ -116,7 +117,12 @@ impl Skill for AesDecryptSkill {
         crate::SkillCategory::Cryptography
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let key_hex = parameters
             .get("key")
             .and_then(|v| v.as_str())

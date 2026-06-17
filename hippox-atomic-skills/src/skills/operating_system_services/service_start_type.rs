@@ -1,11 +1,13 @@
 //! Service start type skill
 
+use super::common::get_service_start_type;
+use crate::SkillCallback;
+use crate::SkillCategory;
+use crate::SkillContext;
+use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::get_service_start_type;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ServiceStartTypeSkill;
@@ -53,16 +55,27 @@ impl Skill for ServiceStartTypeSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
         let start_type = get_service_start_type(service_name)?;
         if let Some(start_type) = start_type {
-            Ok(format!("Service {} start type: {}", service_name, start_type))
+            Ok(format!(
+                "Service {} start type: {}",
+                service_name, start_type
+            ))
         } else {
-            Ok(format!("No start type information available for service {}", service_name))
+            Ok(format!(
+                "No start type information available for service {}",
+                service_name
+            ))
         }
     }
 }

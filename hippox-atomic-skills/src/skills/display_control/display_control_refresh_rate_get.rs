@@ -1,12 +1,16 @@
 // display_control/display_control_refresh_rate_get.rs
 //! Display refresh rate get skill
 
+use super::common::get_refresh_rate;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::get_refresh_rate;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct DisplayControlRefreshRateGetSkill;
@@ -43,7 +47,12 @@ impl Skill for DisplayControlRefreshRateGetSkill {
         SkillCategory::Display
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let rate = get_refresh_rate(None)?;
 
         Ok(format!("Display refresh rate: {} Hz", rate))

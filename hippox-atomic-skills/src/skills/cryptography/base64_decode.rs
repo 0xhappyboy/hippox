@@ -4,7 +4,8 @@ use anyhow::Result;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 
 /// Skill for Base64 decoding
@@ -68,7 +69,12 @@ impl Skill for Base64DecodeSkill {
         crate::SkillCategory::Cryptography
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let input = parameters
             .get("input")
             .and_then(|v| v.as_str())

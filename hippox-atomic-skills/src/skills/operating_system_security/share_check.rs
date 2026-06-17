@@ -1,14 +1,14 @@
 //! Network share check skill
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::SkillCallback;
 use crate::{
-    SkillCategory,
+    SkillCategory, SkillContext,
     operating_system_security::common::check_network_shares,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ShareCheckSkill;
@@ -67,7 +67,12 @@ impl Skill for ShareCheckSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let show_all = parameters
             .get("show_all")
             .and_then(|v| v.as_bool())
@@ -76,15 +81,24 @@ impl Skill for ShareCheckSkill {
         let shares = check_network_shares();
 
         let mut output = String::new();
-        output.push_str(&format!("Network Share Security Check:\n\nShares found: {}\n", shares.len()));
+        output.push_str(&format!(
+            "Network Share Security Check:\n\nShares found: {}\n",
+            shares.len()
+        ));
 
         if shares.is_empty() {
             output.push_str("\nNo network shares found.");
             return Ok(output);
         }
 
-        let has_issues: Vec<_> = shares.iter().filter(|s| !s.security_issues.is_empty()).collect();
-        let no_issues: Vec<_> = shares.iter().filter(|s| s.security_issues.is_empty()).collect();
+        let has_issues: Vec<_> = shares
+            .iter()
+            .filter(|s| !s.security_issues.is_empty())
+            .collect();
+        let no_issues: Vec<_> = shares
+            .iter()
+            .filter(|s| s.security_issues.is_empty())
+            .collect();
 
         if !has_issues.is_empty() {
             output.push_str("\nShares with security issues:\n");

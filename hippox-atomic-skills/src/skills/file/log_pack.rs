@@ -1,16 +1,17 @@
 //! Log packing skill
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
 use crate::{ensure_dir, pack_logs, validate_path};
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct LogPackSkill;
@@ -95,7 +96,12 @@ impl Skill for LogPackSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let source_dir = parameters
             .get("source_dir")
             .and_then(|v| v.as_str())

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory, operating_system_security::common::check_security_policies, types::{Skill, SkillParameter}
+    SkillCallback, SkillCategory, SkillContext, operating_system_security::common::check_security_policies, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -43,7 +43,12 @@ impl Skill for SecurityPolicyCheckSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let policies = check_security_policies();
         if policies.is_empty() {
             return Ok("No security policies found".to_string());

@@ -1,12 +1,16 @@
 // audio_control/audio_control_mute.rs
 //! Audio mute skill
 
+use super::common::mute;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::mute;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct AudioControlMuteSkill;
@@ -43,7 +47,12 @@ impl Skill for AudioControlMuteSkill {
         SkillCategory::Audio
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        _parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         mute()?;
         Ok("Audio muted".to_string())
     }

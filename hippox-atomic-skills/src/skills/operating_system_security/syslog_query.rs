@@ -1,14 +1,14 @@
 //! System log query skill
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::SkillContext;
 use crate::{
-    SkillCategory,
+    SkillCallback, SkillCategory,
     operating_system_security::common::query_system_logs,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SyslogQuerySkill;
@@ -68,8 +68,16 @@ impl Skill for SyslogQuerySkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let filter = parameters.get("filter").and_then(|v| v.as_str()).unwrap_or("");
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
+        let filter = parameters
+            .get("filter")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         let max_entries = parameters
             .get("max_entries")
             .and_then(|v| v.as_u64())
@@ -78,7 +86,10 @@ impl Skill for SyslogQuerySkill {
         let result = query_system_logs(filter, max_entries);
 
         let mut output = String::new();
-        output.push_str(&format!("System Log Query Results:\n\nFilter: {}\n", result.query));
+        output.push_str(&format!(
+            "System Log Query Results:\n\nFilter: {}\n",
+            result.query
+        ));
         output.push_str(&format!("Total entries: {}\n\n", result.total_entries));
 
         if result.entries.is_empty() {

@@ -4,9 +4,13 @@
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::SkillCallback;
+use crate::SkillContext;
 use super::common::send_shortcut;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 
 #[derive(Debug)]
 pub struct KeyboardControlHotkeySkill;
@@ -26,21 +30,24 @@ impl Skill for KeyboardControlHotkeySkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "hotkey".to_string(),
-                param_type: "string".to_string(),
-                description: "Hotkey combination (e.g., 'Win+R', 'Win+E', 'Alt+Tab')".to_string(),
-                required: true,
-                default: None,
-                example: Some(Value::String("Win+R".to_string())),
-                enum_values: Some(vec![
-                    "Win+R".to_string(), "Win+E".to_string(), "Win+D".to_string(),
-                    "Win+L".to_string(), "Win+S".to_string(), "Alt+Tab".to_string(),
-                    "Ctrl+Alt+Delete".to_string(), "Alt+F4".to_string(),
-                ]),
-            },
-        ]
+        vec![SkillParameter {
+            name: "hotkey".to_string(),
+            param_type: "string".to_string(),
+            description: "Hotkey combination (e.g., 'Win+R', 'Win+E', 'Alt+Tab')".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("Win+R".to_string())),
+            enum_values: Some(vec![
+                "Win+R".to_string(),
+                "Win+E".to_string(),
+                "Win+D".to_string(),
+                "Win+L".to_string(),
+                "Win+S".to_string(),
+                "Alt+Tab".to_string(),
+                "Ctrl+Alt+Delete".to_string(),
+                "Alt+F4".to_string(),
+            ]),
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -56,17 +63,23 @@ impl Skill for KeyboardControlHotkeySkill {
         "Hotkey sent: Win+R".to_string()
     }
 
-   fn category(&self) -> SkillCategory {
+    fn category(&self) -> SkillCategory {
         SkillCategory::Keyboard
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let hotkey = parameters.get("hotkey")
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
+        let hotkey = parameters
+            .get("hotkey")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'hotkey' parameter"))?;
-        
+
         send_shortcut(hotkey)?;
-        
+
         Ok(format!("Hotkey sent: {}", hotkey))
     }
 }

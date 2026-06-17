@@ -1,11 +1,15 @@
 //! WiFi turn on skill - enable WiFi adapter
 
+use super::common::wifi_on;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::wifi_on;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiTurnOnSkill;
@@ -42,7 +46,12 @@ impl Skill for WifiTurnOnSkill {
         SkillCategory::Wifi
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         wifi_on()?;
         Ok("WiFi turned on".to_string())
     }

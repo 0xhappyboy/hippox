@@ -1,11 +1,15 @@
 //! Bluetooth turn off skill - disable Bluetooth adapter
 
+use super::common::bluetooth_off;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::bluetooth_off;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothTurnOffSkill;
@@ -42,7 +46,12 @@ impl Skill for BluetoothTurnOffSkill {
         SkillCategory::Bluetooth
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        _parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         bluetooth_off()?;
         Ok("Bluetooth turned off".to_string())
     }

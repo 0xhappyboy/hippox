@@ -1,10 +1,13 @@
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory, format_number,
+    types::{Skill, SkillParameter},
+    validate_number,
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use crate::{
-    SkillCategory, format_number, types::{Skill, SkillParameter}, validate_number
-};
 
 #[derive(Debug)]
 pub struct PowerSkill;
@@ -93,7 +96,12 @@ impl Skill for PowerSkill {
         SkillCategory::Math
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         if let Some(value) = parameters.get("sqrt").and_then(|v| v.as_str()) {
             let num = validate_number(value)?;
             if num < 0.0 {

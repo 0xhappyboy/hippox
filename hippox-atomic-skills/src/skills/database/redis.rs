@@ -3,11 +3,11 @@ use redis::{Client, Commands, Connection};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+use crate::{SkillCallback, SkillContext};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
-
 fn get_redis_connection(host: &str, port: u16, password: &str, db: usize) -> Result<Connection> {
     let url = if password.is_empty() {
         format!("redis://{}:{}/", host, port)
@@ -133,7 +133,12 @@ impl Skill for RedisSetSkill {
         "Successfully set key 'user:100'".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 6379) as u16;
         let password = parameters
@@ -231,7 +236,12 @@ impl Skill for RedisGetSkill {
         "John Doe".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 6379) as u16;
         let password = parameters
@@ -327,7 +337,12 @@ impl Skill for RedisDelSkill {
         "Successfully deleted key 'user:100'".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 6379) as u16;
         let password = parameters
@@ -424,7 +439,12 @@ impl Skill for RedisKeysSkill {
         r#"["user:100", "user:101"]"#.to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 6379) as u16;
         let password = parameters
@@ -538,7 +558,12 @@ impl Skill for RedisHSetSkill {
         "Successfully set field 'name' in hash 'user:100'".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 6379) as u16;
         let password = parameters
@@ -645,7 +670,12 @@ impl Skill for RedisHGetSkill {
         "John Doe".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 6379) as u16;
         let password = parameters

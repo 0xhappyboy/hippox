@@ -1,11 +1,12 @@
 //! Password hashing skill
 
+use super::common::{argon2_hash, bcrypt_hash, validate_password_strength};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{argon2_hash, bcrypt_hash, validate_password_strength};
-use crate::types::{Skill, SkillParameter};
 
 /// Skill for hashing passwords
 ///
@@ -100,7 +101,12 @@ impl Skill for PasswordHashSkill {
         crate::SkillCategory::Cryptography
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let password = parameters
             .get("password")
             .and_then(|v| v.as_str())

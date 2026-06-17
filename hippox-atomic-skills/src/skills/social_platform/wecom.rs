@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::types::{Skill, SkillParameter};
-use crate::{RequestConfig, SkillCategory, execute};
+use crate::{RequestConfig, SkillCallback, SkillCategory, SkillContext, execute};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -147,7 +147,12 @@ impl Skill for SendWecomSkill {
         "WeCom message sent successfully".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let text = get_param_string(parameters, "text")?;
         let msg_type = parameters
             .get("msg_type")

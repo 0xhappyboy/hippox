@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct WifiBandPreferenceGetSkill;
@@ -42,7 +44,12 @@ impl Skill for WifiBandPreferenceGetSkill {
         SkillCategory::Wifi
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        _parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         #[cfg(target_os = "windows")]
         {
             let output = Command::new("netsh")

@@ -3,7 +3,8 @@
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 use crate::{ExecOptions, SkillCategory, exec_async, exec_with_stdin_async};
 
@@ -118,7 +119,12 @@ impl Skill for DockerPsSkill {
         "CONTAINER ID   IMAGE     COMMAND   STATUS          PORTS     NAMES\nabc123def456   nginx     \"nginx\"   Up 2 hours      80/tcp    web_nginx".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let docker_host = parameters.get("docker_host").and_then(|v| v.as_str());
         let all = get_param_bool(parameters, "all", false);
         let filter = parameters.get("filter").and_then(|v| v.as_str());
@@ -241,7 +247,12 @@ impl Skill for DockerStartStopSkill {
         "Container 'redis' restarted successfully".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let docker_host = parameters.get("docker_host").and_then(|v| v.as_str());
         let container = get_param_string(parameters, "container")?;
         let action = get_param_string(parameters, "action")?;
@@ -367,7 +378,12 @@ impl Skill for DockerLogsSkill {
         "2024-01-15T10:30:00Z [Note] [MY-010914] [Server] Shutdown complete\n2024-01-15T10:30:01Z [System] [MY-010116] [Server] /usr/sbin/mysqld: ready for connections".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let docker_host = parameters.get("docker_host").and_then(|v| v.as_str());
         let container = get_param_string(parameters, "container")?;
         let tail = get_param_u64(parameters, "tail", 100);
@@ -460,7 +476,12 @@ impl Skill for DockerInspectSkill {
         "Detailed JSON container configuration".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let docker_host = parameters.get("docker_host").and_then(|v| v.as_str());
         let container = get_param_string(parameters, "container")?;
         let format = parameters.get("format").and_then(|v| v.as_str());
@@ -570,7 +591,12 @@ impl Skill for DockerExecSkill {
         "Database\ninformation_schema\nmysql\nperformance_schema\nsys".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let docker_host = parameters.get("docker_host").and_then(|v| v.as_str());
         let container = get_param_string(parameters, "container")?;
         let command = get_param_string(parameters, "command")?;

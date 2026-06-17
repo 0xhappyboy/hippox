@@ -1,3 +1,4 @@
+use crate::{SkillCallback, SkillContext};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -101,7 +102,12 @@ impl Skill for SendTelegramSkill {
         "Telegram message sent successfully".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let bot_token = get_param_string(parameters, "bot_token")?;
         let chat_id = get_param_string(parameters, "chat_id")?;
         let text = get_param_string(parameters, "text")?;

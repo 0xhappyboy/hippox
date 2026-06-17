@@ -1,11 +1,15 @@
 //! Bluetooth set discoverable timeout skill - set how long device stays discoverable
 
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
-
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct BluetoothSetDiscoverableTimeoutSkill;
@@ -53,7 +57,12 @@ impl Skill for BluetoothSetDiscoverableTimeoutSkill {
         SkillCategory::Bluetooth
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let timeout = parameters
             .get("timeout_secs")
             .and_then(|v| v.as_u64())

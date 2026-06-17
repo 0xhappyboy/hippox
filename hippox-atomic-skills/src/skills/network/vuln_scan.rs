@@ -1,16 +1,17 @@
 //! Vulnerability scan skill
 
-use anyhow::Result;
-use reqwest::Client;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::time::Duration;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     common::net::{parse_ports, resolve_host, tcp_connect},
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use reqwest::Client;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct VulnScanSkill;
@@ -106,7 +107,12 @@ impl Skill for VulnScanSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let target = get_param_string(parameters, "target")?;
         let ports_spec = parameters
             .get("ports")

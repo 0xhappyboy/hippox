@@ -1,13 +1,14 @@
 //! Traffic analysis skill
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct TrafficAnalyzeSkill;
@@ -75,8 +76,16 @@ impl Skill for TrafficAnalyzeSkill {
         SkillCategory::Network
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
-        let interface = parameters.get("interface").and_then(|v| v.as_str()).unwrap_or("any");
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
+        let interface = parameters
+            .get("interface")
+            .and_then(|v| v.as_str())
+            .unwrap_or("any");
         let duration = get_param_u64(parameters, "duration", 10);
         let top_n = get_param_u64(parameters, "top_n", 10) as usize;
 
@@ -91,7 +100,13 @@ impl Skill for TrafficAnalyzeSkill {
 
         output.push_str("\nTop Talkers:\n");
         for (i, talker) in analysis.top_talkers.iter().enumerate() {
-            output.push_str(&format!("{}. {}: {} packets ({:.1}%)\n", i + 1, talker.ip, talker.packets, talker.percentage));
+            output.push_str(&format!(
+                "{}. {}: {} packets ({:.1}%)\n",
+                i + 1,
+                talker.ip,
+                talker.packets,
+                talker.percentage
+            ));
         }
 
         output.push_str("\nProtocol Distribution:\n");

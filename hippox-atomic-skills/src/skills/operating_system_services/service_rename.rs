@@ -1,11 +1,15 @@
 //! Service rename skill
 
+use super::common::rename_service;
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::rename_service;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct ServiceRenameSkill;
@@ -43,7 +47,7 @@ impl Skill for ServiceRenameSkill {
                 default: None,
                 example: Some(Value::String("webserver".to_string())),
                 enum_values: None,
-            }
+            },
         ]
     }
 
@@ -65,7 +69,12 @@ impl Skill for ServiceRenameSkill {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let old_name = parameters
             .get("old_name")
             .and_then(|v| v.as_str())

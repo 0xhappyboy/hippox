@@ -1,11 +1,15 @@
 //! WiFi scan skill - scan for nearby WiFi networks
 
+use super::common::{WiFiNetwork, scan_wifi_networks};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{WiFiNetwork, scan_wifi_networks};
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct WifiScanSkill;
@@ -53,7 +57,12 @@ impl Skill for WifiScanSkill {
         SkillCategory::Wifi
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let timeout = parameters
             .get("timeout_secs")
             .and_then(|v| v.as_u64())

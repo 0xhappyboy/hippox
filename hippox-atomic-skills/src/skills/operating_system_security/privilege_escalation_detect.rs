@@ -5,9 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    operating_system_security::common::check_privilege_escalation,
-    types::{Skill, SkillParameter},
+    SkillCallback, SkillCategory, SkillContext, operating_system_security::common::check_privilege_escalation, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -28,17 +26,16 @@ impl Skill for PrivilegeEscalationDetectSkill {
     }
 
     fn parameters(&self) -> Vec<SkillParameter> {
-        vec![
-            SkillParameter {
-                name: "show_all".to_string(),
-                param_type: "boolean".to_string(),
-                description: "Show all checks including non-vulnerable ones (default: false)".to_string(),
-                required: false,
-                default: Some(Value::Bool(false)),
-                example: Some(Value::Bool(true)),
-                enum_values: None,
-            },
-        ]
+        vec![SkillParameter {
+            name: "show_all".to_string(),
+            param_type: "boolean".to_string(),
+            description: "Show all checks including non-vulnerable ones (default: false)"
+                .to_string(),
+            required: false,
+            default: Some(Value::Bool(false)),
+            example: Some(Value::Bool(true)),
+            enum_values: None,
+        }]
     }
 
     fn example_call(&self) -> Value {
@@ -58,7 +55,12 @@ impl Skill for PrivilegeEscalationDetectSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let show_all = parameters
             .get("show_all")
             .and_then(|v| v.as_bool())
@@ -80,13 +82,21 @@ impl Skill for PrivilegeEscalationDetectSkill {
         if !vulnerable.is_empty() {
             output.push_str(&format!("Vulnerabilities found: {}\n", vulnerable.len()));
             for (i, result) in vulnerable.iter().enumerate() {
-                output.push_str(&format!("\n{}. {} [{}]\n", i + 1, result.check_name, result.severity.to_uppercase()));
+                output.push_str(&format!(
+                    "\n{}. {} [{}]\n",
+                    i + 1,
+                    result.check_name,
+                    result.severity.to_uppercase()
+                ));
                 output.push_str(&format!("  Description: {}\n", result.description));
                 if !result.details.is_empty() && result.details != "No findings" {
                     output.push_str(&format!("  Details: {}\n", result.details));
                 }
             }
-            output.push_str(&format!("\nSummary: {} potential privilege escalation vectors detected", vulnerable.len()));
+            output.push_str(&format!(
+                "\nSummary: {} potential privilege escalation vectors detected",
+                vulnerable.len()
+            ));
         }
 
         if show_all && !safe.is_empty() {

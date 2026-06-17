@@ -1,15 +1,16 @@
 //! File integrity monitoring skill
 
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
-
+use crate::SkillCallback;
+use crate::SkillContext;
 use crate::{IntegrityResult, calculate_file_integrity_hash, file_exists, validate_path};
 use crate::{
     SkillCategory,
     types::{Skill, SkillParameter},
 };
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 /// File integrity database (in-memory for demonstration)
 /// In production, this would be stored in a file or database
@@ -77,7 +78,12 @@ impl Skill for FileIntegrityMonitorSkill {
         SkillCategory::File
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())

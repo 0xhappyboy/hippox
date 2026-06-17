@@ -27,17 +27,18 @@
 //! let result = skill.execute(&params).await?;
 //! ```
 
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use image::GenericImageView;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-
-use crate::{
-    SkillCategory,
-    types::{Skill, SkillParameter},
-};
 
 use crate::file_exists;
 
@@ -164,7 +165,12 @@ impl Skill for ImageResizeSkill {
         SkillCategory::Media
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let source = parameters
             .get("source")
             .and_then(|v| v.as_str())
@@ -319,7 +325,12 @@ impl Skill for ImageConvertSkill {
         SkillCategory::Media
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let source = parameters
             .get("source")
             .and_then(|v| v.as_str())
@@ -452,7 +463,12 @@ impl Skill for ImageInfoSkill {
         SkillCategory::Media
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
@@ -616,7 +632,12 @@ impl Skill for ImageRotateSkill {
         SkillCategory::Media
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let source = parameters
             .get("source")
             .and_then(|v| v.as_str())
@@ -782,7 +803,12 @@ impl Skill for ImageCropSkill {
         SkillCategory::Media
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let source = parameters
             .get("source")
             .and_then(|v| v.as_str())
@@ -962,7 +988,12 @@ impl Skill for ImageCompressSkill {
         SkillCategory::Media
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let source = parameters
             .get("source")
             .and_then(|v| v.as_str())
@@ -1080,7 +1111,7 @@ mod tests {
         let skill = ImageInfoSkill;
         let mut params = HashMap::new();
         params.insert("path".to_string(), json!(temp_path));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         let info: Value = serde_json::from_str(&output).unwrap();
@@ -1099,7 +1130,7 @@ mod tests {
         let skill = ImageInfoSkill;
         let mut params = HashMap::new();
         params.insert("path".to_string(), json!("/nonexistent/path/image.jpg"));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
     }
@@ -1110,7 +1141,7 @@ mod tests {
     async fn test_image_info_with_missing_parameter() {
         let skill = ImageInfoSkill;
         let params = HashMap::new();
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Missing 'path'"));
     }

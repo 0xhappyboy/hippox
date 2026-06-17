@@ -5,7 +5,9 @@
 //! - `TcpPingSkill`: Perform TCP ping (SYN scan) to test if a port is reachable when ICMP is blocked
 //! - `BatchPingSkill`: Ping multiple hosts simultaneously and aggregate results
 
+use crate::SkillCallback;
 use crate::SkillCategory;
+use crate::SkillContext;
 use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -119,7 +121,12 @@ impl Skill for PingSkill {
     ///
     /// # Returns
     /// The raw output from the system ping command
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let target = parameters
             .get("target")
             .and_then(|v| v.as_str())
@@ -256,7 +263,12 @@ impl Skill for TcpPingSkill {
     ///
     /// # Returns
     /// A formatted string indicating whether the port is reachable and the response time
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let host = parameters
             .get("host")
             .and_then(|v| v.as_str())
@@ -390,7 +402,12 @@ impl Skill for BatchPingSkill {
     ///
     /// # Returns
     /// A formatted string containing results for all targets and a success rate summary
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let targets = parameters
             .get("targets")
             .and_then(|v| v.as_array())
@@ -451,7 +468,7 @@ mod tests {
         params.insert("host".to_string(), json!("google.com"));
         params.insert("port".to_string(), json!(80));
         params.insert("timeout".to_string(), json!(5));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("TCP Ping to google.com:80"));
@@ -466,7 +483,7 @@ mod tests {
         params.insert("host".to_string(), json!("localhost"));
         params.insert("port".to_string(), json!(9999));
         params.insert("timeout".to_string(), json!(2));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("TCP Ping to localhost:9999"));
@@ -484,7 +501,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("targets".to_string(), json!(["8.8.8.8", "1.1.1.1"]));
         params.insert("timeout".to_string(), json!(3));
-        let result = skill.execute(&params).await;
+        let result = skill.execute(&params, None, None).await;
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("Batch ping results:"));

@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::common::list_all_services;
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
+use crate::{
+    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+};
 
 #[derive(Debug)]
 pub struct ServiceListSkill;
@@ -35,14 +37,20 @@ impl Skill for ServiceListSkill {
     }
 
     fn example_output(&self) -> String {
-        "Found 5 services:\n1. ssh - SSH Server (running)\n2. nginx - Web Server (stopped)".to_string()
+        "Found 5 services:\n1. ssh - SSH Server (running)\n2. nginx - Web Server (stopped)"
+            .to_string()
     }
 
     fn category(&self) -> SkillCategory {
         SkillCategory::OperatingSystemServices
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let services = list_all_services()?;
         if services.is_empty() {
             return Ok("No services found".to_string());

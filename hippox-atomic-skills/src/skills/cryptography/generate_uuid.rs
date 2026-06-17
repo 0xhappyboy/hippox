@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::types::{Skill, SkillParameter};
+use crate::{SkillCallback, SkillContext, types::{Skill, SkillParameter}};
 
 /// Skill for generating UUID
 ///
@@ -83,7 +83,12 @@ impl Skill for GenerateUuidSkill {
         crate::SkillCategory::Cryptography
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let format = parameters
             .get("format")
             .and_then(|v| v.as_str())

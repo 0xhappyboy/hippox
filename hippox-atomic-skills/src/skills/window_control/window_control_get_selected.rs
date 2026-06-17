@@ -1,12 +1,13 @@
 //! Window get selected text skill
 
+use crate::SkillCallback;
+use crate::SkillCategory;
+use crate::SkillContext;
+use crate::skills::window_control::WindowControlSendShortcutSkill;
+use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use crate::SkillCategory;
-use crate::skills::window_control::WindowControlSendShortcutSkill;
-use crate::types::{Skill, SkillParameter};
 
 #[derive(Debug)]
 pub struct WindowControlGetSelectedSkill;
@@ -43,7 +44,12 @@ impl Skill for WindowControlGetSelectedSkill {
         SkillCategory::Window
     }
 
-    async fn execute(&self, _parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         use crate::skills::operating_system::clipboard::ClipboardGetSkill;
         // First copy selected text
         #[cfg(target_os = "windows")]
@@ -51,18 +57,17 @@ impl Skill for WindowControlGetSelectedSkill {
             let mut params = HashMap::new();
             params.insert("shortcut".to_string(), Value::String("Ctrl+C".to_string()));
             let shortcut_skill = WindowControlSendShortcutSkill;
-            let _ = shortcut_skill.execute(&params).await;
+            let _ = shortcut_skill.execute(&params, callback, context).await;
         }
-
         #[cfg(not(target_os = "windows"))]
         {
             // Implement for other platforms
         }
-
         // Then get clipboard content
         let get_skill = ClipboardGetSkill;
-        let result = get_skill.execute(&HashMap::new()).await?;
-
+        let result = get_skill
+            .execute(&HashMap::new(), callback, context)
+            .await?;
         Ok(format!("Selected text: {}", result))
     }
 }

@@ -5,9 +5,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
-    SkillCategory,
-    operating_system_security::common::run_baseline_check,
-    types::{Skill, SkillParameter},
+    SkillCallback, SkillCategory, SkillContext, operating_system_security::common::run_baseline_check, types::{Skill, SkillParameter}
 };
 
 #[derive(Debug)]
@@ -67,7 +65,12 @@ impl Skill for BaselineCheckSkill {
         SkillCategory::OperatingSystemSecurity
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let category_filter = parameters.get("category").and_then(|v| v.as_str());
         let show_compliant = parameters
             .get("show_compliant")
@@ -76,7 +79,8 @@ impl Skill for BaselineCheckSkill {
 
         let results = run_baseline_check();
 
-        let filtered: Vec<_> = results.iter()
+        let filtered: Vec<_> = results
+            .iter()
             .filter(|r| {
                 if let Some(cat) = category_filter {
                     r.category == cat
@@ -101,16 +105,28 @@ impl Skill for BaselineCheckSkill {
                 }
 
                 let status = if result.compliant { "PASS" } else { "FAIL" };
-                output.push_str(&format!("  {}: {} [{}]\n", result.check_name, status, result.severity));
-                output.push_str(&format!("    Current: {}, Expected: {}\n", result.current_value, result.expected_value));
+                output.push_str(&format!(
+                    "  {}: {} [{}]\n",
+                    result.check_name, status, result.severity
+                ));
+                output.push_str(&format!(
+                    "    Current: {}, Expected: {}\n",
+                    result.current_value, result.expected_value
+                ));
                 output.push_str(&format!("    Recommendation: {}\n", result.recommendation));
             }
         }
         let compliant_count = results.iter().filter(|r| r.compliant).count();
         let non_compliant_count = results.iter().filter(|r| !r.compliant).count();
-        output.push_str(&format!("\nSummary: {} compliant, {} non-compliant", compliant_count, non_compliant_count));
+        output.push_str(&format!(
+            "\nSummary: {} compliant, {} non-compliant",
+            compliant_count, non_compliant_count
+        ));
         if non_compliant_count > 0 {
-            output.push_str(&format!("\n{} checks require attention", non_compliant_count));
+            output.push_str(&format!(
+                "\n{} checks require attention",
+                non_compliant_count
+            ));
         }
         Ok(output)
     }

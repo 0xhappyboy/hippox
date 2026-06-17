@@ -1,9 +1,10 @@
+use crate::{SkillCallback, SkillCategory, SkillContext};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::types::{Skill, SkillParameter};
-use crate::{RequestConfig, SkillCategory, execute};
+use crate::{RequestConfig, execute};
 
 fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
     params
@@ -147,7 +148,12 @@ impl Skill for SendFeishuSkill {
         "Feishu message sent successfully".to_string()
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let webhook = get_param_string(parameters, "webhook")?;
         let text = parameters.get("text").and_then(|v| v.as_str());
         let msg_type = parameters

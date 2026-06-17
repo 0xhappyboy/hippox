@@ -1,12 +1,16 @@
 // mouse_control/mouse_control_right_click.rs
 //! Mouse right click skill
 
+use super::common::{MouseButton, mouse_click};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::{
+    SkillCategory,
+    types::{Skill, SkillParameter},
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{MouseButton, mouse_click};
-use crate::{SkillCategory, types::{Skill, SkillParameter}};
 
 #[derive(Debug)]
 pub struct MouseControlRightClickSkill;
@@ -66,7 +70,12 @@ impl Skill for MouseControlRightClickSkill {
         SkillCategory::Mouse
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let x = parameters
             .get("x")
             .and_then(|v| v.as_i64())

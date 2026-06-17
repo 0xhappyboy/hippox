@@ -1,13 +1,12 @@
 //! RSA signature verification skill
 
+use super::common::{from_base64, rsa_verify};
+use crate::SkillCallback;
+use crate::SkillContext;
+use crate::types::{Skill, SkillParameter};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
-use super::common::{from_base64, rsa_verify};
-use crate::{
-    types::{Skill, SkillParameter},
-};
 
 /// Skill for RSA signature verification
 ///
@@ -92,7 +91,12 @@ impl Skill for RsaVerifySkill {
         crate::SkillCategory::Cryptography
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let public_key = parameters
             .get("public_key")
             .and_then(|v| v.as_str())

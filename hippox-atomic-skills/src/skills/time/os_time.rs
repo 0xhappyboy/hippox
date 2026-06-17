@@ -1,5 +1,5 @@
 use crate::{
-    SkillCategory,
+    SkillCallback, SkillCategory, SkillContext,
     types::{Skill, SkillParameter},
 };
 use anyhow::Result;
@@ -56,7 +56,12 @@ impl Skill for OsGetTimeSkill {
         SkillCategory::Time
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let format = parameters
             .get("format")
             .and_then(|v| v.as_str())
@@ -123,7 +128,12 @@ impl Skill for OsSetTimeSkill {
         SkillCategory::Time
     }
 
-    async fn execute(&self, parameters: &HashMap<String, Value>) -> Result<String> {
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        callback: Option<&dyn SkillCallback>,
+        context: Option<&SkillContext>,
+    ) -> Result<String> {
         let datetime = parameters
             .get("datetime")
             .and_then(|v| v.as_str())
