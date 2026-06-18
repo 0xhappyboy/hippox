@@ -288,6 +288,14 @@ impl SkillContext {
 ///
 /// Implemented by the external layer and injected into skills.
 pub trait SkillCallback: Send + Sync + Debug {
+    /// log output
+    fn on_log(
+        &self,
+        task_id: Option<String>,
+        step_index: Option<usize>,
+        message: &str,
+    );
+
     /// Progress update
     fn on_progress(
         &self,
