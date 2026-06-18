@@ -291,6 +291,16 @@ pub trait SkillCallback: Send + Sync + Debug {
     /// log output
     fn on_log(&self, task_id: Option<String>, skill_index: Option<usize>, message: Option<String>);
 
+    /// Callback function for output from inside the skill to the outside.
+    fn on_output(
+        &self,
+        task_id: Option<String>,
+        skill_index: Option<usize>,
+        skill_name: Option<String>,
+        output: Option<String>,
+    ) {
+    }
+
     /// Progress update
     fn on_progress(
         &self,

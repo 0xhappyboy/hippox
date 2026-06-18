@@ -1,6 +1,6 @@
 //! Window get title skill
 
-use super::common::{WindowInfo, find_window};
+use super::common::find_window;
 use crate::SkillCallback;
 use crate::SkillContext;
 use crate::{

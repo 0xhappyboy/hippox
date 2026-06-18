@@ -4,9 +4,10 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::common::{find_window, set_foreground_window};
+use super::common::find_window;
 use crate::{
-    SkillCallback, SkillCategory, SkillContext, types::{Skill, SkillParameter}
+    SkillCallback, SkillCategory, SkillContext,
+    types::{Skill, SkillParameter},
 };
 
 #[derive(Debug)]
@@ -75,7 +76,7 @@ impl Skill for WindowControlSendKeysSkill {
     fn category(&self) -> SkillCategory {
         SkillCategory::Window
     }
-    
+
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,

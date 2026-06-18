@@ -1,6 +1,9 @@
 //! Network common utilities
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::net::ToSocketAddrs;
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -185,4 +188,192 @@ pub async fn tcp_connect(ip: std::net::IpAddr, port: u16, timeout_secs: u64) -> 
     let timeout_dur = Duration::from_secs(timeout_secs);
     let stream = timeout(timeout_dur, TcpStream::connect(&addr)).await??;
     Ok(stream)
+}
+
+pub fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
+    params
+        .get(name)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("Missing parameter: {}", name))
+}
+
+pub fn get_param_u64(params: &HashMap<String, Value>, name: &str, default: u64) -> u64 {
+    params.get(name).and_then(|v| v.as_u64()).unwrap_or(default)
+}
+
+pub fn get_param_bool(params: &HashMap<String, Value>, name: &str, default: bool) -> bool {
+    params
+        .get(name)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(default)
+}
+/// Nslookup result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NslookupResult {
+    pub domain: String,
+    pub dns_server: String,
+    pub a_records: Vec<String>,
+    pub aaaa_records: Vec<String>,
+    pub mx_records: Vec<(String, u16)>,
+    pub txt_records: Vec<String>,
+    pub cname_records: Vec<String>,
+    pub ns_records: Vec<String>,
+    pub soa_record: Option<String>,
+}
+
+/// Perform detailed DNS lookup (nslookup style)
+pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<NslookupResult> {
+    use trust_dns_proto::rr::{RData, RecordType};
+    use trust_dns_resolver::Resolver;
+    use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
+
+    let dns_server = dns_server.unwrap_or("8.8.8.8");
+
+    let resolver_config = ResolverConfig::from_parts(
+        None,
+        vec![],
+        NameServerConfigGroup::from_ips_clear(&[dns_server.parse()?], 53, true),
+    );
+    let resolver_opts = ResolverOpts::default();
+    let resolver = Resolver::new(resolver_config, resolver_opts)?;
+
+    let mut a_records = Vec::new();
+    let mut aaaa_records = Vec::new();
+    let mut mx_records = Vec::new();
+    let mut txt_records = Vec::new();
+    let mut cname_records = Vec::new();
+    let mut ns_records = Vec::new();
+    let mut soa_record = None;
+
+    // A records
+    if let Ok(response) = resolver.lookup(domain, RecordType::A) {
+        for record in response.iter() {
+            if let RData::A(ip) = record {
+                a_records.push(ip.to_string());
+            }
+        }
+    }
+
+    // AAAA records
+    if let Ok(response) = resolver.lookup(domain, RecordType::AAAA) {
+        for record in response.iter() {
+            if let RData::AAAA(ip) = record {
+                aaaa_records.push(ip.to_string());
+            }
+        }
+    }
+
+    // MX records
+    if let Ok(response) = resolver.lookup(domain, RecordType::MX) {
+        for record in response.iter() {
+            if let RData::MX(mx) = record {
+                mx_records.push((mx.exchange().to_string(), mx.preference()));
+            }
+        }
+        mx_records.sort_by_key(|(_, priority)| *priority);
+    }
+
+    // TXT records
+    if let Ok(response) = resolver.lookup(domain, RecordType::TXT) {
+        for record in response.iter() {
+            if let RData::TXT(txt) = record {
+                let text: String = txt
+                    .txt_data()
+                    .iter()
+                    .map(|d| String::from_utf8_lossy(d))
+                    .collect::<Vec<_>>()
+                    .join("");
+                txt_records.push(text);
+            }
+        }
+    }
+
+    // CNAME records
+    if let Ok(response) = resolver.lookup(domain, RecordType::CNAME) {
+        for record in response.iter() {
+            if let RData::CNAME(cname) = record {
+                cname_records.push(cname.to_string());
+            }
+        }
+    }
+
+    // NS records
+    if let Ok(response) = resolver.lookup(domain, RecordType::NS) {
+        for record in response.iter() {
+            if let RData::NS(ns) = record {
+                ns_records.push(ns.to_string());
+            }
+        }
+    }
+
+    // SOA record
+    if let Ok(response) = resolver.lookup(domain, RecordType::SOA) {
+        for record in response.iter() {
+            if let RData::SOA(soa) = record {
+                soa_record = Some(format!("{} (serial: {})", soa.mname(), soa.serial()));
+                break;
+            }
+        }
+    }
+
+    Ok(NslookupResult {
+        domain: domain.to_string(),
+        dns_server: dns_server.to_string(),
+        a_records,
+        aaaa_records,
+        mx_records,
+        txt_records,
+        cname_records,
+        ns_records,
+        soa_record,
+    })
+}
+
+/// Get local network connections (netstat style)
+pub fn get_network_connections() -> Result<Vec<HashMap<String, String>>> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut connections = Vec::new();
+        let content = std::fs::read_to_string("/proc/net/tcp")?;
+        for line in content.lines().skip(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 4 {
+                let mut conn = HashMap::new();
+                conn.insert("local_address".to_string(), parts[1].to_string());
+                conn.insert("remote_address".to_string(), parts[2].to_string());
+                conn.insert("state".to_string(), parts[3].to_string());
+                connections.push(conn);
+            }
+        }
+        Ok(connections)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let output = Command::new("netstat").args(["-n", "-t"]).output()?;
+        let mut connections = Vec::new();
+        if let Ok(text) = String::from_utf8(output.stdout) {
+            for line in text.lines().skip(1) {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 4 {
+                    let mut conn = HashMap::new();
+                    conn.insert("protocol".to_string(), parts[0].to_string());
+                    conn.insert("recvq".to_string(), parts[1].to_string());
+                    conn.insert("sendq".to_string(), parts[2].to_string());
+                    conn.insert("local_address".to_string(), parts[3].to_string());
+                    conn.insert("foreign_address".to_string(), parts[4].to_string());
+                    if parts.len() > 5 {
+                        conn.insert("state".to_string(), parts[5].to_string());
+                    }
+                    connections.push(conn);
+                }
+            }
+        }
+        Ok(connections)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        Err(anyhow::anyhow!("netstat not supported on this platform"))
+    }
 }

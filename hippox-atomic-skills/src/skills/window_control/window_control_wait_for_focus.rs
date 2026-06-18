@@ -5,9 +5,9 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use super::common::{find_window, get_focus_window};
-use crate::{SkillCallback, SkillCategory, SkillContext};
+use super::common::get_focus_window;
 use crate::types::{Skill, SkillParameter};
+use crate::{SkillCallback, SkillCategory, SkillContext};
 
 #[derive(Debug)]
 pub struct WindowControlWaitForFocusSkill;

@@ -11,7 +11,7 @@ pub fn register(registry: &mut SkillRegistryMap) {
     #[cfg(any(feature = "network", feature = "all"))]
     {
         use crate::{
-            TcpUniversalServerSkill, skills::network::{
+            skills::network::{
                 // Existing skills from dns.rs
                 BatchPingSkill,
                 DirScanSkill,
@@ -29,8 +29,6 @@ pub fn register(registry: &mut SkillRegistryMap) {
                 IpRangeSkill,
                 IpValidateSkill,
                 LocalIpSkill,
-                OsFingerprintSkill,
-                PacketCaptureSkill,
                 PingSkill,
                 PortLookupSkill,
                 PortScanSkill,
@@ -42,9 +40,8 @@ pub fn register(registry: &mut SkillRegistryMap) {
                 TcpPingSkill,
                 TcpReceiveSkill,
                 TcpSendSkill,
-                TrafficAnalyzeSkill,
-                VulnScanSkill,
-            }, udp::{UdpBroadcastSkill, UdpReceiveSkill, UdpSendSkill}
+            },
+            udp::{UdpBroadcastSkill, UdpReceiveSkill, UdpSendSkill},
         };
         // HTTP/URL
         map.insert("http_request".to_string(), Arc::new(HttpRequestSkill));
@@ -73,10 +70,6 @@ pub fn register(registry: &mut SkillRegistryMap) {
         // TCP
         map.insert("tcp_send".to_string(), Arc::new(TcpSendSkill));
         map.insert("tcp_receive".to_string(), Arc::new(TcpReceiveSkill));
-        map.insert(
-            "tcp_universal_server".to_string(),
-            Arc::new(TcpUniversalServerSkill),
-        );
         // UDP
         map.insert("udp_send".to_string(), Arc::new(UdpSendSkill));
         map.insert("udp_receive".to_string(), Arc::new(UdpReceiveSkill));
@@ -92,19 +85,11 @@ pub fn register(registry: &mut SkillRegistryMap) {
         // New skills
         map.insert("port_scan".to_string(), Arc::new(PortScanSkill));
         map.insert("service_detect".to_string(), Arc::new(ServiceDetectSkill));
-        map.insert("os_fingerprint".to_string(), Arc::new(OsFingerprintSkill));
         map.insert("dir_scan".to_string(), Arc::new(DirScanSkill));
         map.insert(
             "sensitive_file_scan".to_string(),
             Arc::new(SensitiveFileScanSkill),
         );
         map.insert("firewall_check".to_string(), Arc::new(FirewallCheckSkill));
-        map.insert(
-            "ip_block".to_string(),
-            Arc::new(crate::skills::network::ip_block::IpBlockSkill),
-        );
-        map.insert("packet_capture".to_string(), Arc::new(PacketCaptureSkill));
-        map.insert("traffic_analyze".to_string(), Arc::new(TrafficAnalyzeSkill));
-        map.insert("vuln_scan".to_string(), Arc::new(VulnScanSkill));
     }
 }
