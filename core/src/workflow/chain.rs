@@ -1,6 +1,6 @@
 //! Chain mode workflow execution
 
-use crate::SkillScheduler;
+use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS};
 use crate::prompts::build_chain_prompt;
 use crate::t;
 use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
