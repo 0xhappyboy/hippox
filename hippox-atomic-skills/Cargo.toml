@@ -119,6 +119,10 @@ pem = "3.0.6"
 rsa = "0.9.10"
 sha2 = "0.11.0"
 getrandom = "0.4.2"
+kamadak-exif = "0.6.1"
+rqrr = "0.10.1"
+qrcode = "0.14.1"
+barcoders = "2.0.0"
 
 [features]
 default = [

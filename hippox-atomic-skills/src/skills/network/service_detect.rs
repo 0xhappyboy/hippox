@@ -100,16 +100,13 @@ impl Skill for ServiceDetectSkill {
         let ports_spec = get_param_string(parameters, "ports")?;
         let timeout_secs = get_param_u64(parameters, "timeout", 5);
         let banner_size = get_param_u64(parameters, "banner_size", 4096) as usize;
-
         let ip = resolve_host(&target)?;
         let ports = parse_ports(&ports_spec)?;
-
         let mut results = Vec::new();
         for port in ports {
             let result = detect_service(ip, port, timeout_secs, banner_size).await;
             results.push(result);
         }
-
         let mut output = format!("Service Detection Results for {}:\n", target);
         for (port, service, version, confidence) in results {
             output.push_str(&format!("\nPort {}: {} ", port, service));
@@ -118,7 +115,6 @@ impl Skill for ServiceDetectSkill {
             }
             output.push_str(&format!("[Confidence: {}%]", confidence));
         }
-
         Ok(output)
     }
 }
@@ -130,14 +126,12 @@ async fn detect_service(
     banner_size: usize,
 ) -> (u16, String, Option<String>, u8) {
     let timeout_dur = Duration::from_secs(timeout_secs);
-
     match tokio::time::timeout(timeout_dur, async {
         let mut stream = tcp_connect(ip, port, timeout_secs).await?;
         let probe = get_probe_for_port(port);
         if let Some(data) = probe {
             let _ = stream.write_all(data).await;
         }
-
         let mut buffer = vec![0u8; banner_size];
         let n = tokio::time::timeout(Duration::from_secs(3), stream.read(&mut buffer)).await??;
         let banner = String::from_utf8_lossy(&buffer[..n]).to_string();

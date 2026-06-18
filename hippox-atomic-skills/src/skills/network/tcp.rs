@@ -167,26 +167,22 @@ impl Skill for TcpSendSkill {
         let wait_response = get_param_bool(parameters, "wait_response", false);
         let response_timeout = get_param_u64(parameters, "response_timeout", 10);
         let response_buffer = get_param_u64(parameters, "response_buffer", 4096) as usize;
-
         let data = match encoding {
             "hex" => hex::decode(data_str)?,
             "base64" => STANDARD.decode(data_str)?,
             _ => data_str.as_bytes().to_vec(),
         };
-
         let delimiter_bytes = match delimiter {
             "\\n" => "\n".as_bytes(),
             "\\r\\n" => "\r\n".as_bytes(),
             "\\r" => "\r".as_bytes(),
             _ => delimiter.as_bytes(),
         };
-
         let final_data = if !delimiter_bytes.is_empty() {
             [data.as_slice(), delimiter_bytes].concat()
         } else {
             data
         };
-
         let addr = format!("{}:{}", host, port);
         let connection = timeout(
             std::time::Duration::from_secs(timeout_secs),
@@ -194,18 +190,15 @@ impl Skill for TcpSendSkill {
         )
         .await??;
         let mut stream = connection;
-
         let bytes_sent = timeout(std::time::Duration::from_secs(timeout_secs), async {
             stream.write_all(&final_data).await?;
             Ok::<_, anyhow::Error>(final_data.len())
         })
         .await??;
-
         let mut result = format!(
             "Successfully sent {} bytes to {}:{}",
             bytes_sent, host, port
         );
-
         if wait_response {
             let mut buffer = vec![0u8; response_buffer];
             let read_result = timeout(
@@ -216,7 +209,6 @@ impl Skill for TcpSendSkill {
             let response = String::from_utf8_lossy(&buffer[..read_result]);
             result.push_str(&format!("\nResponse: {}", response));
         }
-
         Ok(result)
     }
 }
@@ -329,7 +321,6 @@ impl Skill for TcpReceiveSkill {
             .and_then(|v| v.as_str())
             .unwrap_or("utf8");
         let send_response = parameters.get("send_response").and_then(|v| v.as_str());
-
         let addr = format!("{}:{}", bind_address, port);
         let listener = TcpListener::bind(&addr).await?;
         let accept_result = timeout(
@@ -346,23 +337,19 @@ impl Skill for TcpReceiveSkill {
         )
         .await??;
         let received_data = &buffer[..read_result];
-
         let output = match encoding {
             "hex" => hex::encode(received_data),
             "base64" => STANDARD.encode(received_data),
             _ => String::from_utf8_lossy(received_data).to_string(),
         };
-
         let mut result = format!(
             "Received {} bytes from {}:\n{}",
             read_result, client_addr, output
         );
-
         if let Some(response) = send_response {
             stream.write_all(response.as_bytes()).await?;
             result.push_str(&format!("\nResponse sent: {}", response));
         }
-
         Ok(result)
     }
 }

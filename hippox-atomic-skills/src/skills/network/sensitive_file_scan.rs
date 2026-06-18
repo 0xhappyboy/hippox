@@ -116,21 +116,17 @@ impl Skill for SensitiveFileScanSkill {
         let target = get_param_string(parameters, "target")?;
         let timeout_secs = get_param_u64(parameters, "timeout", 5);
         let concurrency = get_param_u64(parameters, "concurrency", 10) as usize;
-
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(timeout_secs))
             .build()?;
-
         let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
         let mut tasks = vec![];
-
         for (path, desc) in SENSITIVE_FILES {
             let permit = semaphore.clone().acquire_owned().await?;
             let client_clone = client.clone();
             let target_clone = target.clone();
             let path_clone = path.to_string();
             let desc_clone = desc.to_string();
-
             tasks.push(tokio::spawn(async move {
                 let url = format!("{}/{}", target_clone, path_clone);
                 match client_clone.get(&url).send().await {
@@ -146,14 +142,12 @@ impl Skill for SensitiveFileScanSkill {
                 }
             }));
         }
-
         let mut found = Vec::new();
         for task in tasks {
             if let Ok(Some(result)) = task.await {
                 found.push(result);
             }
         }
-
         let mut output = format!("Sensitive File Scan Results for {}:\n", target);
         if found.is_empty() {
             output.push_str("\nNo sensitive files found.");
@@ -163,7 +157,6 @@ impl Skill for SensitiveFileScanSkill {
                 output.push_str(&format!("  {} (HTTP {}) - {}\n", url, status, desc));
             }
         }
-
         Ok(output)
     }
 }
