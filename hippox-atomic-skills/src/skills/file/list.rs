@@ -93,10 +93,34 @@ impl Skill for ListDirectorySkill {
         callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String> {
+        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
+        let skill_index = context.as_ref().and_then(|c| c.skill_index());
+        let step_name = context
+            .as_ref()
+            .and_then(|c| c.skill_name())
+            .map(String::from);
+        let cb = callback;
+        if let Some(cb) = cb {
+            cb.on_start(task_id.clone(), skill_index, step_name.clone());
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Starting directory listing".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(10), None);
+        }
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Path: {}", path)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(20), None);
+        }
         let show_hidden = parameters
             .get("show_hidden")
             .and_then(|v| v.as_bool())
@@ -109,23 +133,91 @@ impl Skill for ListDirectorySkill {
             .get("detail")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Show hidden: {}", show_hidden)),
+            );
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Recursive: {}", recursive)),
+            );
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Detail: {}", detail)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(30), None);
+        }
         let validated_path = validate_path(path, None)?;
-
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Path validated".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(40), None);
+        }
         if !validated_path.is_dir() {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some(format!("Not a directory: {}", path)),
+                );
+                cb.on_error(
+                    task_id.clone(),
+                    skill_index,
+                    step_name.clone(),
+                    Some("Not a directory".to_string()),
+                );
+            }
             anyhow::bail!("Not a directory: {}", path);
         }
-
-        let entries = list_directory(&validated_path.to_string_lossy(), recursive, show_hidden)?;
-
-        if entries.is_empty() {
-            return Ok(format!("Directory is empty: {}", path));
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Reading directory contents".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(50), None);
         }
-
-        let mut result = Vec::new();
-
+        let entries = list_directory(&validated_path.to_string_lossy(), recursive, show_hidden)?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Found {} entries", entries.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(60), None);
+        }
+        if entries.is_empty() {
+            let result = format!("Directory is empty: {}", path);
+            if let Some(cb) = cb {
+                cb.on_log(task_id.clone(), skill_index, Some(result.clone()));
+                cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+                cb.on_complete(
+                    task_id.clone(),
+                    skill_index,
+                    Some("file_list".to_string()),
+                    Some(result.clone()),
+                );
+            }
+            return Ok(result);
+        }
+        let mut result_vec = Vec::new();
         if detail {
-            for entry_path in &entries {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Gathering detailed file information".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(70), None);
+            }
+            for (idx, entry_path) in entries.iter().enumerate() {
                 let name = entry_path
                     .file_name()
                     .unwrap_or_default()
@@ -135,29 +227,67 @@ impl Skill for ListDirectorySkill {
                 if let Ok(metadata) = fs::metadata(entry_path) {
                     let file_type = if metadata.is_dir() { "DIR" } else { "FILE" };
                     let size = metadata.len();
-                    result.push(format!("{}  {}  {} bytes", file_type, name, size));
+                    result_vec.push(format!("{}  {}  {} bytes", file_type, name, size));
                 } else {
-                    result.push(name);
+                    result_vec.push(name);
+                }
+                if let Some(cb) = cb {
+                    let progress = 70 + ((idx + 1) * 20 / entries.len()) as u32;
+                    cb.on_progress(task_id.clone(), skill_index, Some(progress), None);
                 }
             }
         } else {
-            for entry_path in entries {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Processing file names".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(70), None);
+            }
+            for (idx, entry_path) in entries.iter().enumerate() {
                 let name = entry_path
                     .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
-                result.push(name);
+                result_vec.push(name);
+                if let Some(cb) = cb {
+                    let progress = 70 + ((idx + 1) * 20 / entries.len()) as u32;
+                    cb.on_progress(task_id.clone(), skill_index, Some(progress), None);
+                }
             }
         }
-
         let header = if recursive {
             format!("Contents of {} (recursive):", path)
         } else {
             format!("Contents of {}:", path)
         };
-
-        Ok(format!("{}\n{}", header, result.join("\n")))
+        let result = format!("{}\n{}", header, result_vec.join("\n"));
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!(
+                    "Formatted output with {} entries",
+                    result_vec.len()
+                )),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(90), None);
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Result length: {} characters", result.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+            cb.on_complete(
+                task_id.clone(),
+                skill_index,
+                Some("file_list".to_string()),
+                Some(result.clone()),
+            );
+        }
+        Ok(result)
     }
 
     fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {

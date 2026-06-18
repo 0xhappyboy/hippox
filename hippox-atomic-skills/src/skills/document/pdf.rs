@@ -355,19 +355,16 @@ impl Skill for PdfMergeSkill {
             );
             cb.on_progress(task_id.clone(), skill_index, Some(25), None);
         }
-
         let mut merged_doc = Document::new();
         let mut total_pages = 0;
         let mut max_id = 0;
         let total_inputs = inputs.len();
-
         for (idx, input_path) in inputs.iter().enumerate() {
             let path = input_path
                 .as_str()
                 .ok_or_else(|| anyhow::anyhow!("Input path must be a string"))?;
-
             if let Some(cb) = cb {
-                let progress = 25 + ((idx + 1) as f32 / total_inputs as f32 * 50.0) as u8;
+                let progress = 25 + ((idx + 1) as f32 / total_inputs as f32 * 50.0) as u32;
                 cb.on_log(
                     task_id.clone(),
                     skill_index,
@@ -380,14 +377,11 @@ impl Skill for PdfMergeSkill {
                 );
                 cb.on_progress(task_id.clone(), skill_index, Some(progress), None);
             }
-
             let validated_input = validate_path(path, None)?;
             let doc = Document::load(&validated_input)
                 .map_err(|e| anyhow::anyhow!("Failed to load PDF '{}': {}", path, e))?;
-
             let pages = doc.page_iter().collect::<Vec<_>>();
             total_pages += pages.len();
-
             if let Some(cb) = cb {
                 cb.on_log(
                     task_id.clone(),
@@ -395,14 +389,12 @@ impl Skill for PdfMergeSkill {
                     Some(format!("Loaded PDF with {} pages", pages.len())),
                 );
             }
-
             for (id, object) in doc.objects.iter() {
                 let new_id = (id.0 + max_id, id.1 + max_id as u16);
                 merged_doc.objects.insert(new_id, object.clone());
             }
             max_id += doc.max_id;
         }
-
         if let Some(cb) = cb {
             cb.on_log(
                 task_id.clone(),
@@ -411,7 +403,6 @@ impl Skill for PdfMergeSkill {
             );
             cb.on_progress(task_id.clone(), skill_index, Some(80), None);
         }
-
         let mut page_objects = Vec::new();
         for (object_id, object) in merged_doc.objects.iter() {
             if let Ok(dict) = object.as_dict() {
@@ -424,7 +415,6 @@ impl Skill for PdfMergeSkill {
                 }
             }
         }
-
         if let Some(cb) = cb {
             cb.on_log(
                 task_id.clone(),
@@ -433,22 +423,18 @@ impl Skill for PdfMergeSkill {
             );
             cb.on_progress(task_id.clone(), skill_index, Some(90), None);
         }
-
         if page_objects.is_empty() {
             anyhow::bail!("No pages found in input PDFs");
         }
-
         merged_doc
             .save(&validated_output)
             .map_err(|e| anyhow::anyhow!("Failed to save merged PDF: {}", e))?;
-
         let result = format!(
             "Merged {} PDF files into: {} ({} total pages)",
             inputs.len(),
             output,
             total_pages
         );
-
         if let Some(cb) = cb {
             cb.on_log(
                 task_id.clone(),
@@ -463,7 +449,6 @@ impl Skill for PdfMergeSkill {
                 Some(result.clone()),
             );
         }
-
         Ok(result)
     }
 

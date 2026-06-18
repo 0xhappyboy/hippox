@@ -314,7 +314,7 @@ impl Skill for ExcelReadSkill {
                     cb.on_progress(
                         task_id.clone(),
                         skill_index,
-                        Some(75 + (i * 20 / limit.min(100)) as u8),
+                        Some(75 + (i * 20 / limit.min(100)) as u32),
                         None,
                     );
                 }
@@ -616,7 +616,7 @@ impl Skill for ExcelWriteSkill {
                     cb.on_progress(
                         task_id.clone(),
                         skill_index,
-                        Some(65 + ((row * 25) / rows.len()) as u8),
+                        Some(65 + ((row * 25) / rows.len()) as u32),
                         None,
                     );
                 }

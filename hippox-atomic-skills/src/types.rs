@@ -296,7 +296,7 @@ pub trait SkillCallback: Send + Sync + Debug {
         &self,
         task_id: Option<String>,
         skill_index: Option<usize>,
-        progress: Option<u8>,
+        progress: Option<u32>,
         message: Option<String>,
     );
 
