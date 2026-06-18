@@ -14,3 +14,4 @@ pub use types::SkillCallback;
 pub use types::SkillContext;
 pub use types::SkillMetadata;
 pub use types::SkillParameter;
+pub use types::SkillSignal;

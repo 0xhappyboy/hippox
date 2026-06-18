@@ -2,8 +2,15 @@ use anyhow::Result;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::RwLock;
 
 use crate::SkillCategory;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillSignal {
+    Pause,
+    Stop,
+}
 
 /// Skill parameter definition
 ///
@@ -178,6 +185,7 @@ pub struct SkillContext {
     pub skill_name: Option<String>,
     /// Extended data for future needs
     pub extra: HashMap<String, Value>,
+    pub signal_bus: Option<&'static RwLock<HashMap<String, HashMap<usize, SkillSignal>>>>,
 }
 
 impl SkillContext {
