@@ -4,7 +4,7 @@
 //! - Task signal bus: controls entire tasks (pause, stop)
 //! - Task Step signal bus: controls individual steps within a task
 
-use hippox_atomic_skills::types::SkillSignal;
+use hippox_atomic_skills::SkillSignal;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::RwLock;

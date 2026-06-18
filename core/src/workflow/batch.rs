@@ -108,6 +108,7 @@ pub async fn execute_batch_plan(
                 skill_index: Some(idx),
                 skill_name: Some(step_name.clone()),
                 extra: HashMap::new(),
+                signal_bus: None,
             };
             match executor
                 .execute(&step, skill_callback.as_deref(), Some(&skill_context))

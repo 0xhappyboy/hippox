@@ -195,6 +195,7 @@ async fn execute_step_with_retry(
             skill_index: Some(step_index),
             skill_name: Some(skill_name.to_string()),
             extra: HashMap::new(),
+            signal_bus: None,
         };
         match executor
             .get_executor()

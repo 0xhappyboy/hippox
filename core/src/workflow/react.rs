@@ -236,6 +236,7 @@ pub async fn execute_react(
                     skill_index: Some(step_index),
                     skill_name: Some(call.action.clone()),
                     extra: HashMap::new(),
+                    signal_bus: None,
                 };
                 let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
                     executor.get_skill_callback();
@@ -495,24 +496,21 @@ pub async fn execute_react_with_categories(
                 {
                     return result;
                 }
-
                 if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
                             .await;
                     }
                 }
-
                 let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
                     executor.get_skill_callback();
-
                 let skill_context = SkillContext {
                     task_id: task_id.clone(),
                     skill_index: Some(step_index),
                     skill_name: Some(step_name.clone()),
                     extra: HashMap::new(),
+                    signal_bus: None,
                 };
-
                 match executor
                     .get_executor()
                     .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
