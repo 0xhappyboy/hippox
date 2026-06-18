@@ -1,7 +1,7 @@
 //! Batch mode workflow execution
 
 use crate::prompts::build_batch_prompt;
-use crate::{SkillScheduler, t};
+use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, t};
 use futures::future::join_all;
 use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use serde_json::Value;
@@ -108,7 +108,7 @@ pub async fn execute_batch_plan(
                 skill_index: Some(idx),
                 skill_name: Some(step_name.clone()),
                 extra: HashMap::new(),
-                signal_bus: None,
+                signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
             };
             match executor
                 .execute(&step, skill_callback.as_deref(), Some(&skill_context))

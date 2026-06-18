@@ -302,7 +302,7 @@ pub async fn execute_chain(
             skill_index: Some(idx),
             skill_name: Some(step.action.clone()),
             extra: HashMap::new(),
-            signal_bus: None,
+            signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
         let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
         match executor
@@ -436,7 +436,7 @@ pub async fn execute_chain_with_categories(
             skill_index: Some(idx),
             skill_name: Some(step_name.clone()),
             extra: HashMap::new(),
-            signal_bus: None,
+            signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
         match executor
             .get_executor()

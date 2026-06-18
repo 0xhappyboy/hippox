@@ -236,7 +236,7 @@ pub async fn execute_react(
                     skill_index: Some(step_index),
                     skill_name: Some(call.action.clone()),
                     extra: HashMap::new(),
-                    signal_bus: None,
+                    signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
                 };
                 let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
                     executor.get_skill_callback();
@@ -509,7 +509,7 @@ pub async fn execute_react_with_categories(
                     skill_index: Some(step_index),
                     skill_name: Some(step_name.clone()),
                     extra: HashMap::new(),
-                    signal_bus: None,
+                    signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
                 };
                 match executor
                     .get_executor()

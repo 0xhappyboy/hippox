@@ -28,5 +28,5 @@ pub(crate) static TASK_SIGNAL_BUS: Lazy<RwLock<HashMap<String, TaskSignal>>> =
 
 /// Task Step signal bus: task_id -> (step_index -> Signal)
 pub(crate) static TASK_STEP_SIGNAL_BUS: Lazy<
-    RwLock<HashMap<String, HashMap<String, SkillSignal>>>,
+    RwLock<HashMap<String, HashMap<usize, SkillSignal>>>,
 > = Lazy::new(|| RwLock::new(HashMap::new()));
