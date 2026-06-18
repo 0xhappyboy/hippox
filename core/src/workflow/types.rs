@@ -142,7 +142,7 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         task_id: &str,
         step_name: &str,
         step_index: usize,
-        parameters: Option<&HashMap<String, Value>>,
+        input: Option<&HashMap<String, Value>>,
     );
 
     async fn on_step_success(
