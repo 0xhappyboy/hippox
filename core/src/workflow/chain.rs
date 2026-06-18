@@ -299,8 +299,8 @@ pub async fn execute_chain(
         };
         let skill_context = SkillContext {
             task_id: task_id.clone(),
-            step_index: Some(idx),
-            step_name: Some(step.action.clone()),
+            skill_index: Some(idx),
+            skill_name: Some(step.action.clone()),
             extra: HashMap::new(),
         };
         let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
@@ -420,27 +420,22 @@ pub async fn execute_chain_with_categories(
     for (idx, step) in chain.steps.iter().enumerate() {
         let step_name = step.action.clone();
         let step_start = Instant::now();
-
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
             let resolved = resolve_variables_deep(value, &context);
             resolved_params.insert(key.clone(), resolved);
         }
-
         let call = SkillCall {
             action: step.action.clone(),
             parameters: resolved_params,
         };
-
         let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
-
         let skill_context = SkillContext {
             task_id: task_id.clone(),
-            step_index: Some(idx),
-            step_name: Some(step_name.clone()),
+            skill_index: Some(idx),
+            skill_name: Some(step_name.clone()),
             extra: HashMap::new(),
         };
-
         match executor
             .get_executor()
             .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))

@@ -90,20 +90,83 @@ impl Skill for CalculatorSkill {
         callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String> {
+        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
+        let skill_index = context.as_ref().and_then(|c| c.skill_index());
+        let step_name = context
+            .as_ref()
+            .and_then(|c| c.skill_name())
+            .map(String::from);
+        let cb = callback;
+        if let Some(cb) = cb {
+            cb.on_start(task_id.clone(), skill_index, step_name);
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Starting math calculation".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(10), None);
+        }
         let expression = parameters
             .get("expression")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'expression' parameter"))?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Expression: {}", expression)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(25), None);
+        }
         let use_degrees = parameters
             .get("degrees")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Using degrees: {}", use_degrees)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(45), None);
+        }
         let result = evaluate_expression(expression, use_degrees)?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Raw result: {}", result)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(80), None);
+        }
         let precision = parameters
             .get("precision")
             .and_then(|v| v.as_u64())
             .unwrap_or(6);
-        Ok(format_number(result, precision as usize))
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Formatting with precision: {}", precision)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(90), None);
+        }
+        let res = format_number(result, precision as usize);
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Final result: {}", res)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+            cb.on_complete(
+                task_id.clone(),
+                skill_index,
+                Some("math_calculator".to_string()),
+                Some(res.clone()),
+            );
+        }
+        Ok(res)
     }
 
     fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {

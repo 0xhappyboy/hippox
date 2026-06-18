@@ -233,8 +233,8 @@ pub async fn execute_react(
                 }
                 let skill_context = SkillContext {
                     task_id: task_id.clone(),
-                    step_index: Some(step_index),
-                    step_name: Some(call.action.clone()),
+                    skill_index: Some(step_index),
+                    skill_name: Some(call.action.clone()),
                     extra: HashMap::new(),
                 };
                 let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
@@ -508,8 +508,8 @@ pub async fn execute_react_with_categories(
 
                 let skill_context = SkillContext {
                     task_id: task_id.clone(),
-                    step_index: Some(step_index),
-                    step_name: Some(step_name.clone()),
+                    skill_index: Some(step_index),
+                    skill_name: Some(step_name.clone()),
                     extra: HashMap::new(),
                 };
 

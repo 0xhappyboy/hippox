@@ -48,8 +48,9 @@ impl ExecutableTask for NaturalLanguageTask {
         state_updater: TaskStateUpdater,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let workflow_callback = self.workflow_callback.clone();
+        let skill_callback = self.skill_callback.clone(); 
         let input = self.input.clone();
-        let workflow_executor = self.workflow_executor.clone();
+        let mut workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
         let task_id = state_updater.task_id().to_string();
         let overall_start = Instant::now();
@@ -70,6 +71,9 @@ impl ExecutableTask for NaturalLanguageTask {
             let mut executor_with_callback = workflow_executor.clone();
             if let Some(ref cb) = workflow_callback {
                 executor_with_callback = executor_with_callback.with_workflow_callback(cb.clone());
+            }
+            if let Some(cb) = skill_callback {
+                executor_with_callback = executor_with_callback.with_skill_callback(cb);
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
             let result = if categories.is_empty() {

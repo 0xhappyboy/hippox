@@ -189,15 +189,13 @@ async fn execute_step_with_retry(
             action: skill_name.to_string(),
             parameters: parameters.clone(),
         };
-
         let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
         let skill_context = SkillContext {
             task_id: task_id.clone(),
-            step_index: Some(step_index),
-            step_name: Some(skill_name.to_string()),
+            skill_index: Some(step_index),
+            skill_name: Some(skill_name.to_string()),
             extra: HashMap::new(),
         };
-
         match executor
             .get_executor()
             .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))

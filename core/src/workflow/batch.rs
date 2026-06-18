@@ -105,8 +105,8 @@ pub async fn execute_batch_plan(
             // set skill context and callback
             let skill_context = SkillContext {
                 task_id: task_id.clone(),
-                step_index: Some(idx),
-                step_name: Some(step_name.clone()),
+                skill_index: Some(idx),
+                skill_name: Some(step_name.clone()),
                 extra: HashMap::new(),
             };
             match executor

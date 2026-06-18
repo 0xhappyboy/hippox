@@ -173,9 +173,9 @@ pub struct SkillContext {
     /// Task ID, used for logging and tracing
     pub task_id: Option<String>,
     /// Current step index (starting from 0)
-    pub step_index: Option<usize>,
+    pub skill_index: Option<usize>,
     /// Current step name
-    pub step_name: Option<String>,
+    pub skill_name: Option<String>,
     /// Extended data for future needs
     pub extra: HashMap<String, Value>,
 }
@@ -200,13 +200,13 @@ impl SkillContext {
     }
 
     /// Get step_index
-    pub fn step_index(&self) -> Option<usize> {
-        self.step_index
+    pub fn skill_index(&self) -> Option<usize> {
+        self.skill_index
     }
 
     /// Get step_name
-    pub fn step_name(&self) -> Option<&str> {
-        self.step_name.as_deref()
+    pub fn skill_name(&self) -> Option<&str> {
+        self.skill_name.as_deref()
     }
 
     /// Get extra value by key
@@ -220,15 +220,15 @@ impl SkillContext {
         self
     }
 
-    /// Set step_index
-    pub fn set_step_index(&mut self, step_index: usize) -> &mut Self {
-        self.step_index = Some(step_index);
+    /// Set skill_index
+    pub fn set_skill_index(&mut self, skill_index: usize) -> &mut Self {
+        self.skill_index = Some(skill_index);
         self
     }
 
-    /// Set step_name
-    pub fn set_step_name(&mut self, step_name: impl Into<String>) -> &mut Self {
-        self.step_name = Some(step_name.into());
+    /// Set skill_name
+    pub fn set_skill_name(&mut self, skill_name: impl Into<String>) -> &mut Self {
+        self.skill_name = Some(skill_name.into());
         self
     }
 
@@ -254,15 +254,15 @@ impl SkillContext {
         self
     }
 
-    /// Builder: set step_index
-    pub fn with_step_index(mut self, step_index: usize) -> Self {
-        self.step_index = Some(step_index);
+    /// Builder: set skill_index
+    pub fn with_skill_index(mut self, skill_index: usize) -> Self {
+        self.skill_index = Some(skill_index);
         self
     }
 
-    /// Builder: set step_name
-    pub fn with_step_name(mut self, step_name: impl Into<String>) -> Self {
-        self.step_name = Some(step_name.into());
+    /// Builder: set skill_name
+    pub fn with_skill_name(mut self, skill_name: impl Into<String>) -> Self {
+        self.skill_name = Some(skill_name.into());
         self
     }
 
@@ -289,32 +289,33 @@ impl SkillContext {
 /// Implemented by the external layer and injected into skills.
 pub trait SkillCallback: Send + Sync + Debug {
     /// log output
-    fn on_log(
-        &self,
-        task_id: Option<String>,
-        step_index: Option<usize>,
-        message: &str,
-    );
+    fn on_log(&self, task_id: Option<String>, skill_index: Option<usize>, message: Option<String>);
 
     /// Progress update
     fn on_progress(
         &self,
         task_id: Option<String>,
-        step_index: Option<usize>,
-        progress: u8,
-        message: &str,
+        skill_index: Option<usize>,
+        progress: Option<u8>,
+        message: Option<String>,
     );
 
     /// Step started (optional, default implementation does nothing)
-    fn on_start(&self, task_id: Option<String>, step_index: Option<usize>, _skill_name: &str) {}
+    fn on_start(
+        &self,
+        task_id: Option<String>,
+        skill_index: Option<usize>,
+        skill_name: Option<String>,
+    ) {
+    }
 
     /// Step completed (optional, default implementation does nothing)
     fn on_complete(
         &self,
         task_id: Option<String>,
-        step_index: Option<usize>,
-        skill_name: &str,
-        result: &str,
+        skill_index: Option<usize>,
+        skill_name: Option<String>,
+        output: Option<String>,
     ) {
     }
 
@@ -322,9 +323,9 @@ pub trait SkillCallback: Send + Sync + Debug {
     fn on_error(
         &self,
         task_id: Option<String>,
-        step_index: Option<usize>,
-        skill_name: &str,
-        error: &str,
+        skill_index: Option<usize>,
+        skill_name: Option<String>,
+        error: Option<String>,
     ) {
     }
 }
@@ -847,8 +848,8 @@ mod tests {
     fn test_context_new() {
         let ctx = SkillContext::new();
         assert!(ctx.task_id().is_none());
-        assert!(ctx.step_index().is_none());
-        assert!(ctx.step_name().is_none());
+        assert!(ctx.skill_index().is_none());
+        assert!(ctx.skill_name().is_none());
         assert!(ctx.extra.is_empty());
     }
 
@@ -862,12 +863,12 @@ mod tests {
     fn test_context_getters_setters() {
         let mut ctx = SkillContext::new();
         ctx.set_task_id("task-456")
-            .set_step_index(3)
-            .set_step_name("download_file");
+            .set_skill_index(3)
+            .set_skill_name("download_file");
 
         assert_eq!(ctx.task_id(), Some("task-456"));
-        assert_eq!(ctx.step_index(), Some(3));
-        assert_eq!(ctx.step_name(), Some("download_file"));
+        assert_eq!(ctx.skill_index(), Some(3));
+        assert_eq!(ctx.skill_name(), Some("download_file"));
     }
 
     #[test]
@@ -889,14 +890,13 @@ mod tests {
     fn test_context_builder() {
         let ctx = SkillContext::new()
             .with_task_id_builder("task-789")
-            .with_step_index(5)
-            .with_step_name("process_data")
+            .with_skill_index(5)
+            .with_skill_name("process_data")
             .with_extra("retry_count", json!(3))
             .build();
-
         assert_eq!(ctx.task_id(), Some("task-789"));
-        assert_eq!(ctx.step_index(), Some(5));
-        assert_eq!(ctx.step_name(), Some("process_data"));
+        assert_eq!(ctx.skill_index(), Some(5));
+        assert_eq!(ctx.skill_name(), Some("process_data"));
         assert_eq!(ctx.get_extra("retry_count"), Some(&json!(3)));
     }
 }
