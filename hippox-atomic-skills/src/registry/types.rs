@@ -230,7 +230,7 @@ impl SkillCategory {
                 "Mathematical calculations, statistics, unit conversion, random generation, hashing"
             }
             SkillCategory::Network => {
-                "HTTP requests, DNS lookup, Ping, TCP/UDP communication, FTP operations"
+                "HTTP/HTTPS requests, DNS lookup, Ping/TCP/UDP, FTP, port scanning, HTML parsing, SSH execution, webhook notifications, network diagnostics"
             }
             SkillCategory::OperatingSystem => {
                 "System information, power management, environment variables, clipboard operations"

@@ -11,6 +11,7 @@ pub fn register(registry: &mut SkillRegistryMap) {
     #[cfg(any(feature = "network", feature = "all"))]
     {
         use crate::{
+            HttpDownloadSkill,
             skills::network::{
                 // Existing skills from dns.rs
                 BatchPingSkill,
@@ -24,11 +25,15 @@ pub fn register(registry: &mut SkillRegistryMap) {
                 FtpDownloadSkill,
                 FtpListSkill,
                 FtpUploadSkill,
+                HtmlParseSkill,
                 HttpRequestSkill,
+                HttpUploadSkill,
                 IpInfoSkill,
                 IpRangeSkill,
                 IpValidateSkill,
                 LocalIpSkill,
+                NetstatSkill,
+                NslookupSkill,
                 PingSkill,
                 PortLookupSkill,
                 PortScanSkill,
@@ -37,9 +42,11 @@ pub fn register(registry: &mut SkillRegistryMap) {
                 ReverseDnsSkill,
                 SensitiveFileScanSkill,
                 ServiceDetectSkill,
+                SshExecSkill,
                 TcpPingSkill,
                 TcpReceiveSkill,
                 TcpSendSkill,
+                WebhookSendSkill,
             },
             udp::{UdpBroadcastSkill, UdpReceiveSkill, UdpSendSkill},
         };
@@ -91,5 +98,12 @@ pub fn register(registry: &mut SkillRegistryMap) {
             Arc::new(SensitiveFileScanSkill),
         );
         map.insert("firewall_check".to_string(), Arc::new(FirewallCheckSkill));
+        map.insert("html_parse".to_string(), Arc::new(HtmlParseSkill));
+        map.insert("http_download".to_string(), Arc::new(HttpDownloadSkill));
+        map.insert("http_upload".to_string(), Arc::new(HttpUploadSkill));
+        map.insert("netstat".to_string(), Arc::new(NetstatSkill));
+        map.insert("nslookup".to_string(), Arc::new(NslookupSkill));
+        map.insert("ssh_exec".to_string(), Arc::new(SshExecSkill));
+        map.insert("webhook_send".to_string(), Arc::new(WebhookSendSkill));
     }
 }
