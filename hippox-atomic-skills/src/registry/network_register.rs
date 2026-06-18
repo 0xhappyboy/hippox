@@ -11,7 +11,7 @@ pub fn register(registry: &mut SkillRegistryMap) {
     #[cfg(any(feature = "network", feature = "all"))]
     {
         use crate::{
-            skills::network::{
+            TcpUniversalServerSkill, skills::network::{
                 // Existing skills from dns.rs
                 BatchPingSkill,
                 DirScanSkill,
@@ -44,8 +44,7 @@ pub fn register(registry: &mut SkillRegistryMap) {
                 TcpSendSkill,
                 TrafficAnalyzeSkill,
                 VulnScanSkill,
-            },
-            udp::{UdpBroadcastSkill, UdpReceiveSkill, UdpSendSkill},
+            }, udp::{UdpBroadcastSkill, UdpReceiveSkill, UdpSendSkill}
         };
         // HTTP/URL
         map.insert("http_request".to_string(), Arc::new(HttpRequestSkill));
@@ -74,6 +73,10 @@ pub fn register(registry: &mut SkillRegistryMap) {
         // TCP
         map.insert("tcp_send".to_string(), Arc::new(TcpSendSkill));
         map.insert("tcp_receive".to_string(), Arc::new(TcpReceiveSkill));
+        map.insert(
+            "tcp_universal_server".to_string(),
+            Arc::new(TcpUniversalServerSkill),
+        );
         // UDP
         map.insert("udp_send".to_string(), Arc::new(UdpSendSkill));
         map.insert("udp_receive".to_string(), Arc::new(UdpReceiveSkill));
