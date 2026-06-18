@@ -1,3 +1,5 @@
+// tasks.rs
+
 //! Internal task implementations for Hippox core
 
 use hippox_atomic_skills::SkillCallback;
@@ -48,7 +50,7 @@ impl ExecutableTask for NaturalLanguageTask {
         state_updater: TaskStateUpdater,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let workflow_callback = self.workflow_callback.clone();
-        let skill_callback = self.skill_callback.clone(); 
+        let skill_callback = self.skill_callback.clone();
         let input = self.input.clone();
         let mut workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
@@ -76,15 +78,14 @@ impl ExecutableTask for NaturalLanguageTask {
                 executor_with_callback = executor_with_callback.with_skill_callback(cb);
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
-            let result = if categories.is_empty() {
-                executor_with_callback
-                    .execute(&scheduler, clean_intent)
-                    .await
-            } else {
-                executor_with_callback
-                    .execute_with_categories(&scheduler, clean_intent, categories)
-                    .await
-            };
+            let result = pipeline
+                .execute_workflow(
+                    &scheduler,
+                    &executor_with_callback,
+                    clean_intent,
+                    categories,
+                )
+                .await;
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;
             let (display_output, raw_json) = match &result {
@@ -120,7 +121,7 @@ impl ExecutableTask for NaturalLanguageTask {
                         .await;
                     }
                 }
-                WorkflowExecutionResult::Paused { partial_output, .. } => {
+                WorkflowExecutionResult::Paused { .. } => {
                     info!("Task {} was paused", task_id);
                 }
                 WorkflowExecutionResult::Cancelled { .. } => {

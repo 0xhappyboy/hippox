@@ -90,268 +90,6 @@ async fn check_task_interruption(
     Ok(())
 }
 
-pub async fn execute_react(
-    executor: &WorkflowExecutor,
-    scheduler: &SkillScheduler,
-    input: &str,
-) -> WorkflowExecutionResult {
-    let overall_start = Instant::now();
-    let input_trimmed = input.trim();
-    if input_trimmed == "clear" {
-        return WorkflowExecutionResult::Completed(t!("app.conversation_cleared").to_string());
-    }
-    if input_trimmed == "exit" || input_trimmed == "quit" {
-        return WorkflowExecutionResult::Completed("goodbye".to_string());
-    }
-    if input_trimmed.is_empty() {
-        return WorkflowExecutionResult::Completed(String::new());
-    }
-    let mut step_results: Vec<StepResult> = Vec::new();
-    let mut final_response = None;
-    let mut iteration = 0;
-    let mut messages: Vec<ChatMessage> = Vec::new();
-    let system_prompt = build_react_prompt();
-    messages.push(ChatMessage::system(&system_prompt));
-    messages.push(ChatMessage::user(input_trimmed));
-    let task_id = executor.get_task_id().map(|s| s.to_string());
-    // Check for checkpoint to resume from
-    if let Some(ref tid) = task_id {
-        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
-            if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
-                if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
-                {
-                    step_results = checkpoint.completed_results;
-                    for result in &step_results {
-                        messages.push(ChatMessage::user(&format!(
-                            "Skill '{}' executed. Result: {}",
-                            result.skill, result.output
-                        )));
-                    }
-                    if let Some(cb) = executor.get_workflow_callback() {
-                        cb.on_workflow_resumed(
-                            tid,
-                            overall_start.elapsed().as_millis() as u64,
-                            step_results.len(),
-                        )
-                        .await;
-                    }
-                }
-            }
-        }
-    }
-    while iteration < executor.max_iterations {
-        iteration += 1;
-        if let Some(ref tid) = task_id {
-            if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
-                if state_updater.is_cancelled().await {
-                    if let Some(cb) = executor.get_workflow_callback() {
-                        cb.on_workflow_cancelled(
-                            tid,
-                            overall_start.elapsed().as_millis() as u64,
-                            step_results.len(),
-                        )
-                        .await;
-                    }
-                    return WorkflowExecutionResult::Cancelled {
-                        completed_steps: step_results.len(),
-                    };
-                }
-                if state_updater.is_paused().await {
-                    if let Some(cb) = executor.get_workflow_callback() {
-                        let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
-                            last_completed_step: step_results.len(),
-                            variables: HashMap::new(),
-                            completed_results: step_results.clone(),
-                            mode: WorkflowMode::ReAct,
-                            metadata: HashMap::new(),
-                        })
-                        .ok();
-                        if let Some(ref checkpoint_data) = checkpoint {
-                            state_updater.save_checkpoint(checkpoint_data).await;
-                        }
-                        cb.on_workflow_paused(
-                            tid,
-                            checkpoint.as_deref(),
-                            overall_start.elapsed().as_millis() as u64,
-                            step_results.len(),
-                        )
-                        .await;
-                    }
-                    return WorkflowExecutionResult::Paused {
-                        checkpoint: None,
-                        completed_steps: step_results.len(),
-                        partial_output: format_step_results(&step_results),
-                    };
-                }
-            }
-        }
-        let llm_response = match scheduler
-            .chat_with_task(messages.clone(), &task_id.clone().unwrap())
-            .await
-        {
-            Ok(resp) => resp,
-            Err(e) => {
-                return WorkflowExecutionResult::Failed {
-                    error: format!("{}: {}", t!("error.llm_error"), e),
-                    completed_steps: step_results.len(),
-                };
-            }
-        };
-        messages.push(ChatMessage::assistant(&llm_response));
-        let instruction = match parse_react_response(&llm_response) {
-            Ok(instr) => instr,
-            Err(_) => {
-                return WorkflowExecutionResult::Completed(llm_response);
-            }
-        };
-        match instruction {
-            ReactInstruction::Done(message) => {
-                final_response = Some(message);
-                break;
-            }
-            ReactInstruction::Single(call) => {
-                let step_index = step_results.len();
-                let step_name = call.action.clone();
-                let step_start = Instant::now();
-
-                if let Err(result) = check_task_interruption(
-                    task_id.as_deref(),
-                    executor.get_workflow_callback(),
-                    step_index,
-                    &step_name,
-                    None,
-                )
-                .await
-                {
-                    return result;
-                }
-                if let Some(cb) = executor.get_workflow_callback() {
-                    if let Some(ref tid) = task_id {
-                        cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
-                            .await;
-                    }
-                }
-                let skill_context = SkillContext {
-                    task_id: task_id.clone(),
-                    skill_index: Some(step_index),
-                    skill_name: Some(call.action.clone()),
-                    extra: HashMap::new(),
-                    signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
-                };
-                let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
-                    executor.get_skill_callback();
-                match executor
-                    .get_executor()
-                    .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
-                    .await
-                {
-                    Ok(output) => {
-                        let duration = step_start.elapsed().as_millis() as u64;
-                        if let Some(cb) = executor.get_workflow_callback() {
-                            if let Some(ref tid) = task_id {
-                                cb.on_step_success(tid, &step_name, step_index, &output, duration)
-                                    .await;
-                            }
-                        }
-                        step_results.push(StepResult {
-                            skill: call.action.clone(),
-                            parameters: call.parameters.clone(),
-                            output: output.clone(),
-                            status: ExecutionStatus::Success,
-                        });
-                        messages.push(ChatMessage::user(&format!(
-                            "Skill '{}' executed. Result: {}",
-                            call.action, output
-                        )));
-                    }
-                    Err(e) => {
-                        let duration = step_start.elapsed().as_millis() as u64;
-                        let error_msg = e.to_string();
-                        if let Some(cb) = executor.get_workflow_callback() {
-                            if let Some(ref tid) = task_id {
-                                cb.on_step_failure(
-                                    tid, &step_name, step_index, &error_msg, duration,
-                                )
-                                .await;
-                            }
-                        }
-                        step_results.push(StepResult {
-                            skill: call.action.clone(),
-                            parameters: call.parameters.clone(),
-                            output: error_msg.clone(),
-                            status: ExecutionStatus::Failure,
-                        });
-                        final_response = Some(format!(
-                            "{} '{}': {}",
-                            t!("error.skill_failed"),
-                            call.action,
-                            error_msg
-                        ));
-                        break;
-                    }
-                }
-            }
-            ReactInstruction::Batch(steps) => {
-                let step_index = step_results.len();
-                let step_name = format!("batch_{}_steps", steps.len());
-                if let Err(result) = check_task_interruption(
-                    task_id.as_deref(),
-                    executor.get_workflow_callback(),
-                    step_index,
-                    &step_name,
-                    None,
-                )
-                .await
-                {
-                    return result;
-                }
-                let batch_results = execute_batch_plan(executor, &steps).await;
-                let mut batch_output = String::new();
-                for (i, result) in batch_results.iter().enumerate() {
-                    step_results.push(result.clone());
-                    batch_output.push_str(&format!("Step {}: {}\n", i + 1, result.output));
-                }
-                messages.push(ChatMessage::user(&format!(
-                    "Batch execution completed. Results:\n{}",
-                    batch_output
-                )));
-                final_response = Some(format_step_results(&step_results));
-                break;
-            }
-        }
-    }
-    if iteration >= executor.max_iterations {
-        final_response = Some(t!("error.max_iterations_reached").to_string());
-    }
-    let total_duration = overall_start.elapsed().as_millis() as u64;
-    let final_response = final_response.unwrap_or_else(|| {
-        if step_results.is_empty() {
-            t!("skill.no_actions_executed").to_string()
-        } else {
-            format_step_results(&step_results)
-        }
-    });
-    let raw_json = serde_json::json!({
-        "mode": "react",
-        "result": final_response,
-        "steps": step_results.iter().map(|r| {
-            serde_json::json!({
-                "skill": r.skill,
-                "output": r.output,
-                "status": match r.status {
-                    ExecutionStatus::Success => "success",
-                    ExecutionStatus::Failure => "failure",
-                }
-            })
-        }).collect::<Vec<_>>()
-    })
-    .to_string();
-    WorkflowExecutionResult::CompletedWithRaw {
-        display: final_response,
-        raw_json,
-    }
-}
-
 pub async fn execute_react_with_categories(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
@@ -360,30 +98,19 @@ pub async fn execute_react_with_categories(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let input_trimmed = input.trim();
-    if input_trimmed == "clear" {
-        return WorkflowExecutionResult::Completed(t!("app.conversation_cleared").to_string());
-    }
-    if input_trimmed == "exit" || input_trimmed == "quit" {
-        return WorkflowExecutionResult::Completed("goodbye".to_string());
-    }
     if input_trimmed.is_empty() {
         return WorkflowExecutionResult::Completed(String::new());
     }
-
     let mut step_results: Vec<StepResult> = Vec::new();
     let mut final_response = None;
     let mut iteration = 0;
     let mut messages: Vec<ChatMessage> = Vec::new();
-
     let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
-
-    let system_prompt = crate::prompts::build_react_prompt_with_categories(&filtered_skills);
-
-    messages.push(ChatMessage::system(&system_prompt));
+    let react_workflow_prompt =
+        crate::prompts::build_react_prompt_with_categories(&filtered_skills);
+    messages.push(ChatMessage::system(&react_workflow_prompt));
     messages.push(ChatMessage::user(input_trimmed));
-
     let task_id = executor.get_task_id().map(|s| s.to_string());
-
     // Check for checkpoint to resume from
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
@@ -474,7 +201,6 @@ pub async fn execute_react_with_categories(
                 return WorkflowExecutionResult::Completed(llm_response);
             }
         };
-
         match instruction {
             ReactInstruction::Done(message) => {
                 final_response = Some(message);
@@ -600,7 +326,6 @@ pub async fn execute_react_with_categories(
             format_step_results(&step_results)
         }
     });
-
     let raw_json = serde_json::json!({
         "mode": "react",
         "result": final_response,
@@ -616,7 +341,6 @@ pub async fn execute_react_with_categories(
         }).collect::<Vec<_>>()
     })
     .to_string();
-
     WorkflowExecutionResult::CompletedWithRaw {
         display: final_response,
         raw_json,

@@ -36,6 +36,35 @@ impl SystemPipeline {
             Err(e) => IntentParseResult::fallback(raw_input),
         }
     }
+
+    pub async fn execute_workflow(
+        &self,
+        scheduler: &SkillScheduler,
+        executor: &WorkflowExecutor,
+        clean_intent: &str,
+        categories: &[String],
+    ) -> crate::workflow::WorkflowExecutionResult {
+        if categories.is_empty() {
+            match scheduler.fallback_chat(clean_intent).await {
+                Ok(output) => crate::workflow::WorkflowExecutionResult::CompletedWithRaw {
+                    display: output.clone(),
+                    raw_json: serde_json::json!({
+                        "mode": "chat",
+                        "result": output
+                    })
+                    .to_string(),
+                },
+                Err(e) => crate::workflow::WorkflowExecutionResult::Failed {
+                    error: format!("Fallback chat failed: {}", e),
+                    completed_steps: 0,
+                },
+            }
+        } else {
+            executor
+                .execute_with_categories(scheduler, clean_intent, categories)
+                .await
+        }
+    }
 }
 
 #[async_trait]
@@ -57,13 +86,12 @@ impl Pipeline for SystemPipeline {
     /// Step 2: Core workflow execution
     async fn workflow_execution(
         &self,
-        mode: WorkflowMode,
+        _mode: WorkflowMode,
         executor: &WorkflowExecutor,
         scheduler: &SkillScheduler,
         input: &str,
     ) -> WorkflowExecResult {
-        // Execute workflow (format requirements are ignored at this stage)
-        let result = executor.execute(scheduler, input).await;
+        let result = self.execute_workflow(scheduler, executor, input, &[]).await;
         let json_output = match result {
             crate::workflow::WorkflowExecutionResult::Completed(output) => output,
             crate::workflow::WorkflowExecutionResult::CompletedWithRaw { raw_json, .. } => raw_json,

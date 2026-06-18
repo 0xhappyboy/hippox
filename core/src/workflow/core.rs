@@ -2,10 +2,6 @@
 
 use hippox_atomic_skills::{Executor, SkillCallback};
 
-use super::batch::execute_batch;
-use super::chain::execute_chain;
-use super::plan_and_execute::execute_plan_and_execute;
-use super::react::execute_react;
 use super::types::*;
 use crate::prompts::{build_react_prompt, build_skill_md_prompt};
 use crate::skill_scheduler::SkillScheduler;
@@ -14,6 +10,8 @@ use crate::{
     execute_plan_and_execute_with_categories, execute_react_with_categories,
 };
 use std::sync::Arc;
+
+const MAX_NUMBER_OF_REACT: usize = 10;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WorkflowExecutor {
@@ -30,7 +28,7 @@ impl WorkflowExecutor {
         Self {
             mode,
             executor: Executor::new(),
-            max_iterations: 10,
+            max_iterations: MAX_NUMBER_OF_REACT,
             task_id: None,
             workflow_callback: None,
             skill_callback: None,
@@ -75,19 +73,6 @@ impl WorkflowExecutor {
 
     pub fn get_workflow_callback(&self) -> &Option<Arc<dyn WorkflowCallback>> {
         &self.workflow_callback
-    }
-
-    pub async fn execute(
-        &self,
-        scheduler: &SkillScheduler,
-        input: &str,
-    ) -> WorkflowExecutionResult {
-        match self.mode {
-            WorkflowMode::ReAct => execute_react(self, scheduler, input).await,
-            WorkflowMode::Batch => execute_batch(self, scheduler, input).await,
-            WorkflowMode::Chain => execute_chain(self, scheduler, input).await,
-            WorkflowMode::PlanAndExecute => execute_plan_and_execute(self, scheduler, input).await,
-        }
     }
 
     pub async fn execute_with_categories(
