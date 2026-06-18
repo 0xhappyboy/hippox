@@ -4,13 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::RwLock;
 
-use crate::SkillCategory;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SkillSignal {
-    Pause,
-    Stop,
-}
+use crate::{SkillCategory, SkillSignal};
 
 /// Skill parameter definition
 ///

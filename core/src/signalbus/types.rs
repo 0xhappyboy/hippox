@@ -10,10 +10,16 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 
 /// Signal state enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TaskSignal {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TaskSignalStatus {
     Pause,
     Stop,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskSignal {
+    status: TaskSignalStatus,
+    msg: Option<String>,
 }
 
 /// Task signal bus: task_id -> Signal
@@ -21,5 +27,6 @@ pub(crate) static TASK_SIGNAL_BUS: Lazy<RwLock<HashMap<String, TaskSignal>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Task Step signal bus: task_id -> (step_index -> Signal)
-pub(crate) static TASK_STEP_SIGNAL_BUS: Lazy<RwLock<HashMap<String, HashMap<String, SkillSignal>>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+pub(crate) static TASK_STEP_SIGNAL_BUS: Lazy<
+    RwLock<HashMap<String, HashMap<String, SkillSignal>>>,
+> = Lazy::new(|| RwLock::new(HashMap::new()));
