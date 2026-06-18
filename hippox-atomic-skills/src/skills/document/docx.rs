@@ -73,28 +73,92 @@ impl Skill for DocxReadSkill {
         callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String> {
+        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
+        let skill_index = context.as_ref().and_then(|c| c.skill_index());
+        let step_name = context
+            .as_ref()
+            .and_then(|c| c.skill_name())
+            .map(String::from);
+        let cb = callback;
+
+        if let Some(cb) = cb {
+            cb.on_start(task_id.clone(), skill_index, step_name);
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Starting DOCX read operation".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(10), None);
+        }
+
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Reading DOCX file: {}", path)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(20), None);
+        }
+
         let include_tables = parameters
             .get("include_tables")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Include tables: {}", include_tables)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(30), None);
+        }
 
         let validated_path = validate_path(path, None)?;
         if !file_exists(&validated_path.to_string_lossy()) {
             anyhow::bail!("DOCX file not found: {}", path);
         }
 
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Validated path, opening DOCX file".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(40), None);
+        }
+
         use std::fs::File;
         use zip::ZipArchive;
         let file = File::open(&validated_path)?;
         let mut archive = ZipArchive::new(file)?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("DOCX archive opened, entries: {}", archive.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(50), None);
+        }
+
         let mut document_content = None;
         for i in 0..archive.len() {
             let entry = archive.by_index(i)?;
             if entry.name() == "word/document.xml" {
+                if let Some(cb) = cb {
+                    cb.on_log(
+                        task_id.clone(),
+                        skill_index,
+                        Some("Found word/document.xml".to_string()),
+                    );
+                    cb.on_progress(task_id.clone(), skill_index, Some(60), None);
+                }
                 let mut content = String::new();
                 let mut reader = std::io::BufReader::new(entry);
                 std::io::Read::read_to_string(&mut reader, &mut content)?;
@@ -102,9 +166,39 @@ impl Skill for DocxReadSkill {
                 break;
             }
         }
+
         let content = document_content
             .ok_or_else(|| anyhow::anyhow!("No document.xml found in DOCX file"))?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!(
+                    "Document XML loaded, size: {} bytes",
+                    content.len()
+                )),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(75), None);
+        }
+
         let text = extract_text_from_docx_xml(&content, include_tables);
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Text extracted, length: {} characters", text.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+            cb.on_complete(
+                task_id.clone(),
+                skill_index,
+                Some("docx_read".to_string()),
+                Some(text.clone()),
+            );
+        }
+
         Ok(text)
     }
 
@@ -169,24 +263,90 @@ impl Skill for DocxInfoSkill {
         callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String> {
+        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
+        let skill_index = context.as_ref().and_then(|c| c.skill_index());
+        let step_name = context
+            .as_ref()
+            .and_then(|c| c.skill_name())
+            .map(String::from);
+        let cb = callback;
+
+        if let Some(cb) = cb {
+            cb.on_start(task_id.clone(), skill_index, step_name);
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Starting DOCX info operation".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(10), None);
+        }
+
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Getting DOCX info for: {}", path)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(20), None);
+        }
+
         let validated_path = validate_path(path, None)?;
         if !file_exists(&validated_path.to_string_lossy()) {
             anyhow::bail!("DOCX file not found: {}", path);
         }
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Validated path, reading file metadata".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(30), None);
+        }
+
         use std::fs::File;
         use zip::ZipArchive;
         let file = File::open(&validated_path)?;
         let mut archive = ZipArchive::new(file)?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("DOCX archive opened, entries: {}", archive.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(40), None);
+        }
+
         let metadata = std::fs::metadata(&validated_path)?;
         let file_size = metadata.len();
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("File size: {:.2} KB", file_size as f64 / 1024.0)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(50), None);
+        }
+
         let mut document_content = None;
         for i in 0..archive.len() {
             let entry = archive.by_index(i)?;
             if entry.name() == "word/document.xml" {
+                if let Some(cb) = cb {
+                    cb.on_log(
+                        task_id.clone(),
+                        skill_index,
+                        Some("Found word/document.xml".to_string()),
+                    );
+                    cb.on_progress(task_id.clone(), skill_index, Some(60), None);
+                }
                 let mut content = String::new();
                 let mut reader = std::io::BufReader::new(entry);
                 std::io::Read::read_to_string(&mut reader, &mut content)?;
@@ -194,20 +354,67 @@ impl Skill for DocxInfoSkill {
                 break;
             }
         }
+
         let mut output = String::new();
         output.push_str(&format!("File: {}\n", path));
         output.push_str(&format!("File size: {:.2} KB\n", file_size as f64 / 1024.0));
+
         if let Some(content) = document_content {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Extracting text from document XML".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(70), None);
+            }
+
             let text = extract_text_from_docx_xml(&content, false);
             let word_count = text.split_whitespace().count();
             let char_count = text.chars().count();
             let line_count = text.lines().count();
+
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some(format!(
+                        "Word count: {}, Character count: {}, Line count: {}",
+                        word_count, char_count, line_count
+                    )),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(80), None);
+            }
+
             output.push_str(&format!("Word count: {}\n", word_count));
             output.push_str(&format!("Character count: {}\n", char_count));
             output.push_str(&format!("Line count: {}\n", line_count));
         } else {
             output.push_str("Unable to extract document content\n");
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Unable to extract document content".to_string()),
+                );
+            }
         }
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("DOCX info completed".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+            cb.on_complete(
+                task_id.clone(),
+                skill_index,
+                Some("docx_info".to_string()),
+                Some(output.clone()),
+            );
+        }
+
         Ok(output)
     }
 

@@ -10,6 +10,7 @@ use crate::{
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::time::Instant;
 
 #[derive(Debug)]
 pub struct WriteFileSkill;
@@ -84,23 +85,93 @@ impl Skill for WriteFileSkill {
         callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String> {
+        let start_time = Instant::now();
+        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
+        let skill_index = context.as_ref().and_then(|c| c.skill_index());
+        let step_name = context
+            .as_ref()
+            .and_then(|c| c.skill_name())
+            .map(String::from);
+        let cb = callback;
+        if let Some(cb) = cb {
+            cb.on_start(task_id.clone(), skill_index, step_name.clone());
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Starting file write operation".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(10), None);
+        }
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Target path: {}", path)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(20), None);
+        }
         let content = parameters
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'content' parameter"))?;
+        if let Some(cb) = cb {
+            let content_preview = if content.len() > 100 {
+                format!("{}...", &content[..100])
+            } else {
+                content.to_string()
+            };
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Content length: {} bytes", content.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(30), None);
+        }
         let append = parameters
             .get("append")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Append mode: {}", append)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(40), None);
+        }
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Validating file path".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(50), None);
+        }
         let validated_path = validate_path(path, None)?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Ensuring parent directory exists".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(60), None);
+        }
         if let Some(parent) = validated_path.parent() {
             ensure_dir(&parent.to_string_lossy())?;
         }
-        if append {
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Writing content to file".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(75), None);
+        }
+        let result = if append {
             let existing = if file_exists(&validated_path.to_string_lossy()) {
                 read_file_content(&validated_path.to_string_lossy())?
             } else {
@@ -108,11 +179,28 @@ impl Skill for WriteFileSkill {
             };
             let new_content = format!("{}{}", existing, content);
             write_file_content(&validated_path.to_string_lossy(), &new_content, false)?;
-            Ok(format!("Content appended to file: {}", path))
+            format!("Content appended to file: {}", path)
         } else {
             write_file_content(&validated_path.to_string_lossy(), content, false)?;
-            Ok(format!("Content written to file: {}", path))
+            format!("Content written to file: {}", path)
+        };
+        if let Some(cb) = cb {
+            let duration = start_time.elapsed().as_millis() as u64;
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Completed in {}ms", duration)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+            cb.on_complete(
+                task_id.clone(),
+                skill_index,
+                step_name,
+                Some(result.clone()),
+            );
         }
+
+        Ok(result)
     }
 
     fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {

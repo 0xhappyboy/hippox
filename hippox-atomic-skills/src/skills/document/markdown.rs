@@ -72,30 +72,151 @@ impl Skill for MarkdownReadSkill {
         callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String> {
+        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
+        let skill_index = context.as_ref().and_then(|c| c.skill_index());
+        let step_name = context
+            .as_ref()
+            .and_then(|c| c.skill_name())
+            .map(String::from);
+        let cb = callback;
+
+        if let Some(cb) = cb {
+            cb.on_start(task_id.clone(), skill_index, step_name);
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Starting markdown read operation".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(10), None);
+        }
+
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Reading file: {}", path)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(25), None);
+        }
+
         let extract_frontmatter = parameters
             .get("extract_frontmatter")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Extract frontmatter: {}", extract_frontmatter)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(40), None);
+        }
+
         let validated_path = validate_path(path, None)?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!(
+                    "Validated path: {}",
+                    validated_path.to_string_lossy()
+                )),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(55), None);
+        }
+
         if !file_exists(&validated_path.to_string_lossy()) {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some(format!("File not found: {}", path)),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(60), None);
+            }
             anyhow::bail!("Markdown file not found: {}", path);
         }
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("File exists, reading content".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(70), None);
+        }
+
         let content = read_file_content(&validated_path.to_string_lossy())?;
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Read {} bytes", content.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(80), None);
+        }
+
         if extract_frontmatter && content.starts_with("---") {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Detected frontmatter, parsing".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(90), None);
+            }
+
             let parts: Vec<&str> = content.splitn(3, "---").collect();
             if parts.len() >= 3 {
                 let frontmatter = parts[1].trim();
                 let markdown_content = parts[2].trim();
-                return Ok(format!(
+                let result = format!(
                     "Frontmatter:\n{}\n\n---\n\nContent:\n{}",
                     frontmatter, markdown_content
-                ));
+                );
+
+                if let Some(cb) = cb {
+                    cb.on_log(
+                        task_id.clone(),
+                        skill_index,
+                        Some("Frontmatter extraction complete".to_string()),
+                    );
+                    cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+                    cb.on_complete(
+                        task_id.clone(),
+                        skill_index,
+                        Some("markdown_read".to_string()),
+                        Some(result.clone()),
+                    );
+                }
+
+                return Ok(result);
             }
         }
+
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Read operation complete".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+            cb.on_complete(
+                task_id.clone(),
+                skill_index,
+                Some("markdown_read".to_string()),
+                Some(content.clone()),
+            );
+        }
+
         Ok(content)
     }
 
@@ -183,34 +304,161 @@ impl Skill for MarkdownWriteSkill {
         callback: Option<&dyn SkillCallback>,
         context: Option<&SkillContext>,
     ) -> Result<String> {
+        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
+        let skill_index = context.as_ref().and_then(|c| c.skill_index());
+        let step_name = context
+            .as_ref()
+            .and_then(|c| c.skill_name())
+            .map(String::from);
+        let cb = callback;
+        if let Some(cb) = cb {
+            cb.on_start(task_id.clone(), skill_index, step_name);
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some("Starting markdown write operation".to_string()),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(10), None);
+        }
         let path = parameters
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Writing to file: {}", path)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(20), None);
+        }
         let content = parameters
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'content' parameter"))?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Content length: {} characters", content.len())),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(30), None);
+        }
         let append = parameters
             .get("append")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!("Append mode: {}", append)),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(40), None);
+        }
         let validated_path = validate_path(path, None)?;
+        if let Some(cb) = cb {
+            cb.on_log(
+                task_id.clone(),
+                skill_index,
+                Some(format!(
+                    "Validated path: {}",
+                    validated_path.to_string_lossy()
+                )),
+            );
+            cb.on_progress(task_id.clone(), skill_index, Some(50), None);
+        }
         if let Some(parent) = validated_path.parent() {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some(format!(
+                        "Ensuring parent directory: {}",
+                        parent.to_string_lossy()
+                    )),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(60), None);
+            }
             ensure_dir(&parent.to_string_lossy())?;
         }
         if append {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Appending to existing file".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(70), None);
+            }
             let existing = if file_exists(&validated_path.to_string_lossy()) {
                 read_file_content(&validated_path.to_string_lossy())?
             } else {
                 String::new()
             };
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some(format!(
+                        "Existing content length: {} characters",
+                        existing.len()
+                    )),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(80), None);
+            }
             let new_content = format!("{}\n\n{}", existing, content);
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Writing appended content".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(90), None);
+            }
             write_file_content(&validated_path.to_string_lossy(), &new_content, false)?;
-            Ok(format!("Content appended to Markdown file: {}", path))
+            let result = format!("Content appended to Markdown file: {}", path);
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Append operation complete".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+                cb.on_complete(
+                    task_id.clone(),
+                    skill_index,
+                    Some("markdown_write".to_string()),
+                    Some(result.clone()),
+                );
+            }
+            Ok(result)
         } else {
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Writing new file (overwriting if exists)".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(90), None);
+            }
             write_file_content(&validated_path.to_string_lossy(), content, false)?;
-            Ok(format!("Markdown written to: {}", path))
+            let result = format!("Markdown written to: {}", path);
+            if let Some(cb) = cb {
+                cb.on_log(
+                    task_id.clone(),
+                    skill_index,
+                    Some("Write operation complete".to_string()),
+                );
+                cb.on_progress(task_id.clone(), skill_index, Some(100), None);
+                cb.on_complete(
+                    task_id.clone(),
+                    skill_index,
+                    Some("markdown_write".to_string()),
+                    Some(result.clone()),
+                );
+            }
+            Ok(result)
         }
     }
 
