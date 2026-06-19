@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{SkillScheduler, WorkflowCallback, WorkflowExecutor, WorkflowMode};
+use crate::{DriverScheduler, WorkflowCallback, WorkflowExecutor, WorkflowMode};
 use std::sync::Arc;
 
 /// Intent analysis result from Step 1
@@ -31,10 +31,10 @@ pub struct FormatResult {
 /// Pipeline trait - defines the three steps of execution
 #[async_trait::async_trait]
 pub trait Pipeline: Send + Sync {
-    /// Step 1: Analyze user intent into skill categories
+    /// Step 1: Analyze user intent into driver categories
     async fn intent_analysis(
         &self,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         input: &str,
         task_id: &str,
     ) -> anyhow::Result<IntentAnalysisResult>;
@@ -44,14 +44,14 @@ pub trait Pipeline: Send + Sync {
         &self,
         mode: WorkflowMode,
         executor: &WorkflowExecutor,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         input: &str,
     ) -> WorkflowExecResult;
 
     /// Step 3: Format conversion based on user's structure requirements
     async fn response_formatting(
         &self,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         original_input: &str,
         json_output: &str,
         task_id: &str,

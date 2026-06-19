@@ -2,8 +2,8 @@
 
 use crate::prompts::get_identity_intro;
 
-/// Build chain mode prompt with filtered skills
-pub fn build_chain_prompt_with_categories(filtered_skills: &str, input: &str) -> String {
+/// Build chain mode prompt with filtered drivers
+pub fn build_chain_prompt_with_categories(filtered_drivers: &str, input: &str) -> String {
     let identity_intro = get_identity_intro();
 
     format!(
@@ -21,6 +21,6 @@ pub fn build_chain_prompt_with_categories(filtered_skills: &str, input: &str) ->
 ## User Input
 {}
 "#,
-        identity_intro, filtered_skills, input
+        identity_intro, filtered_drivers, input
     )
 }

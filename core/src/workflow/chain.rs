@@ -1,11 +1,11 @@
 //! Chain mode workflow execution
 //!
-//! This mode executes skills sequentially in the order defined by the LLM.
+//! This mode executes drivers sequentially in the order defined by the LLM.
 //! Each step is independent and does not depend on previous step outputs.
 //! Failures in one step do not prevent subsequent steps from executing.
 //!
 //! # Characteristics
-//! - Skills are executed one after another (sequential, not parallel)
+//! - Drivers are executed one after another (sequential, not parallel)
 //! - Each step has independent retry (3 attempts) and timeout (60s) protection
 //! - Steps do not depend on each other's results (no variable passing)
 //! - Best for: Ordered operations where order matters but results are independent
@@ -23,8 +23,8 @@
 
 use crate::prompts::build_chain_prompt;
 use crate::t;
-use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
-use hippox_atomic_skills::{Executor, SkillCall, SkillCallback, SkillContext};
+use crate::{DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
+use hippox_drivers::{Executor, DriverCall, DriverCallback, DriverContext};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -81,7 +81,7 @@ pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
 /// Resolve variable placeholders in a value using context.
 ///
 /// Supports `{{variable_name}}` syntax for variable substitution.
-/// This is used to resolve parameters before skill execution.
+/// This is used to resolve parameters before driver execution.
 ///
 /// # Arguments
 /// * `value` - The value containing potential variable placeholders
@@ -140,19 +140,19 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
 /// Execute a single chain step with retry and timeout protection.
 ///
 /// This function handles the complete lifecycle of a single chain step:
-/// - Executes the skill with timeout protection
+/// - Executes the driver with timeout protection
 /// - Automatically retries on failure or timeout (up to max_retries)
 /// - Triggers appropriate callbacks for each attempt
 /// - Returns Ok(output) on success, Err(error) after all retries exhausted
 ///
 /// # Arguments
-/// * `executor` - The skill executor
-/// * `call` - The skill call to execute
-/// * `step_name` - Name of the skill (for logging and callbacks)
+/// * `executor` - The driver executor
+/// * `call` - The driver call to execute
+/// * `step_name` - Name of the driver (for logging and callbacks)
 /// * `idx` - Index of this step in the chain
 /// * `task_id` - Optional task ID for task tracking
 /// * `workflow_callback` - Optional workflow callback for progress notifications
-/// * `skill_callback_arc` - Optional skill callback for skill-level events
+/// * `driver_callback_arc` - Optional driver callback for driver-level events
 /// * `max_retries` - Maximum number of retry attempts
 /// * `timeout_secs` - Timeout in seconds for each execution attempt
 ///
@@ -160,39 +160,39 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
 /// Ok(String) on success, Err(anyhow::Error) after all retries are exhausted
 async fn execute_chain_step_with_retry(
     executor: &Executor,
-    call: SkillCall,
+    call: DriverCall,
     step_name: String,
     idx: usize,
     task_id: Option<String>,
     workflow_callback: &Option<Arc<dyn WorkflowCallback>>,
-    skill_callback_arc: Option<Arc<dyn SkillCallback>>,
+    driver_callback_arc: Option<Arc<dyn DriverCallback>>,
     max_retries: usize,
     timeout_secs: u64,
 ) -> anyhow::Result<String> {
     let mut retry_context = RetryContext::new(max_retries, DEFAULT_MAX_CONSECUTIVE_FAILURES);
     let mut last_error = None;
     loop {
-        let skill_context = SkillContext {
+        let driver_context = DriverContext {
             task_id: task_id.clone(),
-            skill_index: Some(idx),
-            skill_name: Some(step_name.clone()),
+            driver_index: Some(idx),
+            driver_name: Some(step_name.clone()),
             extra: HashMap::new(),
             signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
-        let result = execute_skill_with_timeout(
+        let result = execute_driver_with_timeout(
             executor,
             &call,
-            skill_callback_arc.clone(),
-            Some(&skill_context),
+            driver_callback_arc.clone(),
+            Some(&driver_context),
             timeout_secs,
         )
         .await;
         match result {
-            SkillExecutionResult::Success(output) => {
+            DriverExecutionResult::Success(output) => {
                 return Ok(output);
             }
-            SkillExecutionResult::Timeout(ref error_msg)
-            | SkillExecutionResult::Failure(ref error_msg) => {
+            DriverExecutionResult::Timeout(ref error_msg)
+            | DriverExecutionResult::Failure(ref error_msg) => {
                 let is_timeout = result.is_timeout();
 
                 if let Some(cb) = workflow_callback {
@@ -209,7 +209,7 @@ async fn execute_chain_step_with_retry(
                     continue;
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Skill '{}' failed after {} retries: {}",
+                        "Driver '{}' failed after {} retries: {}",
                         step_name,
                         max_retries,
                         last_error.unwrap_or_default()
@@ -223,29 +223,29 @@ async fn execute_chain_step_with_retry(
 /// Execute a chain workflow with category filtering.
 ///
 /// This is the main entry point for chain mode execution. It:
-/// 1. Generates a chain plan using LLM with filtered skills
+/// 1. Generates a chain plan using LLM with filtered drivers
 /// 2. Executes each step sequentially
 /// 3. Records all results (success and failure)
 /// 4. Continues execution even if individual steps fail
 ///
 /// # Arguments
 /// * `executor` - The workflow executor
-/// * `scheduler` - The skill scheduler for LLM interactions
+/// * `scheduler` - The driver scheduler for LLM interactions
 /// * `input` - User input text
-/// * `categories` - Skill categories to filter by
+/// * `categories` - Driver categories to filter by
 ///
 /// # Returns
 /// A WorkflowExecutionResult containing all step results
 pub async fn execute_chain_with_categories(
     executor: &WorkflowExecutor,
-    scheduler: &SkillScheduler,
+    scheduler: &DriverScheduler,
     input: &str,
     categories: &[String],
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
-    let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_skills, input);
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories);
+    let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_drivers, input);
 
     let llm_response = match scheduler
         .generate_with_task(&chain_prompt, &task_id.clone().unwrap())
@@ -274,7 +274,7 @@ pub async fn execute_chain_with_categories(
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
 
-    let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+    let driver_callback_arc: Option<Arc<dyn DriverCallback>> = executor.get_driver_callback();
     let timeout_secs = get_timeout_secs(executor);
     let max_retries = DEFAULT_MAX_RETRIES_PER_SKILL;
 
@@ -301,7 +301,7 @@ pub async fn execute_chain_with_categories(
             let resolved = resolve_variables_deep(value, &context);
             resolved_params.insert(key.clone(), resolved);
         }
-        let call = SkillCall {
+        let call = DriverCall {
             action: step.action.clone(),
             parameters: resolved_params,
         };
@@ -313,7 +313,7 @@ pub async fn execute_chain_with_categories(
             idx,
             task_id.clone(),
             executor.get_workflow_callback(),
-            skill_callback_arc.clone(),
+            driver_callback_arc.clone(),
             max_retries,
             timeout_secs,
         )
@@ -336,7 +336,7 @@ pub async fn execute_chain_with_categories(
                     }
                 }
                 results.push(StepResult {
-                    skill: step.action.clone(),
+                    driver: step.action.clone(),
                     parameters: step.parameters.clone(),
                     output: output.clone(),
                     status: ExecutionStatus::Success,
@@ -345,7 +345,7 @@ pub async fn execute_chain_with_categories(
             Err(e) => {
                 let error_msg = e.to_string();
                 results.push(StepResult {
-                    skill: step.action.clone(),
+                    driver: step.action.clone(),
                     parameters: step.parameters.clone(),
                     output: error_msg.clone(),
                     status: ExecutionStatus::Failure,
@@ -358,7 +358,7 @@ pub async fn execute_chain_with_categories(
         "mode": "chain",
         "steps": results.iter().map(|r| {
             serde_json::json!({
-                "skill": r.skill,
+                "driver": r.driver,
                 "output": r.output,
                 "status": match r.status {
                     ExecutionStatus::Success => "success",

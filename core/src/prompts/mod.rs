@@ -9,7 +9,7 @@ pub(crate) mod plan_and_execute_with_categories;
 pub(crate) mod react;
 pub(crate) mod react_with_categories;
 pub(crate) mod registry;
-pub(crate) mod skill_md;
+pub(crate) mod driver_md;
 pub(crate) mod response_formatting;
 pub(crate) mod error_handler; 
 
@@ -24,6 +24,6 @@ pub(crate) use plan_and_execute_with_categories::*;
 pub(crate) use react::*;
 pub(crate) use react_with_categories::*;
 pub(crate) use registry::*;
-pub(crate) use skill_md::*;
+pub(crate) use driver_md::*;
 pub(crate) use response_formatting::*;
 pub(crate) use error_handler::*; 

@@ -1,0 +1,24 @@
+//! Display control skills module
+
+mod common;
+mod display_control_list;
+mod display_control_primary_get;
+mod display_control_resolution_get;
+mod display_control_resolution_set;
+mod display_control_scale_get;
+mod display_control_orientation_get;
+mod display_control_orientation_set;
+mod display_control_refresh_rate_get;
+mod display_control_brightness_get;
+mod display_control_brightness_set;
+
+pub use display_control_list::DisplayControlListDriver;
+pub use display_control_primary_get::DisplayControlPrimaryGetDriver;
+pub use display_control_resolution_get::DisplayControlResolutionGetDriver;
+pub use display_control_resolution_set::DisplayControlResolutionSetDriver;
+pub use display_control_scale_get::DisplayControlScaleGetDriver;
+pub use display_control_orientation_get::DisplayControlOrientationGetDriver;
+pub use display_control_orientation_set::DisplayControlOrientationSetDriver;
+pub use display_control_refresh_rate_get::DisplayControlRefreshRateGetDriver;
+pub use display_control_brightness_get::DisplayControlBrightnessGetDriver;
+pub use display_control_brightness_set::DisplayControlBrightnessSetDriver;

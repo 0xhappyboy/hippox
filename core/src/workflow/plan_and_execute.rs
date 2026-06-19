@@ -22,7 +22,7 @@
 //!
 //! Each node in the plan inherits the global retry policy defined in `retry.rs`:
 //! - `DEFAULT_MAX_RETRIES_PER_SKILL`: Maximum number of retry attempts for each node
-//! - `DEFAULT_SKILL_TIMEOUT_SECS`: Timeout for each skill execution
+//! - `DEFAULT_SKILL_TIMEOUT_SECS`: Timeout for each driver execution
 //!
 //! When a node fails, it will retry up to `max_retries` times before the error handler
 //! determines the final outcome (skip or fail).
@@ -64,8 +64,8 @@
 
 use crate::prompts::build_plan_prompt;
 use crate::t;
-use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
-use hippox_atomic_skills::{Executor, SkillCall, SkillCallback, SkillContext};
+use crate::{DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
+use hippox_drivers::{Executor, DriverCall, DriverCallback, DriverContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -183,13 +183,13 @@ fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
 /// Execute a single plan step with retry and timeout
 async fn execute_plan_step_with_retry(
     executor: &Executor,
-    call: SkillCall,
+    call: DriverCall,
     step_name: String,
     step_id: &str,
     step_index: usize,
     task_id: Option<String>,
     workflow_callback: &Option<Arc<dyn WorkflowCallback>>,
-    skill_callback_arc: Option<Arc<dyn SkillCallback>>,
+    driver_callback_arc: Option<Arc<dyn DriverCallback>>,
     max_retries: usize,
     timeout_secs: u64,
     on_error_action: Option<&str>,
@@ -197,27 +197,27 @@ async fn execute_plan_step_with_retry(
     let mut retry_context = RetryContext::new(max_retries, DEFAULT_MAX_CONSECUTIVE_FAILURES);
     let mut last_error = None;
     loop {
-        let skill_context = SkillContext {
+        let driver_context = DriverContext {
             task_id: task_id.clone(),
-            skill_index: Some(step_index),
-            skill_name: Some(step_name.clone()),
+            driver_index: Some(step_index),
+            driver_name: Some(step_name.clone()),
             extra: HashMap::new(),
             signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
-        let result = execute_skill_with_timeout(
+        let result = execute_driver_with_timeout(
             executor,
             &call,
-            skill_callback_arc.clone(),
-            Some(&skill_context),
+            driver_callback_arc.clone(),
+            Some(&driver_context),
             timeout_secs,
         )
         .await;
         match result {
-            SkillExecutionResult::Success(output) => {
+            DriverExecutionResult::Success(output) => {
                 return Ok(output);
             }
-            SkillExecutionResult::Timeout(ref error_msg)
-            | SkillExecutionResult::Failure(ref error_msg) => {
+            DriverExecutionResult::Timeout(ref error_msg)
+            | DriverExecutionResult::Failure(ref error_msg) => {
                 let is_timeout = result.is_timeout();
                 if let Some(cb) = workflow_callback {
                     if let Some(ref tid) = task_id {
@@ -254,7 +254,7 @@ async fn execute_plan_step_with_retry(
                         }
                     }
                     return Err(anyhow::anyhow!(
-                        "Skill '{}' failed after {} retries: {}",
+                        "Driver '{}' failed after {} retries: {}",
                         step_name,
                         max_retries,
                         last_error.unwrap_or_default()
@@ -277,7 +277,7 @@ async fn execute_workflow_plan(
     let mut string_context = HashMap::new();
     let mut success_count = 0;
     let mut failed_count = 0;
-    let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+    let driver_callback_arc: Option<Arc<dyn DriverCallback>> = executor.get_driver_callback();
     let timeout_secs = get_timeout_secs(executor);
     let max_retries = DEFAULT_MAX_RETRIES_PER_SKILL;
     for (idx, step) in plan.steps.iter().enumerate() {
@@ -318,7 +318,7 @@ async fn execute_workflow_plan(
             let final_resolved = resolve_variables_deep(&resolved, &string_context);
             resolved_params.insert(key.clone(), final_resolved);
         }
-        let call = SkillCall {
+        let call = DriverCall {
             action: step.action.clone(),
             parameters: resolved_params,
         };
@@ -332,7 +332,7 @@ async fn execute_workflow_plan(
             idx,
             task_id.map(|s| s.to_string()),
             executor.get_workflow_callback(),
-            skill_callback_arc.clone(),
+            driver_callback_arc.clone(),
             max_retries,
             timeout_secs,
             on_error_action,
@@ -346,7 +346,7 @@ async fn execute_workflow_plan(
                 }
                 context.add_step_result(WorkflowStepResult {
                     step_id: step.id.clone(),
-                    skill: step.action.clone(),
+                    driver: step.action.clone(),
                     input: step
                         .parameters
                         .iter()
@@ -366,7 +366,7 @@ async fn execute_workflow_plan(
                     let actual_error = error_msg.trim_start_matches("SKIPPED:").trim();
                     context.add_step_result(WorkflowStepResult {
                         step_id: step.id.clone(),
-                        skill: step.action.clone(),
+                        driver: step.action.clone(),
                         input: step
                             .parameters
                             .iter()
@@ -389,7 +389,7 @@ async fn execute_workflow_plan(
                         "skip" => {
                             context.add_step_result(WorkflowStepResult {
                                 step_id: step.id.clone(),
-                                skill: step.action.clone(),
+                                driver: step.action.clone(),
                                 input: step
                                     .parameters
                                     .iter()
@@ -423,7 +423,7 @@ async fn execute_workflow_plan(
     let final_output = if let Some(last_result) = context.get_step_results().last() {
         last_result.output.clone()
     } else {
-        t!("skill.no_steps_executed").to_string()
+        t!("driver.no_steps_executed").to_string()
     };
     Ok((final_output, success_count, failed_count))
 }
@@ -438,14 +438,14 @@ fn value_ref_to_value(value_ref: &ValueRef) -> Value {
 
 pub async fn execute_plan_and_execute_with_categories(
     executor: &WorkflowExecutor,
-    scheduler: &SkillScheduler,
+    scheduler: &DriverScheduler,
     input: &str,
     categories: &[String],
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
-    let plan_prompt = crate::prompts::build_plan_prompt_with_categories(&filtered_skills, input);
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories);
+    let plan_prompt = crate::prompts::build_plan_prompt_with_categories(&filtered_drivers, input);
     let llm_response = match scheduler
         .generate_with_task(&plan_prompt, &task_id.clone().unwrap())
         .await
@@ -475,7 +475,7 @@ pub async fn execute_plan_and_execute_with_categories(
         } => {
             if mode == "done" {
                 let final_msg =
-                    message.unwrap_or_else(|| t!("skill.no_actions_executed").to_string());
+                    message.unwrap_or_else(|| t!("driver.no_actions_executed").to_string());
                 return WorkflowExecutionResult::Completed(final_msg);
             }
             if let Some(plan) = plan {
@@ -511,7 +511,7 @@ pub async fn execute_plan_and_execute_with_categories(
                     }
                 }
             } else {
-                WorkflowExecutionResult::Completed(t!("skill.no_actions_executed").to_string())
+                WorkflowExecutionResult::Completed(t!("driver.no_actions_executed").to_string())
             }
         }
     }

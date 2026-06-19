@@ -1,19 +1,19 @@
 //! Intent parser prompt template
 
-use hippox_atomic_skills::get_skill_category_name_and_describe;
+use hippox_drivers::get_driver_category_name_and_describe;
 
-/// Builds a prompt for LLM to extract intent and required skill categories from user input.
+/// Builds a prompt for LLM to extract intent and required driver categories from user input.
 ///
 /// The LLM analyzes the user message and returns a JSON object containing:
 /// - `clean_intent`: The user's core request with output formatting instructions removed
-/// - `skill_categories`: A list of skill categories needed to fulfill the request
+/// - `driver_categories`: A list of driver categories needed to fulfill the request
 ///
-/// This enables the system to filter skills by category before building the execution prompt,
+/// This enables the system to filter drivers by category before building the execution prompt,
 /// reducing token usage and improving accuracy.
 ///
 /// # Categories are auto-loaded from registry
-/// The category list is dynamically generated from `registry::get_skill_categories()`,
-/// which collects all `category()` values from registered skills.
+/// The category list is dynamically generated from `registry::get_driver_categories()`,
+/// which collects all `category()` values from registered drivers.
 ///
 /// # Example
 /// ```text
@@ -21,7 +21,7 @@ use hippox_atomic_skills::get_skill_category_name_and_describe;
 /// Output: {"clean_intent": "Search for Rust tutorials", "skill_categories": ["browser", "net"]}
 /// ```
 pub fn build_intent_parser_prompt(input: &str) -> String {
-    let categories = get_skill_category_name_and_describe();
+    let categories = get_driver_category_name_and_describe();
     let categories_str: Vec<String> = categories.iter().map(|(cat, _)| cat.clone()).collect();
     let categories_list = categories_str.join(", ");
 

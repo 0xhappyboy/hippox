@@ -1,8 +1,8 @@
 //! Main Hippox core implementation
 
 use crate::core::tasks::NaturalLanguageTask;
-use crate::prompts::{build_skill_md_prompt, generate_skills_registry};
-use crate::skill_scheduler::SkillScheduler;
+use crate::driver_scheduler::DriverScheduler;
+use crate::prompts::{build_driver_md_prompt, generate_drivers_registry};
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
 use crate::{
@@ -10,9 +10,7 @@ use crate::{
     HippoxVoidResult, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
     WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
-use hippox_atomic_skills::{
-    Executor, SkillCallback, SkillCategory, get_all_skills, list_skills_names,
-};
+use hippox_drivers::{DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names};
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
 use serde_json::{Value, json};
@@ -31,12 +29,12 @@ pub static OUTPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
 /// Core engine for Hippox
 ///
 /// This is the main entry point for the Hippox engine. It handles:
-/// - Natural language processing with atomic skill registry
+/// - Natural language processing with atomic driver registry
 /// - SKILL.md file execution for complex workflows
 /// - Managing conversation history for natural language interactions
 #[derive(Clone)]
 pub struct Hippox {
-    scheduler: SkillScheduler,
+    scheduler: DriverScheduler,
     executor: Executor,
     workflow_mode: WorkflowMode,
     workflow_executor: WorkflowExecutor,
@@ -81,7 +79,7 @@ impl Hippox {
         // init llm
         let llm = LLMClient::new_with_key(provider, api_key, extra_keys)?;
         // init llm scheduler
-        let scheduler = SkillScheduler::new(llm);
+        let scheduler = DriverScheduler::new(llm);
         let executor = Executor::new();
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
         Ok(Self {
@@ -93,11 +91,11 @@ impl Hippox {
         })
     }
 
-    /// Notify LLM about updated skills registry
+    /// Notify LLM about updated drivers registry
     ///
-    /// Call this after dynamically registering new skills.
-    /// This will mark the session to resend the skills registry on next message.
-    pub fn refresh_llm_skill_registry(&self) -> HippoxVoidResult {
+    /// Call this after dynamically registering new drivers.
+    /// This will mark the session to resend the drivers registry on next message.
+    pub fn refresh_llm_driver_registry(&self) -> HippoxVoidResult {
         self.is_first_message.store(false, Ordering::SeqCst);
         HippoxResult::ok(())
     }
@@ -111,9 +109,9 @@ impl Hippox {
         HippoxResult::ok(())
     }
 
-    /// Get current skills registry as JSON string
-    pub fn get_skills_registry(&self) -> HippoxStringResult {
-        HippoxResult::ok(generate_skills_registry())
+    /// Get current drivers registry as JSON string
+    pub fn get_drivers_registry(&self) -> HippoxStringResult {
+        HippoxResult::ok(generate_drivers_registry())
     }
 
     /// Get identity information
@@ -160,14 +158,14 @@ impl Hippox {
         &self,
         input: &str,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
-        skill_callback: Option<Arc<dyn SkillCallback>>,
+        driver_callback: Option<Arc<dyn DriverCallback>>,
     ) -> HippoxStringResult {
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
             self.workflow_executor.clone(),
             self.scheduler.clone(),
             workflow_callback,
-            skill_callback,
+            driver_callback,
         ));
         let task_id = futures::executor::block_on(tasks::create_task_with_executable(
             "natural_language".to_string(),
@@ -184,7 +182,7 @@ impl Hippox {
     /// Submit multiple natural language tasks in batch and return task IDs immediately
     ///
     /// # Arguments
-    /// * `inputs` - Vector of tuples (input, session_id, workflow_callback, skill_callback)
+    /// * `inputs` - Vector of tuples (input, session_id, workflow_callback, driver_callback)
     ///
     /// # Returns
     /// Vector of task IDs in the same order as inputs wrapped in HippoxResult
@@ -194,13 +192,13 @@ impl Hippox {
             String,
             Option<String>,
             Option<Arc<dyn WorkflowCallback>>,
-            Option<Arc<dyn SkillCallback>>,
+            Option<Arc<dyn DriverCallback>>,
         )>,
     ) -> HippoxBatchResult {
         let task_ids: Vec<String> = inputs
             .into_iter()
-            .map(|(input, _session_id, workflow_callback, skill_callback)| {
-                self.submit(&input, workflow_callback, skill_callback)
+            .map(|(input, _session_id, workflow_callback, driver_callback)| {
+                self.submit(&input, workflow_callback, driver_callback)
                     .unwrap_or(String::new())
             })
             .collect();
@@ -210,7 +208,7 @@ impl Hippox {
     /// Execute multiple natural language tasks in batch and return results directly
     ///
     /// # Arguments
-    /// * `inputs` - Vector of tuples (input, workflow_callback, skill_callback)
+    /// * `inputs` - Vector of tuples (input, workflow_callback, driver_callback)
     ///
     /// # Returns
     /// Vector of results in the same order as inputs wrapped in HippoxBatchResult
@@ -219,13 +217,13 @@ impl Hippox {
         inputs: Vec<(
             String,
             Option<Arc<dyn WorkflowCallback>>,
-            Option<Arc<dyn SkillCallback>>,
+            Option<Arc<dyn DriverCallback>>,
         )>,
     ) -> HippoxBatchResult {
         let mut results = Vec::new();
-        for (input, workflow_callback, skill_callback) in inputs {
+        for (input, workflow_callback, driver_callback) in inputs {
             results.push(
-                self.execute(&input, workflow_callback, skill_callback)
+                self.execute(&input, workflow_callback, driver_callback)
                     .await
                     .unwrap_or(String::new()),
             );
@@ -255,7 +253,7 @@ impl Hippox {
         &self,
         input: &str,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
-        skill_callback: Option<Arc<dyn SkillCallback>>,
+        driver_callback: Option<Arc<dyn DriverCallback>>,
     ) -> HippoxStringResult {
         let temp_task_id = uuid::Uuid::new_v4().to_string();
         {
@@ -291,9 +289,9 @@ impl Hippox {
         } else {
             workflow_executor_with_id
         };
-        // skill callback
-        let workflow_executor_with_skill_cb = if let Some(cb) = skill_callback {
-            workflow_executor_with_callbacks.with_skill_callback(cb)
+        // driver callback
+        let workflow_executor_with_driver_cb = if let Some(cb) = driver_callback {
+            workflow_executor_with_callbacks.with_driver_callback(cb)
         } else {
             workflow_executor_with_callbacks
         };
@@ -301,13 +299,13 @@ impl Hippox {
             pipeline
                 .workflow_execution(
                     self.workflow_mode,
-                    &workflow_executor_with_skill_cb,
+                    &workflow_executor_with_driver_cb,
                     &self.scheduler,
                     clean_intent,
                 )
                 .await
         } else {
-            let result = workflow_executor_with_skill_cb
+            let result = workflow_executor_with_driver_cb
                 .clone()
                 .execute_with_categories(&self.scheduler, clean_intent, categories)
                 .await;
@@ -487,34 +485,34 @@ impl Hippox {
         }
     }
 
-    /// List all available atomic skills
-    /// List all available atomic skills
-    pub fn list_atomic_skills(&self) -> HippoxStringResult {
-        let skills = get_all_skills();
-        if skills.is_empty() {
-            return HippoxResult::ok(t!("skill.no_skills_available").to_string());
+    /// List all available atomic drivers
+    /// List all available atomic drivers
+    pub fn list_atomic_drivers(&self) -> HippoxStringResult {
+        let drivers = get_all_drivers();
+        if drivers.is_empty() {
+            return HippoxResult::ok(t!("driver.no_drivers_available").to_string());
         }
         let mut result = String::new();
-        for skill in skills {
-            let emoji = skill.category().icon();
+        for driver in drivers {
+            let emoji = driver.category().icon();
             result.push_str(&format!(
                 "   {} - **{}**: {}\n",
                 emoji,
-                skill.name(),
-                skill.description()
+                driver.name(),
+                driver.description()
             ));
         }
         HippoxResult::ok(result)
     }
 
-    /// Get all loaded atomic skill names
-    pub fn get_atomic_skill_names(&self) -> HippoxBatchResult {
-        HippoxResult::ok(list_skills_names())
+    /// Get all loaded atomic driver names
+    pub fn get_driver_names(&self) -> HippoxBatchResult {
+        HippoxResult::ok(list_drivers_names())
     }
 
-    /// Check if there are any atomic skills available
-    pub fn has_atomic_skills(&self) -> HippoxBoolResult {
-        HippoxResult::ok(!list_skills_names().is_empty())
+    /// Check if there are any atomic drivers available
+    pub fn has_atomic_drivers(&self) -> HippoxBoolResult {
+        HippoxResult::ok(!list_drivers_names().is_empty())
     }
 
     /// Get the executor
@@ -523,7 +521,7 @@ impl Hippox {
     }
 
     /// Get the scheduler
-    pub fn scheduler(&self) -> &SkillScheduler {
+    pub fn scheduler(&self) -> &DriverScheduler {
         &self.scheduler
     }
 
@@ -651,7 +649,7 @@ impl Hippox {
                     "output_token_count": task.output_token_count,
                     "steps": task.steps.iter().map(|step| {
                         json!({
-                            "skill_name": step.skill_name,
+                            "driver_name": step.driver_name,
                             "status": format!("{:?}", step.status),
                             "output": step.output,
                             "error": step.error,

@@ -1,0 +1,51 @@
+//! Window control skills module
+
+mod common;
+
+mod window_control_minimize;
+mod window_control_maximize;
+mod window_control_restore;
+mod window_control_resize;
+mod window_control_move;
+mod window_control_close;
+mod window_control_kill;
+mod window_control_bring_to_top;
+mod window_control_send_to_back;
+mod window_control_set_always_on_top;
+mod window_control_get_title;
+mod window_control_get_process;
+mod window_control_screenshot;
+mod window_control_ocr_region;
+mod window_control_list;
+mod window_control_find;
+mod window_control_activate;
+mod window_control_get_position;
+mod window_control_get_focus;
+mod window_control_get_selected;
+mod window_control_send_keys;
+mod window_control_send_shortcut;
+mod window_control_wait_for_focus;
+
+pub use window_control_minimize::WindowControlMinimizeDriver;
+pub use window_control_maximize::WindowControlMaximizeDriver;
+pub use window_control_restore::WindowControlRestoreDriver;
+pub use window_control_resize::WindowControlResizeDriver;
+pub use window_control_move::WindowControlMoveDriver;
+pub use window_control_close::WindowControlCloseDriver;
+pub use window_control_kill::WindowControlKillDriver;
+pub use window_control_bring_to_top::WindowControlBringToTopDriver;
+pub use window_control_send_to_back::WindowControlSendToBackDriver;
+pub use window_control_set_always_on_top::WindowControlSetAlwaysOnTopDriver;
+pub use window_control_get_title::WindowControlGetTitleDriver;
+pub use window_control_get_process::WindowControlGetProcessDriver;
+pub use window_control_screenshot::WindowControlScreenshotDriver;
+pub use window_control_ocr_region::WindowControlOcrRegionDriver;
+pub use window_control_list::WindowControlListDriver;
+pub use window_control_find::WindowControlFindDriver;
+pub use window_control_activate::WindowControlActivateDriver;
+pub use window_control_get_position::WindowControlGetPositionDriver;
+pub use window_control_get_focus::WindowControlGetFocusDriver;
+pub use window_control_get_selected::WindowControlGetSelectedDriver;
+pub use window_control_send_keys::WindowControlSendKeysDriver;
+pub use window_control_send_shortcut::WindowControlSendShortcutDriver;
+pub use window_control_wait_for_focus::WindowControlWaitForFocusDriver;

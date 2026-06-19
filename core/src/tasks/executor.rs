@@ -1,6 +1,6 @@
 //! Executor trait and state updater for tasks
 
-use hippox_atomic_skills::SkillCallback;
+use hippox_drivers::DriverCallback;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -30,8 +30,8 @@ pub trait ExecutableTask: Send + Sync + Debug {
         None
     }
 
-    /// Get the skill callback if available
-    fn get_skill_callback(&self) -> Option<Arc<dyn SkillCallback>> {
+    /// Get the driver callback if available
+    fn get_driver_callback(&self) -> Option<Arc<dyn DriverCallback>> {
         None
     }
 }

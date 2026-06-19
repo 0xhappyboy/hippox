@@ -2,8 +2,8 @@
 
 use crate::prompts::get_identity_intro;
 
-/// Build plan-and-execute mode prompt with filtered skills
-pub fn build_plan_prompt_with_categories(filtered_skills: &str, input: &str) -> String {
+/// Build plan-and-execute mode prompt with filtered drivers
+pub fn build_plan_prompt_with_categories(filtered_drivers: &str, input: &str) -> String {
     let identity_intro = get_identity_intro();
 
     format!(
@@ -23,6 +23,6 @@ If no skills are needed:
 ## User Input
 {}
 "#,
-        identity_intro, filtered_skills, input
+        identity_intro, filtered_drivers, input
     )
 }

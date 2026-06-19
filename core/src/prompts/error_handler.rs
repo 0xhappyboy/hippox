@@ -1,13 +1,13 @@
 //! Error handler prompt templates for ReAct mode
 
-/// Build error feedback prompt for failed skill execution
+/// Build error feedback prompt for failed driver execution
 ///
 /// Provides structured error information to LLM so it can make informed decisions
 /// about how to proceed with the workflow.
 ///
 /// # Arguments
-/// * `skill_name` - Name of the skill that failed
-/// * `error_msg` - The error message from skill execution
+/// * `driver_name` - Name of the driver that failed
+/// * `error_msg` - The error message from driver execution
 /// * `attempt` - Current attempt number (1-indexed)
 /// * `max_retries` - Maximum allowed retries
 /// * `parameters` - The parameters that were used
@@ -15,7 +15,7 @@
 /// # Returns
 /// A formatted prompt that guides LLM to make a decision
 pub fn build_error_feedback_prompt(
-    skill_name: &str,
+    driver_name: &str,
     error_msg: &str,
     attempt: usize,
     max_retries: usize,
@@ -24,7 +24,7 @@ pub fn build_error_feedback_prompt(
     let remaining_attempts = max_retries.saturating_sub(attempt);
 
     format!(
-        r#"❌ Skill Execution Failed
+        r#"Skill Execution Failed
 
 ## Failed Skill
 - **Name**: `{}`
@@ -71,23 +71,23 @@ Respond with a valid skill call JSON:
 
 ## Your Decision
 "#,
-        skill_name,
+        driver_name,
         serde_json::to_string_pretty(parameters).unwrap_or_default(),
         attempt,
         max_retries,
         remaining_attempts,
         error_msg,
-        skill_name,
-        skill_name,
+        driver_name,
+        driver_name,
         error_msg,
         error_msg
     )
 }
 
-/// Build timeout feedback prompt for skill timeout
+/// Build timeout feedback prompt for driver timeout
 ///
 /// # Arguments
-/// * `skill_name` - Name of the skill that timed out
+/// * `driver_name` - Name of the driver that timed out
 /// * `timeout_secs` - The timeout duration in seconds
 /// * `attempt` - Current attempt number (1-indexed)
 /// * `max_retries` - Maximum allowed retries
@@ -95,7 +95,7 @@ Respond with a valid skill call JSON:
 /// # Returns
 /// A formatted prompt that guides LLM to make a decision
 pub fn build_timeout_feedback_prompt(
-    skill_name: &str,
+    driver_name: &str,
     timeout_secs: u64,
     attempt: usize,
     max_retries: usize,
@@ -103,7 +103,7 @@ pub fn build_timeout_feedback_prompt(
     let remaining_attempts = max_retries.saturating_sub(attempt);
 
     format!(
-        r#"⏰ Skill Timeout
+        r#"Skill Timeout
 
 ## Timed Out Skill
 - **Name**: `{}`
@@ -149,33 +149,33 @@ Respond with a valid skill call JSON:
 
 ## Your Decision
 "#,
-        skill_name,
+        driver_name,
         timeout_secs,
         attempt,
         max_retries,
         remaining_attempts,
-        skill_name,
-        skill_name,
-        skill_name
+        driver_name,
+        driver_name,
+        driver_name
     )
 }
 
 /// Build max retries exceeded feedback prompt
 ///
 /// # Arguments
-/// * `skill_name` - Name of the skill that exceeded max retries
+/// * `driver_name` - Name of the driver that exceeded max retries
 /// * `max_retries` - Maximum allowed retries
 /// * `last_error` - The last error message
 ///
 /// # Returns
 /// A formatted prompt that forces a decision
 pub fn build_max_retries_exceeded_prompt(
-    skill_name: &str,
+    driver_name: &str,
     max_retries: usize,
     last_error: &str,
 ) -> String {
     format!(
-        r#"⚠️ Maximum Retries Exceeded
+        r#"Maximum Retries Exceeded
 
 ## Skill Information
 - **Name**: `{}`
@@ -199,13 +199,13 @@ You CANNOT retry this skill again. You MUST choose ONE of the following:
 
 ## Your Decision
 "#,
-        skill_name,
+        driver_name,
         max_retries,
         last_error,
         max_retries,
-        skill_name,
+        driver_name,
         max_retries,
-        skill_name,
+        driver_name,
         last_error
     )
 }
@@ -220,7 +220,7 @@ You CANNOT retry this skill again. You MUST choose ONE of the following:
 /// A formatted prompt warning about consecutive failures
 pub fn build_consecutive_failures_prompt(failure_count: usize, max_failures: usize) -> String {
     format!(
-        r#"⚠️ Consecutive Failures Detected
+        r#"Consecutive Failures Detected
 
 ## Failure Count
 - **Consecutive Failures**: {}/{}

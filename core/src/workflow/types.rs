@@ -1,7 +1,7 @@
 //! Type definitions for workflow execution
 
 use async_trait::async_trait;
-use hippox_atomic_skills::SkillCall;
+use hippox_drivers::DriverCall;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -10,26 +10,26 @@ use std::sync::Arc;
 
 /// Workflow execution mode enumeration
 ///
-/// Defines the strategy for processing user requests and executing skills.
+/// Defines the strategy for processing user requests and executing drivers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkflowMode {
     /// ReAct mode: Think → Act → Observe loop
     ///
-    /// Each skill execution is followed by LLM decision for next step.
+    /// Each driver execution is followed by LLM decision for next step.
     /// Best for: Open-ended tasks, dynamic decision making, error recovery
-    /// LLM calls: 1 per skill + 1 for final response
+    /// LLM calls: 1 per driver + 1 for final response
     ReAct,
 
-    /// Batch mode: Execute multiple independent skills in parallel
+    /// Batch mode: Execute multiple independent drivers in parallel
     ///
-    /// Skills must have no dependencies on each other's results.
+    /// Drivers must have no dependencies on each other's results.
     /// Best for: Independent operations, bulk processing
     /// LLM calls: 1 (generates batch plan)
     Batch,
 
     /// Chain mode: Sequential execution with variable passing
     ///
-    /// Each skill's output can be passed as input to the next skill.
+    /// Each driver's output can be passed as input to the next driver.
     /// Best for: Linear pipelines, data transformation chains
     /// LLM calls: 1 (generates chain)
     Chain,
@@ -258,7 +258,7 @@ impl Default for Workflow {
 #[derive(Debug, Clone)]
 pub struct WorkflowStepResult {
     pub step_id: String,
-    pub skill: String,
+    pub driver: String,
     pub input: HashMap<String, Value>,
     pub output: String,
     pub success: bool,
@@ -337,7 +337,7 @@ pub enum ExecutionStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepResult {
-    pub skill: String,
+    pub driver: String,
     pub parameters: HashMap<String, Value>,
     pub output: String,
     pub status: ExecutionStatus,
@@ -350,8 +350,8 @@ impl StepResult {
             ExecutionStatus::Failure => "FAILURE",
         };
         format!(
-            "{} Executed skill '{}' with parameters {:?}\nResult: {}",
-            status_str, self.skill, self.parameters, self.output
+            "{} Executed driver '{}' with parameters {:?}\nResult: {}",
+            status_str, self.driver, self.parameters, self.output
         )
     }
 }
@@ -368,8 +368,8 @@ pub struct WorkflowCheckpoint {
 #[derive(Debug)]
 pub enum ReactInstruction {
     Done(String),
-    Single(SkillCall),
-    Batch(Vec<SkillCall>),
+    Single(DriverCall),
+    Batch(Vec<DriverCall>),
 }
 
 #[derive(Debug)]

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct IntentParseResult {
     /// Clean user intent without any formatting instructions
     pub clean_intent: String,
-    /// Skill categories needed to fulfill the request
+    /// driver categories needed to fulfill the request
     pub skill_categories: Vec<String>,
 }
 

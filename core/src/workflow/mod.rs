@@ -2,7 +2,7 @@
 //!
 //! This module provides different workflow execution modes:
 //! - ReAct: Traditional think-act-observe loop
-//! - Batch: Parallel execution of independent skills
+//! - Batch: Parallel execution of independent drivers
 //! - PlanAndExecute: One-time planning with dependency resolution
 //! - Chain: Simple sequential execution with variable passing
 

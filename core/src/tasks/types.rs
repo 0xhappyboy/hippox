@@ -74,7 +74,7 @@ pub enum StepStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepResult {
     pub step_index: usize,
-    pub skill_name: String,
+    pub driver_name: String,
     pub status: StepStatus,
     pub output: Option<String>,
     pub error: Option<String>,
@@ -84,10 +84,10 @@ pub struct StepResult {
 }
 
 impl StepResult {
-    pub fn new(step_index: usize, skill_name: String) -> Self {
+    pub fn new(step_index: usize, driver_name: String) -> Self {
         Self {
             step_index,
-            skill_name,
+            driver_name,
             status: StepStatus::Waiting,
             output: None,
             error: None,
@@ -304,9 +304,9 @@ impl Task {
         false
     }
 
-    pub fn add_step(&mut self, skill_name: String) -> usize {
+    pub fn add_step(&mut self, driver_name: String) -> usize {
         let step_index = self.steps.len();
-        self.steps.push(StepResult::new(step_index, skill_name));
+        self.steps.push(StepResult::new(step_index, driver_name));
         step_index
     }
 

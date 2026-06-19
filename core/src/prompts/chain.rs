@@ -1,9 +1,9 @@
 //! Chain mode prompt templates
 
-use crate::prompts::{generate_skills_registry, get_identity_intro};
+use crate::prompts::{generate_drivers_registry, get_identity_intro};
 
 pub fn build_chain_prompt(input: &str) -> String {
-    let skills_registry = generate_skills_registry();
+    let drivers_registry = generate_drivers_registry();
     let identity_intro = get_identity_intro();
 
     format!(
@@ -18,6 +18,6 @@ pub fn build_chain_prompt(input: &str) -> String {
 [USER]
 {}
 "#,
-        identity_intro, skills_registry, input
+        identity_intro, drivers_registry, input
     )
 }

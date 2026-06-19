@@ -1,55 +1,55 @@
 [app]
 name = "Hippox"
 running = "Hippox Agent is running!"
-available_skills = "Available skills:"
+available_drivers = "Available drivers:"
 try_saying = "Try saying: hello, hi, or nihao"
 type_exit = "Type 'exit' to quit, 'clear' to clear conversation"
 goodbye = "Goodbye!"
 conversation_cleared = "Conversation cleared!"
-welcome_message = "Hippox AI Assistant is ready! I have loaded all available skills and instances. How can I help you today?"
+welcome_message = "Hippox AI Assistant is ready! I have loaded all available drivers and instances. How can I help you today?"
 
-[skill]
-selected = "Selected skill: {}"
-no_match = "No skill matched for: {}"
+[driver]
+selected = "Selected driver: {}"
+no_match = "No driver matched for: {}"
 error = "Error: {}"
-executing = "Executing skill: {}"
+executing = "Executing driver: {}"
 description = "Description: {}"
 instructions = "Instructions: {}"
 user_input = "User input: {}"
-no_skills_available = "No atomic skills available"
-no_skill_md_available = "No SKILL.md files found"
+no_drivers_available = "No atomic drivers available"
+no_driver_md_available = "No SKILL.md files found"
 no_steps_executed = "No steps were executed"
 no_actions_executed = "No actions were executed"
 previous_executed_steps = "Previous Executed Steps"
 
 [error]
 config_not_found = "Skills directory not found: {}"
-invalid_skill_format = "Invalid SKILL.md format: missing frontmatter"
+invalid_driver_format = "Invalid SKILL.md format: missing frontmatter"
 llm_api_key_missing = "{}_API_KEY not set"
 llm_error = "LLM error"
 max_iterations_reached = "Maximum iterations reached, stopping"
-skill_failed = "Skill failed"
+driver_failed = "Skill failed"
 task_panic = "Task panic"
-load_skill_failed = "Failed to load skill"
-list_skills_failed = "Failed to list skills"
-skill_not_found = "Skill not found"
+load_driver_failed = "Failed to load driver"
+list_drivers_failed = "Failed to list drivers"
+driver_not_found = "Skill not found"
 batch_mode_invalid = "Invalid response: expected batch mode"
 task_cancelled = "Task has been cancelled"
 task_paused = "Task has been paused"
 
 [prompt]
-select_skill = """
-You are a skill router. Based on the user's request, select the most appropriate skill.
+select_driver = """
+You are a driver router. Based on the user's request, select the most appropriate driver.
 
-Available skills:
+Available drivers:
 {}
 
 User request: {}
 
-Respond with ONLY the skill name, nothing else. If no skill matches, respond with 'none'."""
-select_skill_header = "Select the most appropriate skill from the list below."
-fallback = "No specific skill matched the user's request."
+Respond with ONLY the driver name, nothing else. If no driver matches, respond with 'none'."""
+select_driver_header = "Select the most appropriate driver from the list below."
+fallback = "No specific driver matched the user's request."
 original_request = "Original Request"
 conversation_history = "Conversation History"
 your_response = "Your Response"
-first_message_hint = "All available skills and instances have been provided above. You can start executing tasks."
+first_message_hint = "All available drivers and instances have been provided above. You can start executing tasks."

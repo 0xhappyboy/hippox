@@ -1,35 +1,35 @@
 //! ReAct mode workflow execution
 //!
 //! This mode implements the ReAct (Reasoning + Acting) pattern where the LLM
-//! iteratively decides which skill to execute based on previous results.
+//! iteratively decides which driver to execute based on previous results.
 //! It is the most flexible and intelligent mode, suitable for open-ended tasks.
 //!
 //! # Characteristics
 //! - LLM-driven decision making at each step
-//! - Each skill execution has timeout (60s) and retry (3 attempts) protection
+//! - Each driver execution has timeout (60s) and retry (3 attempts) protection
 //! - Full error feedback loop: errors are sent back to LLM for decision
-//! - LLM can retry, switch skills, or finish based on error context
+//! - LLM can retry, switch drivers, or finish based on error context
 //! - Best for: Open-ended tasks, dynamic decision making, error recovery
 //!
 //! # Execution Flow
-//! 1. LLM receives the user input and skill registry
-//! 2. LLM decides: execute a skill, execute a batch, or finish
-//! 3. Skill is executed with timeout and retry protection
+//! 1. LLM receives the user input and driver registry
+//! 2. LLM decides: execute a driver, execute a batch, or finish
+//! 3. Driver is executed with timeout and retry protection
 //! 4. Result (success or error) is fed back to LLM
 //! 5. LLM decides the next action based on the result
 //! 6. Loop continues until LLM decides to finish or max iterations reached
 //!
 //! # Retry Behavior
-//! - Each skill has up to 3 retry attempts
+//! - Each driver has up to 3 retry attempts
 //! - Retry decisions are made by LLM (not automatic)
 //! - LLM receives structured error feedback to make informed decisions
-//! - LLM can adjust parameters, switch skills, or abort
+//! - LLM can adjust parameters, switch drivers, or abort
 
 use crate::prompts::build_react_prompt;
 use crate::{
-    SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
+    DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
 };
-use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
+use hippox_drivers::{DriverCall, DriverCallback, DriverContext};
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -49,15 +49,15 @@ use super::utils::format_step_results;
 ///
 /// # Arguments
 /// * `executor` - The workflow executor
-/// * `scheduler` - The skill scheduler for LLM interactions
+/// * `scheduler` - The driver scheduler for LLM interactions
 /// * `input` - User input text
-/// * `categories` - Skill categories to filter by
+/// * `categories` - Driver categories to filter by
 ///
 /// # Returns
 /// A WorkflowExecutionResult containing the final response and execution history
 pub async fn execute_react_with_categories(
     executor: &WorkflowExecutor,
-    scheduler: &SkillScheduler,
+    scheduler: &DriverScheduler,
     input: &str,
     categories: &[String],
 ) -> WorkflowExecutionResult {
@@ -75,10 +75,10 @@ pub async fn execute_react_with_categories(
         DEFAULT_MAX_RETRIES_PER_SKILL,
         DEFAULT_MAX_CONSECUTIVE_FAILURES,
     );
-    // Build filtered skills prompt
-    let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
+    // Build filtered drivers prompt
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories);
     let react_workflow_prompt =
-        crate::prompts::build_react_prompt_with_categories(&filtered_skills);
+        crate::prompts::build_react_prompt_with_categories(&filtered_drivers);
     messages.push(ChatMessage::system(&react_workflow_prompt));
     messages.push(ChatMessage::user(input_trimmed));
     let task_id = executor.get_task_id().map(|s| s.to_string());
@@ -91,8 +91,8 @@ pub async fn execute_react_with_categories(
                     step_results = checkpoint.completed_results;
                     for result in &step_results {
                         messages.push(ChatMessage::user(&format!(
-                            "Skill '{}' executed. Result: {}",
-                            result.skill, result.output
+                            "Driver '{}' executed. Result: {}",
+                            result.driver, result.output
                         )));
                     }
                     if let Some(cb) = executor.get_workflow_callback() {
@@ -190,10 +190,10 @@ pub async fn execute_react_with_categories(
             ReactInstruction::Single(call) => {
                 let step_name = call.action.clone();
                 let step_index = step_results.len();
-                // Check if this skill has permanently failed
-                if retry_context.is_skill_permanently_failed(&step_name) {
+                // Check if this driver has permanently failed
+                if retry_context.is_driver_permanently_failed(&step_name) {
                     let error_msg = format!(
-                        "Skill '{}' has exceeded max retries ({}) and is permanently failed.",
+                        "Driver '{}' has exceeded max retries ({}) and is permanently failed.",
                         step_name, DEFAULT_MAX_RETRIES_PER_SKILL
                     );
                     step_results.push(create_failed_step_result(&call, &error_msg));
@@ -226,27 +226,27 @@ pub async fn execute_react_with_categories(
                             .await;
                     }
                 }
-                // Prepare skill execution context
-                let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
-                    executor.get_skill_callback();
-                let skill_context = SkillContext {
+                // Prepare driver execution context
+                let driver_callback_arc: Option<Arc<dyn DriverCallback>> =
+                    executor.get_driver_callback();
+                let driver_context = DriverContext {
                     task_id: task_id.clone(),
-                    skill_index: Some(step_index),
-                    skill_name: Some(step_name.clone()),
+                    driver_index: Some(step_index),
+                    driver_name: Some(step_name.clone()),
                     extra: HashMap::new(),
                     signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
                 };
-                // Execute skill with timeout
-                let result = execute_skill_with_timeout(
+                // Execute driver with timeout
+                let result = execute_driver_with_timeout(
                     executor.get_executor(),
                     &call,
-                    skill_callback_arc,
-                    Some(&skill_context),
+                    driver_callback_arc,
+                    Some(&driver_context),
                     DEFAULT_SKILL_TIMEOUT_SECS,
                 )
                 .await;
                 match result {
-                    SkillExecutionResult::Success(output) => {
+                    DriverExecutionResult::Success(output) => {
                         retry_context.reset_consecutive_failures();
                         let duration = step_start.elapsed().as_millis() as u64;
                         if let Some(cb) = executor.get_workflow_callback() {
@@ -257,12 +257,12 @@ pub async fn execute_react_with_categories(
                         }
                         step_results.push(create_success_step_result(&call, &output));
                         messages.push(ChatMessage::user(&format!(
-                            "Skill '{}' executed successfully. Result: {}",
+                            "Driver '{}' executed successfully. Result: {}",
                             call.action, output
                         )));
                     }
-                    SkillExecutionResult::Failure(ref error_msg)
-                    | SkillExecutionResult::Timeout(ref error_msg) => {
+                    DriverExecutionResult::Failure(ref error_msg)
+                    | DriverExecutionResult::Timeout(ref error_msg) => {
                         retry_context.record_failure(&step_name);
                         let duration = step_start.elapsed().as_millis() as u64;
                         let retry_count = retry_context.get_retry_count(&step_name);
@@ -303,7 +303,7 @@ pub async fn execute_react_with_categories(
                         };
                         messages.push(feedback);
 
-                        // Check if we've reached max retries for this skill
+                        // Check if we've reached max retries for this driver
                         let can_retry = retry_context.can_retry(&step_name);
                         if !can_retry {
                             let force_prompt = build_max_retries_exceeded_feedback(
@@ -357,7 +357,7 @@ pub async fn execute_react_with_categories(
                         failed_results.len(),
                         failed_results
                             .iter()
-                            .map(|r| format!("- {}: {}", r.skill, r.output))
+                            .map(|r| format!("- {}: {}", r.driver, r.output))
                             .collect::<Vec<_>>()
                             .join("\n")
                     );
@@ -375,7 +375,7 @@ pub async fn execute_react_with_categories(
     }
     let final_response = final_response.unwrap_or_else(|| {
         if step_results.is_empty() {
-            t!("skill.no_actions_executed").to_string()
+            t!("driver.no_actions_executed").to_string()
         } else {
             format_step_results(&step_results)
         }
@@ -385,7 +385,7 @@ pub async fn execute_react_with_categories(
         "result": final_response,
         "steps": step_results.iter().map(|r| {
             serde_json::json!({
-                "skill": r.skill,
+                "driver": r.driver,
                 "output": r.output,
                 "status": match r.status {
                     ExecutionStatus::Success => "success",

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use crate::{
-    FormatResult, IntentAnalysisResult, IntentParseResult, Pipeline, SkillScheduler,
+    DriverScheduler, FormatResult, IntentAnalysisResult, IntentParseResult, Pipeline,
     WorkflowCallback, WorkflowExecResult, WorkflowExecutor, WorkflowMode,
     prompts::{build_format_conversion_prompt, build_intent_parser_prompt},
 };
@@ -19,7 +19,7 @@ impl SystemPipeline {
     /// Internal: Parse raw input to extract clean intent, categories, and format
     async fn parse_intent(
         &self,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         raw_input: &str,
         task_id: &str,
     ) -> IntentParseResult {
@@ -39,7 +39,7 @@ impl SystemPipeline {
 
     pub async fn execute_workflow(
         &self,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         executor: &WorkflowExecutor,
         clean_intent: &str,
         categories: &[String],
@@ -72,7 +72,7 @@ impl Pipeline for SystemPipeline {
     /// Step 1: Analyze user intent
     async fn intent_analysis(
         &self,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         raw_input: &str,
         task_id: &str,
     ) -> anyhow::Result<IntentAnalysisResult> {
@@ -88,7 +88,7 @@ impl Pipeline for SystemPipeline {
         &self,
         _mode: WorkflowMode,
         executor: &WorkflowExecutor,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         input: &str,
     ) -> WorkflowExecResult {
         let result = self.execute_workflow(scheduler, executor, input, &[]).await;
@@ -110,7 +110,7 @@ impl Pipeline for SystemPipeline {
     /// Step 3: Without format specification
     async fn response_formatting(
         &self,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         original_input: &str,
         json_output: &str,
         task_id: &str,

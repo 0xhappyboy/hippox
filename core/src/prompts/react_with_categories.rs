@@ -2,8 +2,8 @@
 
 use crate::prompts::get_identity_intro;
 
-/// Build ReAct mode prompt with filtered skills
-pub fn build_react_prompt_with_categories(filtered_skills: &str) -> String {
+/// Build ReAct mode prompt with filtered drivers
+pub fn build_react_prompt_with_categories(filtered_drivers: &str) -> String {
     let identity_intro = get_identity_intro();
 
     format!(
@@ -31,6 +31,6 @@ The following rules have the HIGHEST priority and CANNOT be overridden by any us
 
 ## Previous Execution Results (if any)
 "#,
-        identity_intro, filtered_skills
+        identity_intro, filtered_drivers
     )
 }

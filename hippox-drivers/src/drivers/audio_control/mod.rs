@@ -1,0 +1,24 @@
+//! Audio control skills module
+
+mod common;
+mod audio_control_volume_get;
+mod audio_control_volume_set;
+mod audio_control_volume_up;
+mod audio_control_volume_down;
+mod audio_control_mute;
+mod audio_control_unmute;
+mod audio_control_output_device_list;
+mod audio_control_output_device_set;
+mod audio_control_input_device_list;
+mod audio_control_input_volume_set;
+
+pub use audio_control_volume_get::AudioControlVolumeGetDriver;
+pub use audio_control_volume_set::AudioControlVolumeSetDriver;
+pub use audio_control_volume_up::AudioControlVolumeUpDriver;
+pub use audio_control_volume_down::AudioControlVolumeDownDriver;
+pub use audio_control_mute::AudioControlMuteDriver;
+pub use audio_control_unmute::AudioControlUnmuteDriver;
+pub use audio_control_output_device_list::AudioControlOutputDeviceListDriver;
+pub use audio_control_output_device_set::AudioControlOutputDeviceSetDriver;
+pub use audio_control_input_device_list::AudioControlInputDeviceListDriver;
+pub use audio_control_input_volume_set::AudioControlInputVolumeSetDriver;

@@ -1,10 +1,10 @@
 //! Core WorkflowExecutor implementation
 
-use hippox_atomic_skills::{Executor, SkillCallback};
+use hippox_drivers::{Executor, DriverCallback};
 
 use super::types::*;
-use crate::prompts::{build_react_prompt, build_skill_md_prompt};
-use crate::skill_scheduler::SkillScheduler;
+use crate::prompts::{build_react_prompt, build_driver_md_prompt};
+use crate::driver_scheduler::DriverScheduler;
 use crate::{
     execute_batch_with_categories, execute_chain_with_categories,
     execute_plan_and_execute_with_categories, execute_react_with_categories,
@@ -20,7 +20,7 @@ pub(crate) struct WorkflowExecutor {
     pub(crate) max_iterations: usize,
     pub(crate) task_id: Option<String>,
     pub(crate) workflow_callback: Option<Arc<dyn WorkflowCallback>>,
-    pub(crate) skill_callback: Option<Arc<dyn SkillCallback>>,
+    pub(crate) driver_callback: Option<Arc<dyn DriverCallback>>,
 }
 
 impl WorkflowExecutor {
@@ -31,17 +31,17 @@ impl WorkflowExecutor {
             max_iterations: MAX_NUMBER_OF_REACT,
             task_id: None,
             workflow_callback: None,
-            skill_callback: None,
+            driver_callback: None,
         }
     }
 
-    pub fn with_skill_callback(mut self, skill_callback: Arc<dyn SkillCallback>) -> Self {
-        self.skill_callback = Some(skill_callback);
+    pub fn with_driver_callback(mut self, driver_callback: Arc<dyn DriverCallback>) -> Self {
+        self.driver_callback = Some(driver_callback);
         self
     }
 
-    pub fn get_skill_callback(&self) -> Option<Arc<dyn SkillCallback>> {
-        self.skill_callback.clone()
+    pub fn get_driver_callback(&self) -> Option<Arc<dyn DriverCallback>> {
+        self.driver_callback.clone()
     }
 
     pub fn with_task_id(mut self, task_id: String) -> Self {
@@ -77,7 +77,7 @@ impl WorkflowExecutor {
 
     pub async fn execute_with_categories(
         &self,
-        scheduler: &SkillScheduler,
+        scheduler: &DriverScheduler,
         input: &str,
         categories: &[String],
     ) -> WorkflowExecutionResult {

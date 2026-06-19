@@ -6,7 +6,7 @@ use std::sync::RwLock;
 #[derive(Debug, Deserialize)]
 struct Translations {
     app: HashMap<String, String>,
-    skill: HashMap<String, String>,
+    driver: HashMap<String, String>,
     error: HashMap<String, String>,
     prompt: HashMap<String, String>,
 }
@@ -72,7 +72,7 @@ fn get_value(trans: &Translations, key: &str) -> Option<String> {
     }
     match parts[0] {
         "app" => trans.app.get(parts[1]).cloned(),
-        "skill" => trans.skill.get(parts[1]).cloned(),
+        "driver" => trans.driver.get(parts[1]).cloned(),
         "error" => trans.error.get(parts[1]).cloned(),
         "prompt" => trans.prompt.get(parts[1]).cloned(),
         _ => None,

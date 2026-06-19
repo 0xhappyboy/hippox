@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::types::{ExecutionStatus, StepResult};
 use crate::{ReactInstruction, StepInterruptionInfo, WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, t};
-use hippox_atomic_skills::SkillCall;
+use hippox_drivers::DriverCall;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::Value;
@@ -39,7 +39,7 @@ pub fn get_output_summary(output: &str) -> String {
 /// Formatted string with step execution summary
 pub fn format_step_results(results: &[StepResult]) -> String {
     if results.is_empty() {
-        return t!("skill.no_steps_executed").to_string();
+        return t!("driver.no_steps_executed").to_string();
     }
     if results.len() == 1 {
         return results[0].output.clone();
@@ -51,7 +51,7 @@ pub fn format_step_results(results: &[StepResult]) -> String {
     let failure_count = results.len() - success_count;
     let mut output = format!(
         "{} (SUCCESS {} / FAILURE {}):\n\n",
-        t!("skill.executed_steps", results.len()),
+        t!("driver.executed_steps", results.len()),
         success_count,
         failure_count
     );
@@ -116,12 +116,12 @@ pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> 
     if let Some(mode) = value.get("mode").and_then(|v| v.as_str()) {
         if mode == "batch" {
             if let Some(steps) = value.get("steps").and_then(|v| v.as_array()) {
-                let mut skill_calls = Vec::new();
+                let mut driver_calls = Vec::new();
                 for step in steps {
-                    let call: SkillCall = serde_json::from_value(step.clone())?;
-                    skill_calls.push(call);
+                    let call: DriverCall = serde_json::from_value(step.clone())?;
+                    driver_calls.push(call);
                 }
-                return Ok(ReactInstruction::Batch(skill_calls));
+                return Ok(ReactInstruction::Batch(driver_calls));
             }
         }
     }

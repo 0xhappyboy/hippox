@@ -1,13 +1,13 @@
-//! Retry, timeout, and error handling utilities for skill execution
+//! Retry, timeout, and error handling utilities for driver execution
 //!
-//! This module provides unified skill execution capabilities that can be
+//! This module provides unified driver execution capabilities that can be
 //! used across all workflow modes (ReAct, Batch, Chain, PlanAndExecute).
 
 use crate::prompts::{
     build_consecutive_failures_prompt, build_error_feedback_prompt,
     build_max_retries_exceeded_prompt, build_timeout_feedback_prompt,
 };
-use hippox_atomic_skills::{Executor, SkillCall, SkillCallback, SkillContext};
+use hippox_drivers::{Executor, DriverCall, DriverCallback, DriverContext};
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -17,25 +17,25 @@ use std::time::Instant;
 use super::core::WorkflowExecutor;
 use super::types::*;
 
-/// Default timeout for individual skill execution (in seconds)
+/// Default timeout for individual driver execution (in seconds)
 pub const DEFAULT_SKILL_TIMEOUT_SECS: u64 = 60;
 
-/// Maximum number of retries for a single skill
+/// Maximum number of retries for a single driver
 pub const DEFAULT_MAX_RETRIES_PER_SKILL: usize = 3;
 
 /// Maximum number of consecutive failures before forcing a decision
 pub const DEFAULT_MAX_CONSECUTIVE_FAILURES: usize = 5;
 
-/// Manages retry state for skills in the current workflow
+/// Manages retry state for drivers in the current workflow
 #[derive(Debug, Clone)]
 pub struct RetryContext {
-    /// Maximum retries per skill
+    /// Maximum retries per driver
     max_retries: usize,
-    /// Current retry count per skill name
+    /// Current retry count per driver name
     retry_counts: HashMap<String, usize>,
-    /// Set of skills that have permanently failed
-    failed_skills: HashSet<String>,
-    /// Consecutive failure count across all skills
+    /// Set of drivers that have permanently failed
+    failed_drivers: HashSet<String>,
+    /// Consecutive failure count across all drivers
     consecutive_failures: usize,
     /// Maximum consecutive failures allowed
     max_consecutive_failures: usize,
@@ -46,43 +46,43 @@ impl RetryContext {
         Self {
             max_retries,
             retry_counts: HashMap::new(),
-            failed_skills: HashSet::new(),
+            failed_drivers: HashSet::new(),
             consecutive_failures: 0,
             max_consecutive_failures,
         }
     }
 
-    /// Check if a skill can be retried (consumes one retry quota)
-    pub fn can_retry(&mut self, skill_name: &str) -> bool {
-        if self.failed_skills.contains(skill_name) {
+    /// Check if a driver can be retried (consumes one retry quota)
+    pub fn can_retry(&mut self, driver_name: &str) -> bool {
+        if self.failed_drivers.contains(driver_name) {
             return false;
         }
-        let count = self.retry_counts.entry(skill_name.to_string()).or_insert(0);
+        let count = self.retry_counts.entry(driver_name.to_string()).or_insert(0);
         let result = *count < self.max_retries;
         if result {
             *count += 1;
         } else {
-            self.failed_skills.insert(skill_name.to_string());
+            self.failed_drivers.insert(driver_name.to_string());
         }
         result
     }
 
-    /// Get current retry count for a skill (number of attempts already made)
-    pub fn get_retry_count(&self, skill_name: &str) -> usize {
-        self.retry_counts.get(skill_name).copied().unwrap_or(0)
+    /// Get current retry count for a driver (number of attempts already made)
+    pub fn get_retry_count(&self, driver_name: &str) -> usize {
+        self.retry_counts.get(driver_name).copied().unwrap_or(0)
     }
 
-    /// Check if a skill can be retried without consuming quota (just peek)
-    pub fn can_retry_peek(&self, skill_name: &str) -> bool {
-        if self.failed_skills.contains(skill_name) {
+    /// Check if a driver can be retried without consuming quota (just peek)
+    pub fn can_retry_peek(&self, driver_name: &str) -> bool {
+        if self.failed_drivers.contains(driver_name) {
             return false;
         }
-        let count = self.retry_counts.get(skill_name).copied().unwrap_or(0);
+        let count = self.retry_counts.get(driver_name).copied().unwrap_or(0);
         count < self.max_retries
     }
 
     /// Record a failure and increment consecutive failure counter
-    pub fn record_failure(&mut self, _skill_name: &str) {
+    pub fn record_failure(&mut self, _driver_name: &str) {
         self.consecutive_failures += 1;
     }
 
@@ -96,9 +96,9 @@ impl RetryContext {
         self.consecutive_failures >= self.max_consecutive_failures
     }
 
-    /// Check if a skill has permanently failed
-    pub fn is_skill_permanently_failed(&self, skill_name: &str) -> bool {
-        self.failed_skills.contains(skill_name)
+    /// Check if a driver has permanently failed
+    pub fn is_driver_permanently_failed(&self, driver_name: &str) -> bool {
+        self.failed_drivers.contains(driver_name)
     }
 
     /// Get consecutive failures count
@@ -112,65 +112,65 @@ impl RetryContext {
     }
 }
 
-/// Result of executing a skill with timeout protection
+/// Result of executing a driver with timeout protection
 #[derive(Debug, Clone)]
-pub enum SkillExecutionResult {
-    /// Skill executed successfully with output
+pub enum DriverExecutionResult {
+    /// Driver executed successfully with output
     Success(String),
-    /// Skill failed with error message
+    /// Driver failed with error message
     Failure(String),
-    /// Skill timed out
+    /// Driver timed out
     Timeout(String),
 }
 
-impl SkillExecutionResult {
+impl DriverExecutionResult {
     pub fn is_success(&self) -> bool {
-        matches!(self, SkillExecutionResult::Success(_))
+        matches!(self, DriverExecutionResult::Success(_))
     }
 
     pub fn is_timeout(&self) -> bool {
-        matches!(self, SkillExecutionResult::Timeout(_))
+        matches!(self, DriverExecutionResult::Timeout(_))
     }
 
     pub fn is_failure(&self) -> bool {
-        matches!(self, SkillExecutionResult::Failure(_))
+        matches!(self, DriverExecutionResult::Failure(_))
     }
 
     pub fn into_output(self) -> Option<String> {
         match self {
-            SkillExecutionResult::Success(output) => Some(output),
+            DriverExecutionResult::Success(output) => Some(output),
             _ => None,
         }
     }
 
     pub fn into_error(self) -> Option<String> {
         match self {
-            SkillExecutionResult::Failure(msg) => Some(msg),
-            SkillExecutionResult::Timeout(msg) => Some(msg),
+            DriverExecutionResult::Failure(msg) => Some(msg),
+            DriverExecutionResult::Timeout(msg) => Some(msg),
             _ => None,
         }
     }
 }
 
-/// Execute a skill with timeout protection
-pub async fn execute_skill_with_timeout(
+/// Execute a driver with timeout protection
+pub async fn execute_driver_with_timeout(
     executor: &Executor,
-    call: &SkillCall,
-    skill_callback: Option<Arc<dyn SkillCallback>>,
-    skill_context: Option<&SkillContext>,
+    call: &DriverCall,
+    driver_callback: Option<Arc<dyn DriverCallback>>,
+    driver_context: Option<&DriverContext>,
     timeout_secs: u64,
-) -> SkillExecutionResult {
+) -> DriverExecutionResult {
     let call_clone = call.clone();
     match tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs),
-        executor.execute(&call_clone, skill_callback.as_deref(), skill_context),
+        executor.execute(&call_clone, driver_callback.as_deref(), driver_context),
     )
     .await
     {
-        Ok(Ok(output)) => SkillExecutionResult::Success(output),
-        Ok(Err(e)) => SkillExecutionResult::Failure(e.to_string()),
-        Err(_) => SkillExecutionResult::Timeout(format!(
-            "Skill '{}' timed out after {} seconds",
+        Ok(Ok(output)) => DriverExecutionResult::Success(output),
+        Ok(Err(e)) => DriverExecutionResult::Failure(e.to_string()),
+        Err(_) => DriverExecutionResult::Timeout(format!(
+            "Driver '{}' timed out after {} seconds",
             call.action, timeout_secs
         )),
     }
@@ -178,25 +178,25 @@ pub async fn execute_skill_with_timeout(
 
 /// Build timeout feedback for LLM
 pub fn build_timeout_feedback(
-    skill_name: &str,
+    driver_name: &str,
     timeout_secs: u64,
     retry_count: usize,
     max_retries: usize,
 ) -> ChatMessage {
-    let prompt = build_timeout_feedback_prompt(skill_name, timeout_secs, retry_count, max_retries);
+    let prompt = build_timeout_feedback_prompt(driver_name, timeout_secs, retry_count, max_retries);
     ChatMessage::user(&prompt)
 }
 
 /// Build error feedback for LLM
 pub fn build_error_feedback(
-    skill_name: &str,
+    driver_name: &str,
     error_msg: &str,
     retry_count: usize,
     max_retries: usize,
     parameters: &HashMap<String, Value>,
 ) -> ChatMessage {
     let prompt = build_error_feedback_prompt(
-        skill_name,
+        driver_name,
         error_msg,
         retry_count,
         max_retries,
@@ -207,11 +207,11 @@ pub fn build_error_feedback(
 
 /// Build max retries exceeded feedback for LLM
 pub fn build_max_retries_exceeded_feedback(
-    skill_name: &str,
+    driver_name: &str,
     max_retries: usize,
     error_msg: &str,
 ) -> ChatMessage {
-    let prompt = build_max_retries_exceeded_prompt(skill_name, max_retries, error_msg);
+    let prompt = build_max_retries_exceeded_prompt(driver_name, max_retries, error_msg);
     ChatMessage::user(&prompt)
 }
 
@@ -225,14 +225,14 @@ pub fn build_consecutive_failures_feedback(
 }
 
 /// Create a step result from execution result
-pub fn create_step_result(call: &SkillCall, result: &SkillExecutionResult) -> StepResult {
+pub fn create_step_result(call: &DriverCall, result: &DriverExecutionResult) -> StepResult {
     let (output, status) = match result {
-        SkillExecutionResult::Success(output) => (output.clone(), ExecutionStatus::Success),
-        SkillExecutionResult::Failure(msg) => (msg.clone(), ExecutionStatus::Failure),
-        SkillExecutionResult::Timeout(msg) => (msg.clone(), ExecutionStatus::Failure),
+        DriverExecutionResult::Success(output) => (output.clone(), ExecutionStatus::Success),
+        DriverExecutionResult::Failure(msg) => (msg.clone(), ExecutionStatus::Failure),
+        DriverExecutionResult::Timeout(msg) => (msg.clone(), ExecutionStatus::Failure),
     };
     StepResult {
-        skill: call.action.clone(),
+        driver: call.action.clone(),
         parameters: call.parameters.clone(),
         output,
         status,
@@ -240,9 +240,9 @@ pub fn create_step_result(call: &SkillCall, result: &SkillExecutionResult) -> St
 }
 
 /// Create a failed step result from an error
-pub fn create_failed_step_result(call: &SkillCall, error: &str) -> StepResult {
+pub fn create_failed_step_result(call: &DriverCall, error: &str) -> StepResult {
     StepResult {
-        skill: call.action.clone(),
+        driver: call.action.clone(),
         parameters: call.parameters.clone(),
         output: error.to_string(),
         status: ExecutionStatus::Failure,
@@ -250,9 +250,9 @@ pub fn create_failed_step_result(call: &SkillCall, error: &str) -> StepResult {
 }
 
 /// Create a success step result
-pub fn create_success_step_result(call: &SkillCall, output: &str) -> StepResult {
+pub fn create_success_step_result(call: &DriverCall, output: &str) -> StepResult {
     StepResult {
-        skill: call.action.clone(),
+        driver: call.action.clone(),
         parameters: call.parameters.clone(),
         output: output.to_string(),
         status: ExecutionStatus::Success,
@@ -265,16 +265,16 @@ pub fn is_timeout_error(error_msg: &str) -> bool {
 }
 
 /// Check if a result is a timeout
-pub fn result_is_timeout(result: &SkillExecutionResult) -> bool {
-    matches!(result, SkillExecutionResult::Timeout(_))
+pub fn result_is_timeout(result: &DriverExecutionResult) -> bool {
+    matches!(result, DriverExecutionResult::Timeout(_))
 }
 
 /// Get error message from result
-pub fn get_error_message(result: &SkillExecutionResult) -> Option<&str> {
+pub fn get_error_message(result: &DriverExecutionResult) -> Option<&str> {
     match result {
-        SkillExecutionResult::Failure(msg) => Some(msg),
-        SkillExecutionResult::Timeout(msg) => Some(msg),
-        SkillExecutionResult::Success(_) => None,
+        DriverExecutionResult::Failure(msg) => Some(msg),
+        DriverExecutionResult::Timeout(msg) => Some(msg),
+        DriverExecutionResult::Success(_) => None,
     }
 }
 

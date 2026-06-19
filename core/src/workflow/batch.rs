@@ -1,32 +1,32 @@
 //! Batch mode workflow execution
 //!
-//! This mode executes multiple independent skills in parallel. Each skill is executed
-//! with its own retry and timeout policy. Failures in one skill do not affect others.
+//! This mode executes multiple independent drivers in parallel. Each driver is executed
+//! with its own retry and timeout policy. Failures in one driver do not affect others.
 //!
 //! # Characteristics
-//! - All skills are executed concurrently using `tokio::spawn`
-//! - Each skill has independent retry (3 attempts) and timeout (60s) protection
+//! - All drivers are executed concurrently using `tokio::spawn`
+//! - Each driver has independent retry (3 attempts) and timeout (60s) protection
 //! - Results are collected and aggregated regardless of individual failures
 //! - Best for: Bulk operations, independent tasks, parallel processing
 //!
 //! # Execution Flow
-//! 1. LLM generates a batch plan containing multiple skill calls
-//! 2. Each skill call is spawned as a separate tokio task
+//! 1. LLM generates a batch plan containing multiple driver calls
+//! 2. Each driver call is spawned as a separate tokio task
 //! 3. Each task executes with its own retry context
 //! 4. All results are collected and returned as a single batch result
 //!
 //! # Retry Behavior
-//! Each skill in the batch inherits the global retry policy:
-//! - Up to 3 retry attempts per skill
+//! Each driver in the batch inherits the global retry policy:
+//! - Up to 3 retry attempts per driver
 //! - 60-second timeout per execution attempt
-//! - Individual skills do not affect each other's retry state
+//! - Individual drivers do not affect each other's retry state
 
 use crate::prompts::build_batch_prompt;
 use crate::{
-    SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
+    DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
 };
 use futures::future::join_all;
-use hippox_atomic_skills::{Executor, SkillCall, SkillCallback, SkillContext};
+use hippox_drivers::{Executor, DriverCall, DriverCallback, DriverContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -37,32 +37,32 @@ use super::retry::*;
 use super::types::*;
 use super::utils::format_step_results;
 
-/// Execute a single skill with retry and timeout protection in batch mode.
+/// Execute a single driver with retry and timeout protection in batch mode.
 ///
 /// This function handles the complete lifecycle of a single batch task:
-/// - Executes the skill with timeout protection
+/// - Executes the driver with timeout protection
 /// - Automatically retries on failure or timeout (up to max_retries)
 /// - Triggers appropriate callbacks for each attempt
 /// - Returns either a success or failure StepResult
 ///
 /// # Arguments
-/// * `executor` - The skill executor
-/// * `step` - The skill call to execute
-/// * `step_name` - Name of the skill (for logging and callbacks)
+/// * `executor` - The driver executor
+/// * `step` - The driver call to execute
+/// * `step_name` - Name of the driver (for logging and callbacks)
 /// * `idx` - Index of this step in the batch
 /// * `task_id` - Optional task ID for task tracking
 /// * `callback` - Optional workflow callback for progress notifications
-/// * `skill_callback` - Optional skill callback for skill-level events
+/// * `driver_callback` - Optional driver callback for driver-level events
 /// * `max_retries` - Maximum number of retry attempts
 /// * `timeout_secs` - Timeout in seconds for each execution attempt
-async fn execute_batch_skill_with_retry(
+async fn execute_batch_driver_with_retry(
     executor: &Executor,
-    step: SkillCall,
+    step: DriverCall,
     step_name: String,
     idx: usize,
     task_id: Option<String>,
     callback: &Option<Arc<dyn WorkflowCallback>>,
-    skill_callback: Option<Arc<dyn SkillCallback>>,
+    driver_callback: Option<Arc<dyn DriverCallback>>,
     max_retries: usize,
     timeout_secs: u64,
 ) -> StepResult {
@@ -72,23 +72,23 @@ async fn execute_batch_skill_with_retry(
     // Execute with retry
     loop {
         let call = step.clone();
-        let skill_context = SkillContext {
+        let driver_context = DriverContext {
             task_id: task_id.clone(),
-            skill_index: Some(idx),
-            skill_name: Some(step_name.clone()),
+            driver_index: Some(idx),
+            driver_name: Some(step_name.clone()),
             extra: HashMap::new(),
             signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
-        let result = execute_skill_with_timeout(
+        let result = execute_driver_with_timeout(
             executor,
             &call,
-            skill_callback.clone(),
-            Some(&skill_context),
+            driver_callback.clone(),
+            Some(&driver_context),
             timeout_secs,
         )
         .await;
         match result {
-            SkillExecutionResult::Success(output) => {
+            DriverExecutionResult::Success(output) => {
                 let duration = step_start.elapsed().as_millis() as u64;
                 if let Some(cb) = callback {
                     if let Some(ref tid) = task_id {
@@ -97,14 +97,14 @@ async fn execute_batch_skill_with_retry(
                     }
                 }
                 return StepResult {
-                    skill: step.action.clone(),
+                    driver: step.action.clone(),
                     parameters: step.parameters.clone(),
                     output,
                     status: ExecutionStatus::Success,
                 };
             }
-            SkillExecutionResult::Timeout(ref error_msg)
-            | SkillExecutionResult::Failure(ref error_msg) => {
+            DriverExecutionResult::Timeout(ref error_msg)
+            | DriverExecutionResult::Failure(ref error_msg) => {
                 let is_timeout = result.is_timeout();
                 let duration = step_start.elapsed().as_millis() as u64;
                 let retry_count = retry_context.get_retry_count(&step_name);
@@ -128,7 +128,7 @@ async fn execute_batch_skill_with_retry(
                 } else {
                     // Max retries exceeded, return failure
                     return StepResult {
-                        skill: step.action.clone(),
+                        driver: step.action.clone(),
                         parameters: step.parameters.clone(),
                         output: format!(
                             "Failed after {} retries: {}",
@@ -143,20 +143,20 @@ async fn execute_batch_skill_with_retry(
     }
 }
 
-/// Execute a batch plan by running all skills in parallel.
+/// Execute a batch plan by running all drivers in parallel.
 ///
-/// Each skill in the batch is executed as an independent tokio task.
+/// Each driver in the batch is executed as an independent tokio task.
 /// The function waits for all tasks to complete and collects their results.
 ///
 /// # Arguments
 /// * `executor` - The workflow executor
-/// * `steps` - Slice of skill calls to execute in parallel
+/// * `steps` - Slice of driver calls to execute in parallel
 ///
 /// # Returns
-/// A vector of StepResult for all executed skills
+/// A vector of StepResult for all executed drivers
 pub async fn execute_batch_plan(
     executor: &WorkflowExecutor,
-    steps: &[SkillCall],
+    steps: &[DriverCall],
 ) -> Vec<StepResult> {
     if steps.is_empty() {
         return Vec::new();
@@ -174,7 +174,7 @@ pub async fn execute_batch_plan(
         .enumerate()
         .map(|(idx, step)| (idx, step.action.clone()))
         .collect();
-    let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+    let driver_callback_arc: Option<Arc<dyn DriverCallback>> = executor.get_driver_callback();
     let timeout_secs = get_timeout_secs(executor);
     let max_retries = DEFAULT_MAX_RETRIES_PER_SKILL;
     let futures = step_metadata.into_iter().map(|(idx, step_name)| {
@@ -182,21 +182,21 @@ pub async fn execute_batch_plan(
         let executor = executor_clone.clone();
         let callback = callback.clone();
         let task_id = task_id.clone();
-        let skill_callback = skill_callback_arc.clone();
+        let driver_callback = driver_callback_arc.clone();
         tokio::spawn(async move {
             if let Err(_) =
                 check_task_interruption(task_id.as_deref(), &callback, idx, &step_name, None).await
             {
                 return None;
             }
-            let result = execute_batch_skill_with_retry(
+            let result = execute_batch_driver_with_retry(
                 &executor,
                 step,
                 step_name,
                 idx,
                 task_id,
                 &callback,
-                skill_callback,
+                driver_callback,
                 max_retries,
                 timeout_secs,
             )
@@ -214,28 +214,28 @@ pub async fn execute_batch_plan(
 /// Execute a batch workflow with category filtering.
 ///
 /// This is the main entry point for batch mode execution. It:
-/// 1. Generates a batch plan using LLM with filtered skills
+/// 1. Generates a batch plan using LLM with filtered drivers
 /// 2. Executes the plan in parallel
 /// 3. Returns aggregated results
 ///
 /// # Arguments
 /// * `executor` - The workflow executor
-/// * `scheduler` - The skill scheduler for LLM interactions
+/// * `scheduler` - The driver scheduler for LLM interactions
 /// * `input` - User input text
-/// * `categories` - Skill categories to filter by
+/// * `categories` - Driver categories to filter by
 ///
 /// # Returns
 /// A WorkflowExecutionResult containing the batch results
 pub async fn execute_batch_with_categories(
     executor: &WorkflowExecutor,
-    scheduler: &SkillScheduler,
+    scheduler: &DriverScheduler,
     input: &str,
     categories: &[String],
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
-    let batch_prompt = crate::prompts::build_batch_prompt_with_categories(&filtered_skills, input);
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories);
+    let batch_prompt = crate::prompts::build_batch_prompt_with_categories(&filtered_drivers, input);
     let task_id_str = task_id.as_deref().unwrap_or("unknown");
 
     let llm_response = match scheduler
@@ -265,7 +265,7 @@ pub async fn execute_batch_with_categories(
                 "mode": "batch",
                 "results": results.iter().map(|r| {
                     serde_json::json!({
-                        "skill": r.skill,
+                        "driver": r.driver,
                         "output": r.output,
                         "status": match r.status {
                             ExecutionStatus::Success => "success",

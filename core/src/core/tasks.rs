@@ -1,8 +1,6 @@
-// tasks.rs
-
 //! Internal task implementations for Hippox core
 
-use hippox_atomic_skills::SkillCallback;
+use hippox_drivers::DriverCallback;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::future::Future;
@@ -12,7 +10,7 @@ use std::time::Instant;
 use tracing::info;
 
 use crate::pipeline::{Pipeline, SystemPipeline, WorkflowExecResult, needs_format_conversion};
-use crate::skill_scheduler::SkillScheduler;
+use crate::driver_scheduler::DriverScheduler;
 use crate::t;
 use crate::tasks::{ExecutableTask, TaskStateUpdater};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor};
@@ -21,25 +19,25 @@ use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecuto
 pub(crate) struct NaturalLanguageTask {
     input: String,
     workflow_executor: WorkflowExecutor,
-    scheduler: SkillScheduler,
+    scheduler: DriverScheduler,
     workflow_callback: Option<Arc<dyn WorkflowCallback>>,
-    skill_callback: Option<Arc<dyn SkillCallback>>,
+    driver_callback: Option<Arc<dyn DriverCallback>>,
 }
 
 impl NaturalLanguageTask {
     pub(crate) fn new(
         input: String,
         workflow_executor: WorkflowExecutor,
-        scheduler: SkillScheduler,
+        scheduler: DriverScheduler,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
-        skill_callback: Option<Arc<dyn SkillCallback>>,
+        driver_callback: Option<Arc<dyn DriverCallback>>,
     ) -> Self {
         Self {
             input,
             workflow_executor,
             scheduler,
             workflow_callback,
-            skill_callback,
+            driver_callback,
         }
     }
 }
@@ -50,7 +48,7 @@ impl ExecutableTask for NaturalLanguageTask {
         state_updater: TaskStateUpdater,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let workflow_callback = self.workflow_callback.clone();
-        let skill_callback = self.skill_callback.clone();
+        let driver_callback = self.driver_callback.clone();
         let input = self.input.clone();
         let mut workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
@@ -74,8 +72,8 @@ impl ExecutableTask for NaturalLanguageTask {
             if let Some(ref cb) = workflow_callback {
                 executor_with_callback = executor_with_callback.with_workflow_callback(cb.clone());
             }
-            if let Some(cb) = skill_callback {
-                executor_with_callback = executor_with_callback.with_skill_callback(cb);
+            if let Some(cb) = driver_callback {
+                executor_with_callback = executor_with_callback.with_driver_callback(cb);
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
             let result = pipeline
@@ -150,7 +148,7 @@ impl ExecutableTask for NaturalLanguageTask {
         self.workflow_callback.clone()
     }
 
-    fn get_skill_callback(&self) -> Option<Arc<dyn SkillCallback>> {
-        self.skill_callback.clone()
+    fn get_driver_callback(&self) -> Option<Arc<dyn DriverCallback>> {
+        self.driver_callback.clone()
     }
 }

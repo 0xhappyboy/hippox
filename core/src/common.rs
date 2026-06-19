@@ -1,10 +1,10 @@
-use hippox_atomic_skills::{Skill, get_skill_by_name, list_skills_names};
+use hippox_drivers::{Driver, get_driver_by_name, list_drivers_names};
 use std::sync::Arc;
 
-pub fn get_skill(name: &str) -> Option<Arc<dyn Skill>> {
-    get_skill_by_name(name)
+pub fn get_driver(name: &str) -> Option<Arc<dyn Driver>> {
+    get_driver_by_name(name)
 }
 
-pub fn list_skills() -> Vec<String> {
-    list_skills_names()
+pub fn list_drivers() -> Vec<String> {
+    list_drivers_names()
 }

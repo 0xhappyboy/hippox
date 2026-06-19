@@ -1,0 +1,28 @@
+//! Application control drivers module
+
+mod common;
+mod application_control_launch;
+mod application_control_launch_with_args;
+mod application_control_launch_as_admin;
+mod application_control_close;
+mod application_control_is_running;
+mod application_control_wait_for_exit;
+mod application_control_get_path;
+mod application_control_wait_for;
+mod application_control_restart;
+mod application_control_list_running;
+mod application_control_install;
+mod application_control_uninstall;
+
+pub use application_control_launch::ApplicationControlLaunchDriver;
+pub use application_control_launch_with_args::ApplicationControlLaunchWithArgsDriver;
+pub use application_control_launch_as_admin::ApplicationControlLaunchAsAdminDriver;
+pub use application_control_close::ApplicationControlCloseDriver;
+pub use application_control_is_running::ApplicationControlIsRunningDriver;
+pub use application_control_wait_for_exit::ApplicationControlWaitForExitDriver;
+pub use application_control_get_path::ApplicationControlGetPathDriver;
+pub use application_control_wait_for::ApplicationControlWaitForDriver;
+pub use application_control_restart::ApplicationControlRestartDriver;
+pub use application_control_list_running::ApplicationControlListRunningDriver;
+pub use application_control_install::ApplicationControlInstallDriver;
+pub use application_control_uninstall::ApplicationControlUninstallDriver;
