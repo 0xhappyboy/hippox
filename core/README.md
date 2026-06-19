@@ -395,10 +395,10 @@ Pending ──► Running ──► Completed
 <table>
   <tr>
     <td align="left">
-    <h4>Chain</h4>
+    <h4>ReAct</h4>
     </td>
     <td align="left">
-    <h4>Batch</h4>
+    <h4>PlanAndExecute</h4>
     </td>
   </tr>
   <tr>
@@ -407,10 +407,10 @@ Pending ──► Running ──► Completed
   </tr>
    <tr>
     <td align="left">
-    <h4>ReAct</h4>
+    <h4>Chain</h4>
     </td>
     <td align="left">
-    <h4>PlanAndExecute</h4>
+    <h4>Batch</h4>
     </td>
   </tr>
   <tr>

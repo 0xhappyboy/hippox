@@ -397,27 +397,27 @@ pub struct IdentityInformation {
 <table>
   <tr>
     <td align="left">
-    <h4>Chain</h4>
+    <h4>推理—行动模式下的重试策略</h4>
     </td>
     <td align="left">
-    <h4>Batch</h4>
+    <h4>规划—执行模式下的重试策略</h4>
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_react_cn.png" width="100%" ></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_planandexecute_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_react_en.png" width="100%" ></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_planandexecute_en.png" width="100%"></td>
   </tr>
    <tr>
     <td align="left">
-    <h4>ReAct</h4>
+    <h4>链式调用模式下的重试策略</h4>
     </td>
     <td align="left">
-    <h4>PlanAndExecute</h4>
+    <h4>批处理模式下的重试策略</h4>
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_chain_cn.png" width="100%"></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_batch_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_chain_en.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_batch_en.png" width="100%"></td>
   </tr>
 </table>
 
