@@ -1,18 +1,51 @@
 //! Chain mode workflow execution
+//!
+//! This mode executes skills sequentially in the order defined by the LLM.
+//! Each step is independent and does not depend on previous step outputs.
+//! Failures in one step do not prevent subsequent steps from executing.
+//!
+//! # Characteristics
+//! - Skills are executed one after another (sequential, not parallel)
+//! - Each step has independent retry (3 attempts) and timeout (60s) protection
+//! - Steps do not depend on each other's results (no variable passing)
+//! - Best for: Ordered operations where order matters but results are independent
+//!
+//! # Execution Flow
+//! 1. LLM generates a chain plan with ordered steps
+//! 2. Each step is executed in sequence
+//! 3. Step failures are recorded but execution continues
+//! 4. All results are aggregated and returned
+//!
+//! # Note
+//! Unlike PlanAndExecute, Chain mode does NOT support variable passing
+//! between steps. Each step operates independently with only the user input
+//! available as context.
 
 use crate::prompts::build_chain_prompt;
 use crate::t;
 use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
-use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
+use hippox_atomic_skills::{Executor, SkillCall, SkillCallback, SkillContext};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
 use super::core::WorkflowExecutor;
+use super::retry::*;
 use super::types::*;
 use super::utils::{VARIABLE_REGEX, format_step_results};
 
+/// Parse the LLM response into a ChainPlan.
+///
+/// The expected response format is a JSON object with:
+/// - `mode`: Must be "chain"
+/// - `steps`: Array of step definitions, each with action, parameters, and optional output_as
+///
+/// # Arguments
+/// * `response` - The raw LLM response string
+///
+/// # Returns
+/// A ChainPlan containing the parsed steps
 pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
     let json_str = WorkflowExecutor::extract_json(response);
     let value: Value = serde_json::from_str(&json_str)?;
@@ -45,6 +78,17 @@ pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
     Ok(ChainPlan { steps })
 }
 
+/// Resolve variable placeholders in a value using context.
+///
+/// Supports `{{variable_name}}` syntax for variable substitution.
+/// This is used to resolve parameters before skill execution.
+///
+/// # Arguments
+/// * `value` - The value containing potential variable placeholders
+/// * `context` - The context map containing variable values
+///
+/// # Returns
+/// The resolved value with variables substituted
 fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
     if let Some(s) = value.as_str() {
         if s.contains("{{") && s.contains("}}") {
@@ -93,6 +137,105 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
     value.clone()
 }
 
+/// Execute a single chain step with retry and timeout protection.
+///
+/// This function handles the complete lifecycle of a single chain step:
+/// - Executes the skill with timeout protection
+/// - Automatically retries on failure or timeout (up to max_retries)
+/// - Triggers appropriate callbacks for each attempt
+/// - Returns Ok(output) on success, Err(error) after all retries exhausted
+///
+/// # Arguments
+/// * `executor` - The skill executor
+/// * `call` - The skill call to execute
+/// * `step_name` - Name of the skill (for logging and callbacks)
+/// * `idx` - Index of this step in the chain
+/// * `task_id` - Optional task ID for task tracking
+/// * `workflow_callback` - Optional workflow callback for progress notifications
+/// * `skill_callback_arc` - Optional skill callback for skill-level events
+/// * `max_retries` - Maximum number of retry attempts
+/// * `timeout_secs` - Timeout in seconds for each execution attempt
+///
+/// # Returns
+/// Ok(String) on success, Err(anyhow::Error) after all retries are exhausted
+async fn execute_chain_step_with_retry(
+    executor: &Executor,
+    call: SkillCall,
+    step_name: String,
+    idx: usize,
+    task_id: Option<String>,
+    workflow_callback: &Option<Arc<dyn WorkflowCallback>>,
+    skill_callback_arc: Option<Arc<dyn SkillCallback>>,
+    max_retries: usize,
+    timeout_secs: u64,
+) -> anyhow::Result<String> {
+    let mut retry_context = RetryContext::new(max_retries, DEFAULT_MAX_CONSECUTIVE_FAILURES);
+    let mut last_error = None;
+    loop {
+        let skill_context = SkillContext {
+            task_id: task_id.clone(),
+            skill_index: Some(idx),
+            skill_name: Some(step_name.clone()),
+            extra: HashMap::new(),
+            signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
+        };
+        let result = execute_skill_with_timeout(
+            executor,
+            &call,
+            skill_callback_arc.clone(),
+            Some(&skill_context),
+            timeout_secs,
+        )
+        .await;
+        match result {
+            SkillExecutionResult::Success(output) => {
+                return Ok(output);
+            }
+            SkillExecutionResult::Timeout(ref error_msg)
+            | SkillExecutionResult::Failure(ref error_msg) => {
+                let is_timeout = result.is_timeout();
+
+                if let Some(cb) = workflow_callback {
+                    if let Some(ref tid) = task_id {
+                        if is_timeout {
+                            cb.on_step_timeout(tid, &step_name, idx, error_msg, 0).await;
+                        } else {
+                            cb.on_step_failure(tid, &step_name, idx, error_msg, 0).await;
+                        }
+                    }
+                }
+                last_error = Some(error_msg.clone());
+                if retry_context.can_retry(&step_name) {
+                    continue;
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Skill '{}' failed after {} retries: {}",
+                        step_name,
+                        max_retries,
+                        last_error.unwrap_or_default()
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Execute a chain workflow with category filtering.
+///
+/// This is the main entry point for chain mode execution. It:
+/// 1. Generates a chain plan using LLM with filtered skills
+/// 2. Executes each step sequentially
+/// 3. Records all results (success and failure)
+/// 4. Continues execution even if individual steps fail
+///
+/// # Arguments
+/// * `executor` - The workflow executor
+/// * `scheduler` - The skill scheduler for LLM interactions
+/// * `input` - User input text
+/// * `categories` - Skill categories to filter by
+///
+/// # Returns
+/// A WorkflowExecutionResult containing all step results
 pub async fn execute_chain_with_categories(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
@@ -103,6 +246,7 @@ pub async fn execute_chain_with_categories(
     let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
     let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_skills, input);
+
     let llm_response = match scheduler
         .generate_with_task(&chain_prompt, &task_id.clone().unwrap())
         .await
@@ -115,6 +259,7 @@ pub async fn execute_chain_with_categories(
             };
         }
     };
+
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
         Err(e) => {
@@ -128,7 +273,13 @@ pub async fn execute_chain_with_categories(
     let mut context = HashMap::new();
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
+
+    let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+    let timeout_secs = get_timeout_secs(executor);
+    let max_retries = DEFAULT_MAX_RETRIES_PER_SKILL;
+
     for (idx, step) in chain.steps.iter().enumerate() {
+        // Check interruption before each step
         if let Err(result) = check_task_interruption(
             task_id.as_deref(),
             executor.get_workflow_callback(),
@@ -140,8 +291,11 @@ pub async fn execute_chain_with_categories(
         {
             return result;
         }
+
         let step_name = step.action.clone();
         let step_start = Instant::now();
+
+        // Resolve parameters
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
             let resolved = resolve_variables_deep(value, &context);
@@ -151,20 +305,22 @@ pub async fn execute_chain_with_categories(
             action: step.action.clone(),
             parameters: resolved_params,
         };
-        let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
-        let skill_context = SkillContext {
-            task_id: task_id.clone(),
-            skill_index: Some(idx),
-            skill_name: Some(step_name.clone()),
-            extra: HashMap::new(),
-            signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
-        };
-        match executor
-            .get_executor()
-            .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
-            .await
+        // Execute with retry
+        match execute_chain_step_with_retry(
+            executor.get_executor(),
+            call,
+            step_name.clone(),
+            idx,
+            task_id.clone(),
+            executor.get_workflow_callback(),
+            skill_callback_arc.clone(),
+            max_retries,
+            timeout_secs,
+        )
+        .await
         {
             Ok(output) => {
+                // Save output to context for variable passing
                 if let Some(output_as) = &step.output_as {
                     if let Ok(num) = output.parse::<f64>() {
                         context.insert(output_as.clone(), json!(num));
@@ -172,9 +328,16 @@ pub async fn execute_chain_with_categories(
                         context.insert(output_as.clone(), Value::String(output.clone()));
                     }
                 }
+                let duration = step_start.elapsed().as_millis() as u64;
+                if let Some(cb) = executor.get_workflow_callback() {
+                    if let Some(ref tid) = task_id {
+                        cb.on_step_success(tid, &step_name, idx, &output, duration)
+                            .await;
+                    }
+                }
                 results.push(StepResult {
                     skill: step.action.clone(),
-                    parameters: call.parameters,
+                    parameters: step.parameters.clone(),
                     output: output.clone(),
                     status: ExecutionStatus::Success,
                 });
@@ -183,14 +346,10 @@ pub async fn execute_chain_with_categories(
                 let error_msg = e.to_string();
                 results.push(StepResult {
                     skill: step.action.clone(),
-                    parameters: call.parameters,
+                    parameters: step.parameters.clone(),
                     output: error_msg.clone(),
                     status: ExecutionStatus::Failure,
                 });
-                return WorkflowExecutionResult::Failed {
-                    error: format!("Skill '{}' failed: {}", step.action, error_msg),
-                    completed_steps: results.len(),
-                };
             }
         }
     }

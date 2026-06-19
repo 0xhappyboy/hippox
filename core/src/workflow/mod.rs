@@ -11,6 +11,7 @@ pub(crate) mod chain;
 pub(crate) mod core;
 pub(crate) mod plan_and_execute;
 pub(crate) mod react;
+pub(crate) mod retry;
 pub mod types;
 pub(crate) mod utils;
 
@@ -19,5 +20,6 @@ pub(crate) use chain::*;
 pub(crate) use core::*;
 pub(crate) use plan_and_execute::*;
 pub(crate) use react::*;
+pub(crate) use retry::*;
 pub use types::*;
 pub(crate) use utils::*;

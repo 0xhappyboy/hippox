@@ -1,9 +1,71 @@
 //! Plan-and-Execute mode workflow execution
+//!
+//! This mode generates a complete execution plan upfront and then executes it step by step.
+//! It supports DAG-style workflows with conditional logic, variable references, and error handling.
+//!
+//! # Error Handling Strategy
+//!
+//! Since PlanAndExecute is a DAG (Directed Acyclic Graph) mode, node failures are handled
+//! differently from other modes. Each node can define an `on_error` handler in the plan:
+//!
+//! - `on_error: "skip"` → After retries are exhausted, the failed node is skipped and the
+//!   workflow continues with subsequent nodes. The failure is logged but does not block
+//!   the rest of the workflow.
+//!
+//! - `on_error: "fail"` → After retries are exhausted, the entire workflow terminates
+//!   immediately and returns a failure result. No further nodes are executed.
+//!
+//! - No `on_error` handler → The default behavior is the same as `"fail"`: the workflow
+//!   terminates when a node fails after exhausting all retries.
+//!
+//! # Retry Behavior
+//!
+//! Each node in the plan inherits the global retry policy defined in `retry.rs`:
+//! - `DEFAULT_MAX_RETRIES_PER_SKILL`: Maximum number of retry attempts for each node
+//! - `DEFAULT_SKILL_TIMEOUT_SECS`: Timeout for each skill execution
+//!
+//! When a node fails, it will retry up to `max_retries` times before the error handler
+//! determines the final outcome (skip or fail).
+//!
+//! # Node Dependencies
+//!
+//! Nodes are executed sequentially in the order defined in the plan. Each node can reference
+//! outputs from previous nodes using the `{{variable_name}}` syntax. If a node is skipped
+//! due to `on_error: "skip"`, its output is not available for subsequent nodes.
+//!
+//! # Example
+//!
+//! ```json
+//! {
+//!   "mode": "plan",
+//!   "plan": {
+//!     "steps": [
+//!       {
+//!         "id": "step1",
+//!         "action": "file_read",
+//!         "parameters": { "path": "/data/input.txt" },
+//!         "output_as": "content",
+//!         "on_error": { "action": "skip" }
+//!       },
+//!       {
+//!         "id": "step2",
+//!         "action": "file_write",
+//!         "parameters": { "path": "/data/output.txt", "content": "{{content}}" },
+//!         "on_error": { "action": "fail" }
+//!       }
+//!     ]
+//!   }
+//! }
+//! ```
+//!
+//! In this example:
+//! - If `step1` fails after retries, it is skipped and `step2` still executes (but `{{content}}` will be empty)
+//! - If `step2` fails after retries, the entire workflow terminates
 
 use crate::prompts::build_plan_prompt;
 use crate::t;
 use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
-use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
+use hippox_atomic_skills::{Executor, SkillCall, SkillCallback, SkillContext};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,6 +73,7 @@ use std::time::Instant;
 use tracing::info;
 
 use super::core::WorkflowExecutor;
+use super::retry::*;
 use super::types::*;
 use super::utils::VARIABLE_REGEX;
 
@@ -117,53 +180,89 @@ fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
     }
 }
 
-async fn execute_step_with_retry(
-    executor: &WorkflowExecutor,
-    skill_name: &str,
-    parameters: HashMap<String, Value>,
-    step: &WorkflowStep,
+/// Execute a single plan step with retry and timeout
+async fn execute_plan_step_with_retry(
+    executor: &Executor,
+    call: SkillCall,
+    step_name: String,
+    step_id: &str,
     step_index: usize,
     task_id: Option<String>,
+    workflow_callback: &Option<Arc<dyn WorkflowCallback>>,
+    skill_callback_arc: Option<Arc<dyn SkillCallback>>,
+    max_retries: usize,
+    timeout_secs: u64,
+    on_error_action: Option<&str>,
 ) -> anyhow::Result<String> {
-    let max_retries = step
-        .on_error
-        .as_ref()
-        .and_then(|e| e.max_retries)
-        .unwrap_or(1);
+    let mut retry_context = RetryContext::new(max_retries, DEFAULT_MAX_CONSECUTIVE_FAILURES);
     let mut last_error = None;
-    for attempt in 0..max_retries {
-        let call = SkillCall {
-            action: skill_name.to_string(),
-            parameters: parameters.clone(),
-        };
-        let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+    loop {
         let skill_context = SkillContext {
             task_id: task_id.clone(),
             skill_index: Some(step_index),
-            skill_name: Some(skill_name.to_string()),
+            skill_name: Some(step_name.clone()),
             extra: HashMap::new(),
             signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
-        match executor
-            .get_executor()
-            .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
-            .await
-        {
-            Ok(output) => return Ok(output),
-            Err(e) => {
-                last_error = Some(e);
-                if attempt < max_retries - 1 {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(
-                        (100 * (attempt + 1)).into(),
-                    ))
-                    .await;
+        let result = execute_skill_with_timeout(
+            executor,
+            &call,
+            skill_callback_arc.clone(),
+            Some(&skill_context),
+            timeout_secs,
+        )
+        .await;
+        match result {
+            SkillExecutionResult::Success(output) => {
+                return Ok(output);
+            }
+            SkillExecutionResult::Timeout(ref error_msg)
+            | SkillExecutionResult::Failure(ref error_msg) => {
+                let is_timeout = result.is_timeout();
+                if let Some(cb) = workflow_callback {
+                    if let Some(ref tid) = task_id {
+                        if is_timeout {
+                            cb.on_step_timeout(tid, &step_name, step_index, error_msg, 0)
+                                .await;
+                        } else {
+                            cb.on_step_failure(tid, &step_name, step_index, error_msg, 0)
+                                .await;
+                        }
+                    }
+                }
+                last_error = Some(error_msg.clone());
+                if retry_context.can_retry(&step_name) {
+                    info!(
+                        "Retrying plan step '{}' (attempt {}/{})",
+                        step_name,
+                        retry_context.get_retry_count(&step_name),
+                        max_retries
+                    );
+                    continue;
+                } else {
+                    // Check if we should skip on error
+                    if let Some(action) = on_error_action {
+                        if action == "skip" {
+                            info!(
+                                "Skipping plan step '{}' after {} retries",
+                                step_name, max_retries
+                            );
+                            return Err(anyhow::anyhow!(
+                                "SKIPPED: {}",
+                                last_error.unwrap_or_default()
+                            ));
+                        }
+                    }
+                    return Err(anyhow::anyhow!(
+                        "Skill '{}' failed after {} retries: {}",
+                        step_name,
+                        max_retries,
+                        last_error.unwrap_or_default()
+                    ));
                 }
             }
         }
     }
-    Err(anyhow::anyhow!(
-        last_error.unwrap_or_else(|| anyhow::anyhow!("Unknown error"))
-    ))
 }
 
 async fn execute_workflow_plan(
@@ -178,6 +277,9 @@ async fn execute_workflow_plan(
     let mut string_context = HashMap::new();
     let mut success_count = 0;
     let mut failed_count = 0;
+    let skill_callback_arc: Option<Arc<dyn SkillCallback>> = executor.get_skill_callback();
+    let timeout_secs = get_timeout_secs(executor);
+    let max_retries = DEFAULT_MAX_RETRIES_PER_SKILL;
     for (idx, step) in plan.steps.iter().enumerate() {
         let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
             last_completed_step: idx,
@@ -187,6 +289,7 @@ async fn execute_workflow_plan(
             metadata: HashMap::new(),
         })
         .ok();
+        // Check interruption
         match check_task_interruption(
             task_id,
             executor.get_workflow_callback(),
@@ -201,28 +304,41 @@ async fn execute_workflow_plan(
                 return Err(anyhow::anyhow!("{:?}", result));
             }
         }
+        // Check condition
         if let Some(condition) = &step.condition {
             if !evaluate_condition(condition, &context) {
                 info!("Step {} condition not met, skipping", step.id);
                 continue;
             }
         }
+        // Resolve parameters
         let mut resolved_params = HashMap::new();
         for (key, value_ref) in &step.parameters {
             let resolved = resolve_value_ref(value_ref, &context);
             let final_resolved = resolve_variables_deep(&resolved, &string_context);
             resolved_params.insert(key.clone(), final_resolved);
         }
-        let result = execute_step_with_retry(
-            executor,
-            &step.action,
-            resolved_params,
-            step,
+        let call = SkillCall {
+            action: step.action.clone(),
+            parameters: resolved_params,
+        };
+        let on_error_action = step.on_error.as_ref().map(|e| e.action.as_str());
+        // Execute with retry
+        match execute_plan_step_with_retry(
+            executor.get_executor(),
+            call,
+            step.action.clone(),
+            &step.id,
             idx,
             task_id.map(|s| s.to_string()),
+            executor.get_workflow_callback(),
+            skill_callback_arc.clone(),
+            max_retries,
+            timeout_secs,
+            on_error_action,
         )
-        .await;
-        match result {
+        .await
+        {
             Ok(output) => {
                 if let Some(output_as) = &step.output_as {
                     context.set_variable(output_as, Value::String(output.clone()));
@@ -243,6 +359,31 @@ async fn execute_workflow_plan(
                 success_count += 1;
             }
             Err(e) => {
+                let error_msg = e.to_string();
+                // Check if this is a "skip" error
+                if error_msg.starts_with("SKIPPED:") {
+                    // Step was skipped after retries - continue chain
+                    let actual_error = error_msg.trim_start_matches("SKIPPED:").trim();
+                    context.add_step_result(WorkflowStepResult {
+                        step_id: step.id.clone(),
+                        skill: step.action.clone(),
+                        input: step
+                            .parameters
+                            .iter()
+                            .map(|(k, v)| (k.clone(), value_ref_to_value(v)))
+                            .collect(),
+                        output: String::new(),
+                        success: false,
+                        error: Some(actual_error.to_string()),
+                    });
+                    failed_count += 1;
+                    info!(
+                        "Plan step '{}' skipped after retries, continuing chain",
+                        step.id
+                    );
+                    continue;
+                }
+                // Check if this step has on_error handling
                 if let Some(error_handler) = &step.on_error {
                     match error_handler.action.as_str() {
                         "skip" => {
@@ -259,6 +400,10 @@ async fn execute_workflow_plan(
                                 error: Some(e.to_string()),
                             });
                             failed_count += 1;
+                            info!(
+                                "Plan step '{}' skipped via error handler, continuing chain",
+                                step.id
+                            );
                             continue;
                         }
                         "fail" => {
@@ -269,6 +414,7 @@ async fn execute_workflow_plan(
                         }
                     }
                 } else {
+                    // No error handler, fail the entire workflow
                     return Err(anyhow::anyhow!("Step {} failed: {}", step.id, e));
                 }
             }
