@@ -405,8 +405,8 @@ pub struct IdentityInformation {
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_react_en.png" width="100%" ></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_planandexecute_en.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_react_cn.png" width="100%" ></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_planandexecute_cn.png" width="100%"></td>
   </tr>
    <tr>
     <td align="left">
@@ -417,8 +417,8 @@ pub struct IdentityInformation {
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_chain_en.png" width="100%"></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_batch_en.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_chain_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_batch_cn.png" width="100%"></td>
   </tr>
 </table>
 
