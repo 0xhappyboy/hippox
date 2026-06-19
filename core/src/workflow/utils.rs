@@ -1,9 +1,13 @@
 //! Shared utility functions for workflow execution
 
+use std::sync::Arc;
+
 use super::types::{ExecutionStatus, StepResult};
-use crate::t;
+use crate::{ReactInstruction, StepInterruptionInfo, WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, t};
+use hippox_atomic_skills::SkillCall;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use serde_json::Value;
 
 /// Shared regex for variable resolution
 pub static VARIABLE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\{([^}]+)\}\}").unwrap());
@@ -99,4 +103,80 @@ pub fn format_parameters(
         }
         _ => "{}".to_string(),
     }
+}
+
+pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
+    let json_str = WorkflowExecutor::extract_json(response);
+    let value: Value = serde_json::from_str(&json_str)?;
+    if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
+        if value.get("action").and_then(|v| v.as_str()) == Some("done") {
+            return Ok(ReactInstruction::Done(message.to_string()));
+        }
+    }
+    if let Some(mode) = value.get("mode").and_then(|v| v.as_str()) {
+        if mode == "batch" {
+            if let Some(steps) = value.get("steps").and_then(|v| v.as_array()) {
+                let mut skill_calls = Vec::new();
+                for step in steps {
+                    let call: SkillCall = serde_json::from_value(step.clone())?;
+                    skill_calls.push(call);
+                }
+                return Ok(ReactInstruction::Batch(skill_calls));
+            }
+        }
+    }
+    if let Ok(call) = serde_json::from_value(value) {
+        return Ok(ReactInstruction::Single(call));
+    }
+    anyhow::bail!("Unable to parse LLM response: {}", response)
+}
+
+pub async fn check_task_interruption(
+    task_id: Option<&str>,
+    callback: &Option<Arc<dyn WorkflowCallback>>,
+    step_index: usize,
+    step_name: &str,
+    checkpoint: Option<String>,
+) -> Result<(), WorkflowExecutionResult> {
+    if let Some(tid) = task_id {
+        if let Some(cb) = callback {
+            if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
+                if state_updater.is_cancelled().await {
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "cancelled".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_cancelled(tid, 0, step_index).await;
+                    return Err(WorkflowExecutionResult::Cancelled {
+                        completed_steps: step_index,
+                    });
+                }
+                if state_updater.is_paused().await {
+                    if let Some(ref checkpoint_data) = checkpoint {
+                        state_updater.save_checkpoint(checkpoint_data).await;
+                    }
+                    let info = StepInterruptionInfo {
+                        interrupted: true,
+                        reason: "paused".to_string(),
+                        step_index,
+                        step_name: step_name.to_string(),
+                        checkpoint: checkpoint.clone(),
+                    };
+                    cb.on_step_interrupted(tid, &info).await;
+                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
+                        .await;
+                    return Err(WorkflowExecutionResult::Paused {
+                        checkpoint: checkpoint.clone(),
+                        completed_steps: step_index,
+                        partial_output: String::new(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }

@@ -11,6 +11,7 @@ pub(crate) mod react_with_categories;
 pub(crate) mod registry;
 pub(crate) mod skill_md;
 pub(crate) mod response_formatting;
+pub(crate) mod error_handler; 
 
 pub(crate) use batch::*;
 pub(crate) use batch_with_categories::*;
@@ -25,3 +26,4 @@ pub(crate) use react_with_categories::*;
 pub(crate) use registry::*;
 pub(crate) use skill_md::*;
 pub(crate) use response_formatting::*;
+pub(crate) use error_handler::*; 

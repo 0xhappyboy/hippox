@@ -1,11 +1,16 @@
 //! ReAct mode workflow execution
 
-use crate::prompts::build_react_prompt;
-use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, t};
+use crate::prompts::{
+    build_consecutive_failures_prompt, build_error_feedback_prompt,
+    build_max_retries_exceeded_prompt, build_timeout_feedback_prompt,
+};
+use crate::{
+    SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
+};
 use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use langhub::types::ChatMessage;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -14,80 +19,114 @@ use super::core::WorkflowExecutor;
 use super::types::*;
 use super::utils::format_step_results;
 
-pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
-    let json_str = WorkflowExecutor::extract_json(response);
-    let value: Value = serde_json::from_str(&json_str)?;
-    if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
-        if value.get("action").and_then(|v| v.as_str()) == Some("done") {
-            return Ok(ReactInstruction::Done(message.to_string()));
-        }
-    }
-    if let Some(mode) = value.get("mode").and_then(|v| v.as_str()) {
-        if mode == "batch" {
-            if let Some(steps) = value.get("steps").and_then(|v| v.as_array()) {
-                let mut skill_calls = Vec::new();
-                for step in steps {
-                    let call: SkillCall = serde_json::from_value(step.clone())?;
-                    skill_calls.push(call);
-                }
-                return Ok(ReactInstruction::Batch(skill_calls));
-            }
-        }
-    }
-    if let Ok(call) = serde_json::from_value(value) {
-        return Ok(ReactInstruction::Single(call));
-    }
-    anyhow::bail!("Unable to parse LLM response: {}", response)
+/// Default timeout for individual skill execution (in seconds)
+pub const DEFAULT_SKILL_TIMEOUT_SECS: u64 = 60;
+
+/// Maximum number of retries for a single skill
+pub const DEFAULT_MAX_RETRIES_PER_SKILL: usize = 3;
+
+/// Maximum number of consecutive failures before forcing a decision
+pub const DEFAULT_MAX_CONSECUTIVE_FAILURES: usize = 5;
+
+/// Manages retry state for skills in the current workflow
+#[derive(Debug, Clone)]
+struct RetryContext {
+    /// Maximum retries per skill
+    max_retries: usize,
+    /// Current retry count per skill name
+    retry_counts: HashMap<String, usize>,
+    /// Set of skills that have permanently failed
+    failed_skills: HashSet<String>,
+    /// Consecutive failure count across all skills
+    consecutive_failures: usize,
+    /// Maximum consecutive failures allowed
+    max_consecutive_failures: usize,
 }
 
-async fn check_task_interruption(
-    task_id: Option<&str>,
-    callback: &Option<Arc<dyn WorkflowCallback>>,
-    step_index: usize,
-    step_name: &str,
-    checkpoint: Option<String>,
-) -> Result<(), WorkflowExecutionResult> {
-    if let Some(tid) = task_id {
-        if let Some(cb) = callback {
-            if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
-                if state_updater.is_cancelled().await {
-                    let info = StepInterruptionInfo {
-                        interrupted: true,
-                        reason: "cancelled".to_string(),
-                        step_index,
-                        step_name: step_name.to_string(),
-                        checkpoint: checkpoint.clone(),
-                    };
-                    cb.on_step_interrupted(tid, &info).await;
-                    cb.on_workflow_cancelled(tid, 0, step_index).await;
-                    return Err(WorkflowExecutionResult::Cancelled {
-                        completed_steps: step_index,
-                    });
-                }
-                if state_updater.is_paused().await {
-                    if let Some(ref checkpoint_data) = checkpoint {
-                        state_updater.save_checkpoint(checkpoint_data).await;
-                    }
-                    let info = StepInterruptionInfo {
-                        interrupted: true,
-                        reason: "paused".to_string(),
-                        step_index,
-                        step_name: step_name.to_string(),
-                        checkpoint: checkpoint.clone(),
-                    };
-                    cb.on_step_interrupted(tid, &info).await;
-                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
-                        .await;
-                    return Err(WorkflowExecutionResult::Paused {
-                        checkpoint: checkpoint.clone(),
-                        completed_steps: step_index,
-                        partial_output: String::new(),
-                    });
-                }
-            }
+impl RetryContext {
+    fn new(max_retries: usize, max_consecutive_failures: usize) -> Self {
+        Self {
+            max_retries,
+            retry_counts: HashMap::new(),
+            failed_skills: HashSet::new(),
+            consecutive_failures: 0,
+            max_consecutive_failures,
         }
     }
-    Ok(())
+
+    /// Check if a skill can be retried (consumes one retry quota)
+    fn can_retry(&mut self, skill_name: &str) -> bool {
+        if self.failed_skills.contains(skill_name) {
+            return false;
+        }
+        let count = self.retry_counts.entry(skill_name.to_string()).or_insert(0);
+        let result = *count < self.max_retries;
+        if result {
+            *count += 1;
+        } else {
+            self.failed_skills.insert(skill_name.to_string());
+        }
+        result
+    }
+
+    /// Get current retry count for a skill (number of attempts already made)
+    fn get_retry_count(&self, skill_name: &str) -> usize {
+        self.retry_counts.get(skill_name).copied().unwrap_or(0)
+    }
+
+    /// Check if a skill can be retried without consuming quota (just peek)
+    fn can_retry_peek(&self, skill_name: &str) -> bool {
+        if self.failed_skills.contains(skill_name) {
+            return false;
+        }
+        let count = self.retry_counts.get(skill_name).copied().unwrap_or(0);
+        count < self.max_retries
+    }
+
+    /// Record a failure and increment consecutive failure counter
+    fn record_failure(&mut self, _skill_name: &str) {
+        self.consecutive_failures += 1;
+    }
+
+    /// Reset consecutive failure counter (called on success)
+    fn reset_consecutive_failures(&mut self) {
+        self.consecutive_failures = 0;
+    }
+
+    /// Check if consecutive failure threshold has been reached
+    fn has_exceeded_consecutive_failures(&self) -> bool {
+        self.consecutive_failures >= self.max_consecutive_failures
+    }
+
+    /// Check if a skill has permanently failed
+    fn is_skill_permanently_failed(&self, skill_name: &str) -> bool {
+        self.failed_skills.contains(skill_name)
+    }
+}
+
+/// Execute a skill with timeout protection
+async fn execute_skill_with_timeout(
+    executor: &WorkflowExecutor,
+    call: &SkillCall,
+    skill_callback: Option<Arc<dyn SkillCallback>>,
+    skill_context: Option<&SkillContext>,
+    timeout_secs: u64,
+) -> Result<String, String> {
+    let exec = executor.get_executor().clone();
+    let call_clone = call.clone();
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs),
+        exec.execute(&call_clone, skill_callback.as_deref(), skill_context),
+    )
+    .await
+    {
+        Ok(Ok(output)) => Ok(output),
+        Ok(Err(e)) => Err(e.to_string()),
+        Err(_) => Err(format!(
+            "Skill '{}' timed out after {} seconds",
+            call.action, timeout_secs
+        )),
+    }
 }
 
 pub async fn execute_react_with_categories(
@@ -105,6 +144,12 @@ pub async fn execute_react_with_categories(
     let mut final_response = None;
     let mut iteration = 0;
     let mut messages: Vec<ChatMessage> = Vec::new();
+    // Initialize retry context with configured values
+    let mut retry_context = RetryContext::new(
+        DEFAULT_MAX_RETRIES_PER_SKILL,
+        DEFAULT_MAX_CONSECUTIVE_FAILURES,
+    );
+    // Build filtered skills prompt
     let filtered_skills = crate::prompts::generate_skills_registry_by_categories(categories);
     let react_workflow_prompt =
         crate::prompts::build_react_prompt_with_categories(&filtered_skills);
@@ -138,6 +183,15 @@ pub async fn execute_react_with_categories(
     }
     while iteration < executor.max_iterations {
         iteration += 1;
+        // Check consecutive failures threshold
+        if retry_context.has_exceeded_consecutive_failures() {
+            let warning_prompt = build_consecutive_failures_prompt(
+                retry_context.consecutive_failures,
+                retry_context.max_consecutive_failures,
+            );
+            messages.push(ChatMessage::system(&warning_prompt));
+        }
+        // Check task interruption (cancelled/paused)
         if let Some(ref tid) = task_id {
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
                 if state_updater.is_cancelled().await {
@@ -182,6 +236,7 @@ pub async fn execute_react_with_categories(
                 }
             }
         }
+        // Call LLM to get next instruction
         let llm_response = match scheduler
             .chat_with_task(messages.clone(), &task_id.clone().unwrap())
             .await
@@ -207,10 +262,30 @@ pub async fn execute_react_with_categories(
                 break;
             }
             ReactInstruction::Single(call) => {
-                let step_index = step_results.len();
                 let step_name = call.action.clone();
+                let step_index = step_results.len();
+                // Check if this skill has permanently failed
+                if retry_context.is_skill_permanently_failed(&step_name) {
+                    let error_msg = format!(
+                        "Skill '{}' has exceeded max retries ({}) and is permanently failed.",
+                        step_name, DEFAULT_MAX_RETRIES_PER_SKILL
+                    );
+                    step_results.push(StepResult {
+                        skill: step_name.clone(),
+                        parameters: call.parameters.clone(),
+                        output: error_msg.clone(),
+                        status: ExecutionStatus::Failure,
+                    });
+                    let force_prompt = build_max_retries_exceeded_prompt(
+                        &step_name,
+                        DEFAULT_MAX_RETRIES_PER_SKILL,
+                        &error_msg,
+                    );
+                    messages.push(ChatMessage::user(&force_prompt));
+                    continue;
+                }
                 let step_start = Instant::now();
-
+                // Check task interruption before execution
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_workflow_callback(),
@@ -222,12 +297,14 @@ pub async fn execute_react_with_categories(
                 {
                     return result;
                 }
+                // Trigger on_step_start callback
                 if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
                         cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
                             .await;
                     }
                 }
+                // Prepare skill execution context
                 let skill_callback_arc: Option<Arc<dyn SkillCallback>> =
                     executor.get_skill_callback();
                 let skill_context = SkillContext {
@@ -237,12 +314,17 @@ pub async fn execute_react_with_categories(
                     extra: HashMap::new(),
                     signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
                 };
-                match executor
-                    .get_executor()
-                    .execute(&call, skill_callback_arc.as_deref(), Some(&skill_context))
-                    .await
-                {
+                let result = execute_skill_with_timeout(
+                    executor,
+                    &call,
+                    skill_callback_arc,
+                    Some(&skill_context),
+                    DEFAULT_SKILL_TIMEOUT_SECS,
+                )
+                .await;
+                match result {
                     Ok(output) => {
+                        retry_context.reset_consecutive_failures();
                         let duration = step_start.elapsed().as_millis() as u64;
                         if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
@@ -257,19 +339,28 @@ pub async fn execute_react_with_categories(
                             status: ExecutionStatus::Success,
                         });
                         messages.push(ChatMessage::user(&format!(
-                            "Skill '{}' executed. Result: {}",
+                            "Skill '{}' executed successfully. Result: {}",
                             call.action, output
                         )));
                     }
-                    Err(e) => {
+                    Err(error_msg) => {
+                        retry_context.record_failure(&step_name);
                         let duration = step_start.elapsed().as_millis() as u64;
-                        let error_msg = e.to_string();
+                        let retry_count = retry_context.get_retry_count(&step_name);
+                        let is_timeout = error_msg.contains("timed out");
                         if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
-                                cb.on_step_failure(
-                                    tid, &step_name, step_index, &error_msg, duration,
-                                )
-                                .await;
+                                if is_timeout {
+                                    cb.on_step_timeout(
+                                        tid, &step_name, step_index, &error_msg, duration,
+                                    )
+                                    .await;
+                                } else {
+                                    cb.on_step_failure(
+                                        tid, &step_name, step_index, &error_msg, duration,
+                                    )
+                                    .await;
+                                }
                             }
                         }
                         step_results.push(StepResult {
@@ -278,20 +369,41 @@ pub async fn execute_react_with_categories(
                             output: error_msg.clone(),
                             status: ExecutionStatus::Failure,
                         });
-                        final_response = Some(format!(
-                            "{} '{}': {}",
-                            t!("error.skill_failed"),
-                            call.action,
-                            error_msg
-                        ));
-                        break;
+                        // Build appropriate feedback for LLM
+                        if is_timeout {
+                            let timeout_feedback = build_timeout_feedback_prompt(
+                                &step_name,
+                                DEFAULT_SKILL_TIMEOUT_SECS,
+                                retry_count,
+                                DEFAULT_MAX_RETRIES_PER_SKILL,
+                            );
+                            messages.push(ChatMessage::user(&timeout_feedback));
+                        } else {
+                            let error_feedback = build_error_feedback_prompt(
+                                &step_name,
+                                &error_msg,
+                                retry_count,
+                                DEFAULT_MAX_RETRIES_PER_SKILL,
+                                &serde_json::to_value(&call.parameters).unwrap_or_default(),
+                            );
+                            messages.push(ChatMessage::user(&error_feedback));
+                        }
+                        // Check if we've reached max retries for this skill
+                        let can_retry = retry_context.can_retry(&step_name);
+                        if !can_retry {
+                            let force_prompt = build_max_retries_exceeded_prompt(
+                                &step_name,
+                                DEFAULT_MAX_RETRIES_PER_SKILL,
+                                &error_msg,
+                            );
+                            messages.push(ChatMessage::user(&force_prompt));
+                        }
                     }
                 }
             }
             ReactInstruction::Batch(steps) => {
                 let step_index = step_results.len();
                 let step_name = format!("batch_{}_steps", steps.len());
-
                 if let Err(result) = check_task_interruption(
                     task_id.as_deref(),
                     executor.get_workflow_callback(),
@@ -304,6 +416,14 @@ pub async fn execute_react_with_categories(
                     return result;
                 }
                 let batch_results = execute_batch_plan(executor, &steps).await;
+                let has_failure = batch_results
+                    .iter()
+                    .any(|r| r.status == ExecutionStatus::Failure);
+                if has_failure {
+                    retry_context.record_failure(&step_name);
+                } else {
+                    retry_context.reset_consecutive_failures();
+                }
                 for result in &batch_results {
                     step_results.push(result.clone());
                 }
@@ -311,8 +431,26 @@ pub async fn execute_react_with_categories(
                     "Batch execution completed. Results:\n{}",
                     format_step_results(&batch_results)
                 )));
-                final_response = Some(format_step_results(&step_results));
-                break;
+                if has_failure {
+                    let failed_results: Vec<_> = batch_results
+                        .iter()
+                        .filter(|r| r.status == ExecutionStatus::Failure)
+                        .collect();
+                    let error_context = format!(
+                        "Batch execution had {} failures:\n{}\n\nPlease decide how to proceed.",
+                        failed_results.len(),
+                        failed_results
+                            .iter()
+                            .map(|r| format!("- {}: {}", r.skill, r.output))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    );
+                    messages.push(ChatMessage::user(&error_context));
+                    continue;
+                } else {
+                    final_response = Some(format_step_results(&step_results));
+                    break;
+                }
             }
         }
     }
@@ -341,6 +479,7 @@ pub async fn execute_react_with_categories(
         }).collect::<Vec<_>>()
     })
     .to_string();
+
     WorkflowExecutionResult::CompletedWithRaw {
         display: final_response,
         raw_json,

@@ -1,7 +1,9 @@
 //! Batch mode workflow execution
 
 use crate::prompts::build_batch_prompt;
-use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, t};
+use crate::{
+    SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
+};
 use futures::future::join_all;
 use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use serde_json::Value;
@@ -10,7 +12,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use super::core::WorkflowExecutor;
-use super::react::parse_react_response;
 use super::types::*;
 use super::utils::format_step_results;
 
@@ -24,33 +25,10 @@ pub async fn execute_batch_plan(
     let callback = executor.get_workflow_callback().clone();
     let executor_clone = executor.get_executor().clone();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    if let Some(ref tid) = task_id {
-        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
-            if state_updater.is_cancelled().await {
-                if let Some(cb) = &callback {
-                    cb.on_workflow_cancelled(tid, 0, 0).await;
-                }
-                return Vec::new();
-            }
-            if state_updater.is_paused().await {
-                if let Some(cb) = &callback {
-                    let checkpoint = serde_json::to_string(&WorkflowCheckpoint {
-                        last_completed_step: 0,
-                        variables: HashMap::new(),
-                        completed_results: vec![],
-                        mode: WorkflowMode::Batch,
-                        metadata: HashMap::new(),
-                    })
-                    .ok();
-                    if let Some(ref checkpoint_data) = checkpoint {
-                        state_updater.save_checkpoint(checkpoint_data).await;
-                    }
-                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, 0)
-                        .await;
-                }
-                return Vec::new();
-            }
-        }
+    if let Err(result) =
+        check_task_interruption(task_id.as_deref(), &callback, 0, "batch_plan", None).await
+    {
+        return Vec::new();
     }
     let step_metadata: Vec<(usize, String)> = steps
         .iter()
@@ -66,35 +44,10 @@ pub async fn execute_batch_plan(
         let skill_callback = skill_callback_arc.clone();
         tokio::spawn(async move {
             let step_start = Instant::now();
-            if let Some(ref tid) = task_id {
-                if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
-                    if state_updater.is_cancelled().await {
-                        if let Some(cb) = &callback {
-                            let info = StepInterruptionInfo {
-                                interrupted: true,
-                                reason: "cancelled".to_string(),
-                                step_index: idx,
-                                step_name: step_name.clone(),
-                                checkpoint: None,
-                            };
-                            cb.on_step_interrupted(tid, &info).await;
-                        }
-                        return None;
-                    }
-                    if state_updater.is_paused().await {
-                        if let Some(cb) = &callback {
-                            let info = StepInterruptionInfo {
-                                interrupted: true,
-                                reason: "paused".to_string(),
-                                step_index: idx,
-                                step_name: step_name.clone(),
-                                checkpoint: None,
-                            };
-                            cb.on_step_interrupted(tid, &info).await;
-                        }
-                        return None;
-                    }
-                }
+            if let Err(_) =
+                check_task_interruption(task_id.as_deref(), &callback, idx, &step_name, None).await
+            {
+                return None;
             }
             if let Some(cb) = &callback {
                 if let Some(ref tid) = task_id {

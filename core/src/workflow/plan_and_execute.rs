@@ -1,8 +1,8 @@
 //! Plan-and-Execute mode workflow execution
 
-use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS};
 use crate::prompts::build_plan_prompt;
 use crate::t;
+use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
 use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -117,59 +117,6 @@ fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
     }
 }
 
-async fn check_step_interruption(
-    task_id: Option<&str>,
-    callback: &Option<Arc<dyn WorkflowCallback>>,
-    step_id: &str,
-    step_name: &str,
-    step_index: usize,
-    checkpoint: Option<String>,
-) -> Result<(), WorkflowExecutionResult> {
-    if let Some(tid) = task_id {
-        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
-            if state_updater.is_cancelled().await {
-                if let Some(cb) = callback {
-                    let info = StepInterruptionInfo {
-                        interrupted: true,
-                        reason: "cancelled".to_string(),
-                        step_index,
-                        step_name: step_name.to_string(),
-                        checkpoint: checkpoint.clone(),
-                    };
-                    cb.on_step_interrupted(tid, &info).await;
-                    cb.on_workflow_cancelled(tid, 0, step_index).await;
-                }
-                return Err(WorkflowExecutionResult::Cancelled {
-                    completed_steps: step_index,
-                });
-            }
-            if state_updater.is_paused().await {
-                if let Some(ref checkpoint_data) = checkpoint {
-                    state_updater.save_checkpoint(checkpoint_data).await;
-                }
-                if let Some(cb) = callback {
-                    let info = StepInterruptionInfo {
-                        interrupted: true,
-                        reason: "paused".to_string(),
-                        step_index,
-                        step_name: step_name.to_string(),
-                        checkpoint: checkpoint.clone(),
-                    };
-                    cb.on_step_interrupted(tid, &info).await;
-                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
-                        .await;
-                }
-                return Err(WorkflowExecutionResult::Paused {
-                    checkpoint: checkpoint.clone(),
-                    completed_steps: step_index,
-                    partial_output: String::new(),
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
 async fn execute_step_with_retry(
     executor: &WorkflowExecutor,
     skill_name: &str,
@@ -240,12 +187,11 @@ async fn execute_workflow_plan(
             metadata: HashMap::new(),
         })
         .ok();
-        match check_step_interruption(
+        match check_task_interruption(
             task_id,
             executor.get_workflow_callback(),
-            &step.id,
-            &step.action,
             idx,
+            &step.action,
             checkpoint.clone(),
         )
         .await
@@ -328,13 +274,11 @@ async fn execute_workflow_plan(
             }
         }
     }
-
     let final_output = if let Some(last_result) = context.get_step_results().last() {
         last_result.output.clone()
     } else {
         t!("skill.no_steps_executed").to_string()
     };
-
     Ok((final_output, success_count, failed_count))
 }
 
@@ -377,7 +321,6 @@ pub async fn execute_plan_and_execute_with_categories(
             };
         }
     };
-
     match instruction {
         PlanInstruction {
             mode,
@@ -406,6 +349,15 @@ pub async fn execute_plan_and_execute_with_categories(
                     }
                     Err(e) => {
                         let error_msg = e.to_string();
+                        if error_msg.contains("Cancelled") {
+                            return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
+                        } else if error_msg.contains("Paused") {
+                            return WorkflowExecutionResult::Paused {
+                                checkpoint: None,
+                                completed_steps: 0,
+                                partial_output: String::new(),
+                            };
+                        }
                         WorkflowExecutionResult::Failed {
                             error: format!("Workflow failed: {}", error_msg),
                             completed_steps: 0,

@@ -163,6 +163,15 @@ pub trait WorkflowCallback: Send + Sync + Debug {
         duration_ms: u64,
     );
 
+    async fn on_step_timeout(
+        &self,
+        task_id: &str,
+        step_name: &str,
+        step_index: usize,
+        error: &str,
+        duration_ms: u64,
+    );
+
     async fn on_step_interrupted(&self, task_id: &str, info: &StepInterruptionInfo);
 
     async fn on_workflow_complete(

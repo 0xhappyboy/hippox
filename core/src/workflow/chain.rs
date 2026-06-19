@@ -1,8 +1,8 @@
 //! Chain mode workflow execution
 
-use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS};
 use crate::prompts::build_chain_prompt;
 use crate::t;
+use crate::{SkillScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
 use hippox_atomic_skills::{SkillCall, SkillCallback, SkillContext};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -33,7 +33,6 @@ pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
     if chain.mode != "chain" {
         anyhow::bail!("Invalid chain mode: expected 'chain', got '{}'", chain.mode);
     }
-
     let steps = chain
         .steps
         .into_iter()
@@ -43,7 +42,6 @@ pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
             output_as: s.output_as,
         })
         .collect();
-
     Ok(ChainPlan { steps })
 }
 
@@ -95,58 +93,6 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
     value.clone()
 }
 
-async fn check_step_interruption(
-    task_id: Option<&str>,
-    callback: &Option<Arc<dyn WorkflowCallback>>,
-    step_index: usize,
-    step_name: &str,
-    checkpoint: Option<String>,
-) -> Result<(), WorkflowExecutionResult> {
-    if let Some(tid) = task_id {
-        if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
-            if state_updater.is_cancelled().await {
-                if let Some(cb) = callback {
-                    let info = StepInterruptionInfo {
-                        interrupted: true,
-                        reason: "cancelled".to_string(),
-                        step_index,
-                        step_name: step_name.to_string(),
-                        checkpoint: checkpoint.clone(),
-                    };
-                    cb.on_step_interrupted(tid, &info).await;
-                    cb.on_workflow_cancelled(tid, 0, step_index).await;
-                }
-                return Err(WorkflowExecutionResult::Cancelled {
-                    completed_steps: step_index,
-                });
-            }
-            if state_updater.is_paused().await {
-                if let Some(ref checkpoint_data) = checkpoint {
-                    state_updater.save_checkpoint(checkpoint_data).await;
-                }
-                if let Some(cb) = callback {
-                    let info = StepInterruptionInfo {
-                        interrupted: true,
-                        reason: "paused".to_string(),
-                        step_index,
-                        step_name: step_name.to_string(),
-                        checkpoint: checkpoint.clone(),
-                    };
-                    cb.on_step_interrupted(tid, &info).await;
-                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
-                        .await;
-                }
-                return Err(WorkflowExecutionResult::Paused {
-                    checkpoint: checkpoint.clone(),
-                    completed_steps: step_index,
-                    partial_output: String::new(),
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
 pub async fn execute_chain_with_categories(
     executor: &WorkflowExecutor,
     scheduler: &SkillScheduler,
@@ -182,8 +128,18 @@ pub async fn execute_chain_with_categories(
     let mut context = HashMap::new();
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
-
     for (idx, step) in chain.steps.iter().enumerate() {
+        if let Err(result) = check_task_interruption(
+            task_id.as_deref(),
+            executor.get_workflow_callback(),
+            idx,
+            &step.action,
+            None,
+        )
+        .await
+        {
+            return result;
+        }
         let step_name = step.action.clone();
         let step_start = Instant::now();
         let mut resolved_params = HashMap::new();
@@ -238,7 +194,6 @@ pub async fn execute_chain_with_categories(
             }
         }
     }
-
     let final_display = format_step_results(&results);
     let raw_json = serde_json::json!({
         "mode": "chain",
@@ -254,7 +209,6 @@ pub async fn execute_chain_with_categories(
         }).collect::<Vec<_>>()
     })
     .to_string();
-
     WorkflowExecutionResult::CompletedWithRaw {
         display: final_display,
         raw_json,
