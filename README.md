@@ -373,8 +373,8 @@ Pending ──► Running ──► Completed
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="./assets/architecture/chain_en.png" width="100%" ></td>
-    <td align="center"><img src="./assets/architecture/batch_en.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/chain_en.png" width="100%" ></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/batch_en.png" width="100%"></td>
   </tr>
    <tr>
     <td align="left">
@@ -385,8 +385,37 @@ Pending ──► Running ──► Completed
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="./assets/architecture/re-act_en.png" width="100%"></td>
-    <td align="center"><img src="./assets/architecture/plan-and-execute_en.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/re-act_en.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/plan-and-execute_en.png" width="100%"></td>
+  </tr>
+</table>
+
+## Workflow Atomic Skill Retry Strategy
+
+<table>
+  <tr>
+    <td align="left">
+    <h4>Chain</h4>
+    </td>
+    <td align="left">
+    <h4>Batch</h4>
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_react_en.png" width="100%" ></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_planandexecute_en.png" width="100%"></td>
+  </tr>
+   <tr>
+    <td align="left">
+    <h4>ReAct</h4>
+    </td>
+    <td align="left">
+    <h4>PlanAndExecute</h4>
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_chain_en.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_batch_en.png" width="100%"></td>
   </tr>
 </table>
 

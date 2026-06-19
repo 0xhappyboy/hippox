@@ -376,8 +376,8 @@ pub struct IdentityInformation {
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="./assets/architecture/chain_cn.png" width="100%"></td>
-    <td align="center"><img src="./assets/architecture/batch_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/chain_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/batch_cn.png" width="100%"></td>
   </tr>
    <tr>
     <td align="left">
@@ -388,8 +388,37 @@ pub struct IdentityInformation {
     </td>
   </tr>
   <tr>
-    <td align="center"><img src="./assets/architecture/re-act_cn.png" width="100%"></td>
-    <td align="center"><img src="./assets/architecture/plan-and-execute_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/re-act_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/architecture/plan-and-execute_cn.png" width="100%"></td>
+  </tr>
+</table>
+
+## 工作流原子Skill重试策略
+
+<table>
+  <tr>
+    <td align="left">
+    <h4>Chain</h4>
+    </td>
+    <td align="left">
+    <h4>Batch</h4>
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_react_cn.png" width="100%" ></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_planandexecute_cn.png" width="100%"></td>
+  </tr>
+   <tr>
+    <td align="left">
+    <h4>ReAct</h4>
+    </td>
+    <td align="left">
+    <h4>PlanAndExecute</h4>
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_chain_cn.png" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/0xhappyboy/hippox/main/assets/retry_batch_cn.png" width="100%"></td>
   </tr>
 </table>
 
