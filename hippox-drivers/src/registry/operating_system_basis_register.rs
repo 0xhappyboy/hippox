@@ -8,10 +8,10 @@ pub fn register(registry: &mut DriverRegistryMap) {
     #[cfg(any(feature = "operating_system_basis", feature = "all"))]
     {
         use crate::drivers::operating_system_basis::*;
-        map.insert("clipboard_get".to_string(), Arc::new(ClipboardGetDriver));
-        map.insert("clipboard_set".to_string(), Arc::new(ClipboardSetDriver));
+        map.insert("os_clipboard_get".to_string(), Arc::new(ClipboardGetDriver));
+        map.insert("os_clipboard_set".to_string(), Arc::new(ClipboardSetDriver));
         map.insert(
-            "clipboard_clear".to_string(),
+            "os_clipboard_clear".to_string(),
             Arc::new(ClipboardClearDriver),
         );
         map.insert("system_info".to_string(), Arc::new(SystemInfoDriver));

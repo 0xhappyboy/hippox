@@ -1,7 +1,7 @@
 //! Operating system basis drivers module
-mod clipboard_clear;
-mod clipboard_get;
-mod clipboard_set;
+mod os_clipboard_clear;
+mod os_clipboard_get;
+mod os_clipboard_set;
 mod os_battery_info;
 mod os_get_default_browser;
 mod os_get_domain;
@@ -29,9 +29,9 @@ mod os_sleep;
 mod os_wallpaper_get;
 mod os_wallpaper_set;
 mod system_info;
-pub use clipboard_clear::ClipboardClearDriver;
-pub use clipboard_get::ClipboardGetDriver;
-pub use clipboard_set::ClipboardSetDriver;
+pub use os_clipboard_clear::ClipboardClearDriver;
+pub use os_clipboard_get::ClipboardGetDriver;
+pub use os_clipboard_set::ClipboardSetDriver;
 pub use os_battery_info::OsBatteryInfoDriver;
 pub use os_get_default_browser::OsGetDefaultBrowserDriver;
 pub use os_get_domain::OsGetDomainDriver;

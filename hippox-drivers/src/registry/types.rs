@@ -100,12 +100,12 @@ impl DriverCategory {
             "file_ops" => Some(DriverCategory::File),
             "math_ops" => Some(DriverCategory::Math),
             "network_ops" => Some(DriverCategory::Network),
-            "system_ops" => Some(DriverCategory::OperatingSystemBasis),
-            "process_ops" => Some(DriverCategory::OperatingSystemProcess),
-            "memory_ops" => Some(DriverCategory::OperatingSystemMemory),
-            "cpu_ops" => Some(DriverCategory::OperatingSystemCpu),
-            "gpu_ops" => Some(DriverCategory::OperatingSystemGpu),
-            "disk_ops" => Some(DriverCategory::OperatingSystemDisk),
+            "os_basis_ops" => Some(DriverCategory::OperatingSystemBasis),
+            "os_process_ops" => Some(DriverCategory::OperatingSystemProcess),
+            "os_memory_ops" => Some(DriverCategory::OperatingSystemMemory),
+            "os_cpu_ops" => Some(DriverCategory::OperatingSystemCpu),
+            "os_gpu_ops" => Some(DriverCategory::OperatingSystemGpu),
+            "os_disk_ops" => Some(DriverCategory::OperatingSystemDisk),
             "document_ops" => Some(DriverCategory::Document),
             "social_ops" => Some(DriverCategory::SocialPlatform),
             "database_ops" => Some(DriverCategory::Database),
@@ -128,8 +128,8 @@ impl DriverCategory {
             "time_ops" => Some(DriverCategory::Time),
             "crypto_ops" => Some(DriverCategory::Cryptography),
             "tts_play_on_speaker" => Some(DriverCategory::SpeechSpeak),
-            "service_ops" => Some(DriverCategory::OperatingSystemServices),
-            "security_ops" => Some(DriverCategory::OperatingSystemSecurity),
+            "os_service_ops" => Some(DriverCategory::OperatingSystemServices),
+            "os_security_ops" => Some(DriverCategory::OperatingSystemSecurity),
             _ => None,
         }
     }
@@ -161,12 +161,12 @@ impl DriverCategory {
             DriverCategory::File => "file_ops",
             DriverCategory::Math => "math_ops",
             DriverCategory::Network => "network_ops",
-            DriverCategory::OperatingSystemBasis => "operating_system_ops",
-            DriverCategory::OperatingSystemProcess => "operating_system_process_ops",
-            DriverCategory::OperatingSystemMemory => "operating_system_memory_ops",
-            DriverCategory::OperatingSystemCpu => "operating_system_cpu_ops",
-            DriverCategory::OperatingSystemGpu => "operating_system_gpu_ops",
-            DriverCategory::OperatingSystemDisk => "operating_system_disk_ops",
+            DriverCategory::OperatingSystemBasis => "os_basis_ops",
+            DriverCategory::OperatingSystemProcess => "os_process_ops",
+            DriverCategory::OperatingSystemMemory => "os_memory_ops",
+            DriverCategory::OperatingSystemCpu => "os_cpu_ops",
+            DriverCategory::OperatingSystemGpu => "os_gpu_ops",
+            DriverCategory::OperatingSystemDisk => "os_disk_ops",
             DriverCategory::Document => "document_ops",
             DriverCategory::SocialPlatform => "social_ops",
             DriverCategory::Database => "database_ops",
@@ -189,8 +189,8 @@ impl DriverCategory {
             DriverCategory::Time => "time_ops",
             DriverCategory::Cryptography => "crypto_ops",
             DriverCategory::SpeechSpeak => "tts_play_on_speaker",
-            DriverCategory::OperatingSystemServices => "operating_system_service_ops",
-            DriverCategory::OperatingSystemSecurity => "operating_system_security_ops",
+            DriverCategory::OperatingSystemServices => "os_service_ops",
+            DriverCategory::OperatingSystemSecurity => "os_security_ops",
         }
     }
 
@@ -248,7 +248,7 @@ impl DriverCategory {
                 "HTTP/HTTPS requests, DNS lookup, Ping/TCP/UDP, FTP, port scanning, HTML parsing, SSH execution, webhook notifications, network diagnostics"
             }
             DriverCategory::OperatingSystemBasis => {
-                "Core system operations: clipboard, system info, reboot/shutdown, sleep/hibernate, screen lock, logout, uptime, hostname, user info, memory info, battery status, desktop notifications"
+                "Core OS operations: clipboard (get/set/clear), system info, power control (reboot/shutdown/sleep/hibernate), screen lock/logout, uptime, hostname, user info, memory stats, battery status, desktop notifications, time/date, timezone, environment variables, locale, wallpaper, screen control, default browser, domain info"
             }
             DriverCategory::OperatingSystemProcess => {
                 "Process listing, starting, terminating, and monitoring"

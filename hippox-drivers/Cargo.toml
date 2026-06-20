@@ -1,12 +1,12 @@
 [package]
-name = "hippox_drivers"
-version = "0.3.0"
+name = "hippox-drivers"
+version = "0.3.2"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛All indivisible atomic driver units in Hippox."
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/0xhappyboy/hippox/tree/main/hippox-atomic-skills"
+repository = "https://github.com/0xhappyboy/hippox/tree/main/hippox-drivers"
 keywords = ["ai", "agent", "llm", "skills", "skills-orchestration"]
 
 [dependencies]

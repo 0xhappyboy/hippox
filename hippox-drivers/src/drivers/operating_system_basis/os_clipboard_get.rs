@@ -12,30 +12,38 @@ use std::collections::HashMap;
 pub struct ClipboardGetDriver;
 #[async_trait::async_trait]
 impl Driver for ClipboardGetDriver {
+
     fn name(&self) -> &str {
-        "clipboard_get"
+        "os_clipboard_get"
     }
+
     fn description(&self) -> &str {
         "Get text content from system clipboard"
     }
+
     fn usage_hint(&self) -> &str {
         "Use this skill when the user wants to retrieve text that was copied to clipboard"
     }
+
     fn parameters(&self) -> Vec<DriverParameter> {
         vec![]
     }
+
     fn example_call(&self) -> Value {
         json!({
-            "action": "clipboard_get",
+            "action": "os_clipboard_get",
             "parameters": {}
         })
     }
+
     fn example_output(&self) -> String {
         "Text content from clipboard".to_string()
     }
+
     fn category(&self) -> DriverCategory {
         DriverCategory::OperatingSystemBasis
     }
+
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
@@ -82,13 +90,14 @@ impl Driver for ClipboardGetDriver {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn test_clipboard_get_metadata() {
+    fn test_os_clipboard_get_metadata() {
         let driver = ClipboardGetDriver;
-        assert_eq!(driver.name(), "clipboard_get");
+        assert_eq!(driver.name(), "os_clipboard_get");
         assert_eq!(driver.category(), DriverCategory::OperatingSystemBasis);
     }
 }

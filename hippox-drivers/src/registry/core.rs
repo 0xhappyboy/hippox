@@ -60,8 +60,8 @@ use crate::registry::operating_system_gpu_register;
 use crate::registry::operating_system_memory_register;
 #[cfg(any(feature = "operating_system_process", feature = "all"))]
 use crate::registry::operating_system_process_register;
-#[cfg(any(feature = "operating_system", feature = "all"))]
-use crate::registry::operating_system_register;
+#[cfg(any(feature = "operating_system_basis", feature = "all"))]
+use crate::registry::operating_system_basis_register;
 #[cfg(any(feature = "operating_system_security", feature = "all"))]
 use crate::registry::operating_system_security_register;
 #[cfg(any(feature = "operating_system_services", feature = "all"))]
@@ -93,8 +93,8 @@ static SKILL_REGISTRY: Lazy<RwLock<DriverRegistryMap>> = Lazy::new(|| {
     math_register::register(&mut registry);
     #[cfg(any(feature = "network", feature = "all"))]
     network_register::register(&mut registry);
-    #[cfg(any(feature = "operating_system", feature = "all"))]
-    operating_system_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_basis", feature = "all"))]
+    operating_system_basis_register::register(&mut registry);
     #[cfg(any(feature = "document", feature = "all"))]
     document_register::register(&mut registry);
     #[cfg(any(feature = "social_platform", feature = "all"))]

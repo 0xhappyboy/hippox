@@ -22,8 +22,11 @@ use hippox_drivers::get_driver_category_name_and_describe;
 /// ```
 pub fn build_intent_parser_prompt(input: &str) -> String {
     let categories = get_driver_category_name_and_describe();
-    let categories_str: Vec<String> = categories.iter().map(|(cat, _)| cat.clone()).collect();
-    let categories_list = categories_str.join(", ");
+    let categories_list: Vec<String> = categories
+        .iter()
+        .map(|(name, desc)| format!("{} → {}", desc, name))
+        .collect();
+    let categories_str = categories_list.join("\n");
 
     format!(
         r#"## FINAL INSTRUCTION - HIGHEST PRIORITY
@@ -62,7 +65,7 @@ Examples:
 - "output JSON format" → REMOVE
 
 ## Available Categories:
-{}
+{:?}
 
 ## YOUR OUTPUT:
 "#,

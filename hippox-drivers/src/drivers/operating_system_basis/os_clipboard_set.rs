@@ -12,15 +12,19 @@ use std::collections::HashMap;
 pub struct ClipboardSetDriver;
 #[async_trait::async_trait]
 impl Driver for ClipboardSetDriver {
+
     fn name(&self) -> &str {
-        "clipboard_set"
+        "os_clipboard_set"
     }
+
     fn description(&self) -> &str {
         "Set text content to system clipboard"
     }
+
     fn usage_hint(&self) -> &str {
         "Use this skill when the user wants to copy text to clipboard"
     }
+
     fn parameters(&self) -> Vec<DriverParameter> {
         vec![DriverParameter {
             name: "content".to_string(),
@@ -32,20 +36,24 @@ impl Driver for ClipboardSetDriver {
             enum_values: None,
         }]
     }
+
     fn example_call(&self) -> Value {
         json!({
-            "action": "clipboard_set",
+            "action": "os_clipboard_set",
             "parameters": {
                 "content": "Hello, World!"
             }
         })
     }
+
     fn example_output(&self) -> String {
         "Content copied to clipboard".to_string()
     }
+
     fn category(&self) -> DriverCategory {
         DriverCategory::OperatingSystemBasis
     }
+
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
@@ -97,6 +105,7 @@ impl Driver for ClipboardSetDriver {
             anyhow::bail!("Clipboard operation not supported on this platform")
         }
     }
+
     fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
         parameters
             .get("content")
@@ -105,13 +114,14 @@ impl Driver for ClipboardSetDriver {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn test_clipboard_set_metadata() {
+    fn test_os_clipboard_set_metadata() {
         let driver = ClipboardSetDriver;
-        assert_eq!(driver.name(), "clipboard_set");
+        assert_eq!(driver.name(), "os_clipboard_set");
         assert_eq!(driver.category(), DriverCategory::OperatingSystemBasis);
     }
 }
