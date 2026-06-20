@@ -15,10 +15,10 @@ Hippox中所有不可分割的原子驱动程序单元.
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                      技 能 注 册 表                        │
+│                      驱 动 注 册 表                        │
 │                                                           │
-│  SkillRegistryMap = HashMap<SkillCategory,               │
-│                      HashMap<String, Arc<dyn Skill>>>    │
+│  DriverRegistryMap = HashMap<DriverCategory,               │
+│                      HashMap<String, Arc<dyn Driver>>>    │
 │                                                           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
 │  │ 文件     │  │ 数学     │  │ 网络     │              │
@@ -33,17 +33,17 @@ Hippox中所有不可分割的原子驱动程序单元.
 注册方式:
 
   编译时: file_register() / math_register() / net_register()
-  运行时: register_skill(分类, 名称, 技能)
+  运行时: register_driver(分类, 名称, 驱动)
 
 查询方式:
 
-  get_skill_by_name("读文件") → 技能实现 → execute()
+  get_driver_by_name("读文件") → 驱动实现 → execute()
 ```
 
 ## 核心类型
 
 ```rust
-pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill>>>;
+pub type DriverRegistryMap = HashMap<DriverCategory, HashMap<String, Arc<dyn Driver>>>;
 ```
 
 ## 主要函数
@@ -52,23 +52,23 @@ pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill
 | ---------------------------------------------- | ---------------------- |
 | get_registry()                                 | 获取注册表读锁         |
 | get_registry_mut()                             | 获取注册表写锁         |
-| register_skill(category, name, skill)          | 动态注册技能           |
-| get_all_skills()                               | 获取所有技能           |
-| get_skill_by_name(name)                        | 按名称查找技能         |
-| get_skill_by_name_and_category(name, category) | 按名称和分类查找       |
-| has_skill(name)                                | 检查技能是否存在       |
-| list_skills_names()                            | 列出所有技能名称       |
-| list_skills_name_by_category(category)         | 列出指定分类的技能名称 |
-| get_skills_by_category(category)               | 按分类字符串获取技能   |
-| get_skills_by_category_list(categories)        | 按多个分类获取技能     |
-| list_skills_name_by_category_list(categories)  | 按多个分类获取技能名称 |
+| register_driver(category, name, driver)          | 动态注册驱动           |
+| get_all_drivers()                               | 获取所有驱动           |
+| get_driver_by_name(name)                        | 按名称查找驱动         |
+| get_driver_by_name_and_category(name, category) | 按名称和分类查找       |
+| has_driver(name)                                | 检查驱动是否存在       |
+| list_drivers_names()                            | 列出所有驱动名称       |
+| list_drivers_name_by_category(category)         | 列出指定分类的驱动名称 |
+| get_drivers_by_category(category)               | 按分类字符串获取驱动   |
+| get_drivers_by_category_list(categories)        | 按多个分类获取驱动     |
+| list_drivers_name_by_category_list(categories)  | 按多个分类获取驱动名称 |
 | get_all_categorys()                            | 获取所有分类名称       |
-| get_skill_category()                           | 获取各分类及其技能数量 |
-| get_skill_category_names()                     | 获取所有分类名称       |
-| get_skill_category_name_and_describe()         | 获取分类名称及描述     |
-| generate_skill_registry_table_json_str()       | 生成注册表 JSON 字符串 |
+| get_driver_category()                           | 获取各分类及其驱动数量 |
+| get_driver_category_names()                     | 获取所有分类名称       |
+| get_driver_category_name_and_describe()         | 获取分类名称及描述     |
+| generate_driver_registry_table_json_str()       | 生成注册表 JSON 字符串 |
 
-## SkillCategory 方法
+## DriverCategory 方法
 
 | 方法             | 说明                 |
 | ---------------- | -------------------- |
