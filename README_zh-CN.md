@@ -5,8 +5,8 @@
     HippoX
 </h1>
 <h4 align="center">
-一个可靠的具有自主决策能力的LLM运行时和skill编排引擎.<br>
-能够处理自然语言并自动执行OS原生原子skill,从根本上使LLM可以真正意义上接管计算机.
+一个可靠的具有自主决策能力的LLM运行时和驱动编排引擎.<br>
+能够处理自然语言并自动编排执行OS原生驱动,从根本上使LLM可以真正意义上接管计算机.
 </h4>
 <p align="center">
   <a href="https://github.com/0xhappyboy/hippo/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache2.0-d1d1f6.svg?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=googledocs&label=license&logoColor=BEC5C9" alt="License"></a>
