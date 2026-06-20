@@ -5,8 +5,8 @@
     HippoX
 </h1>
 <h4 align="center">
-一个可靠的具有自主决策能力的LLM运行时和skill编排引擎.<br>
-能够处理自然语言并自动执行OS原生原子skill,从根本上使LLM可以真正意义上接管计算机.
+一个可靠的具有自主决策能力的LLM运行时和驱动编排引擎.<br>
+能够处理自然语言并自动编排执行OS原生驱动,从根本上使LLM可以真正意义上接管计算机.
 </h4>
 <p align="center">
   <a href="https://github.com/0xhappyboy/hippo/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache2.0-d1d1f6.svg?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=googledocs&label=license&logoColor=BEC5C9" alt="License"></a>
@@ -214,7 +214,7 @@ pub struct IdentityInformation {
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
 │  │ 2. 意图分析 (步骤1)                                                    │ │
 │  │    build_intent_parser_prompt() → LLM.generate() → 解析              │ │
-│  │    输出: clean_intent（纯净意图）, skill_categories（技能分类）       │ │
+│  │    输出: clean_intent（纯净意图）, driver_categories（驱动分类）       │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                      │                                      │
 │                                      ▼                                      │
@@ -225,7 +225,7 @@ pub struct IdentityInformation {
 │  │    │ 循环执行 │ │ 并行执行 │ │ 顺序传递 │ │ 计划→条件执行   │        │ │
 │  │    └────┬─────┘ └────┬─────┘ └────┬─────┘ └───────┬─────────┘        │ │
 │  │         └────────────┴────────────┴──────────────┘                   │ │
-│  │    LLM生成SkillCall → Executor.execute() → raw_json                  │ │
+│  │    LLM生成DriverCall → Executor.execute() → raw_json                  │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                      │                                      │
 │                                      ▼                                      │
@@ -255,12 +255,12 @@ pub struct IdentityInformation {
 ┌─────────────┐
 │   Step 1    │ → 意图分析 (Intent Analysis)
 │  意图分析    │   build_intent_parser_prompt() → LLM
-└──────┬──────┘   输出: clean_intent, skill_categories
+└──────┬──────┘   输出: clean_intent, driver_categories
        │
        ▼
 ┌─────────────┐
 │   Step 2    │ → 工作流执行 (Workflow Execution)
-│  工作流执行  │   使用 clean_intent 执行技能
+│  工作流执行  │   使用 clean_intent 执行驱动
 └──────┬──────┘   输出: raw_json
        │
        ▼
@@ -343,7 +343,7 @@ pub struct IdentityInformation {
 │  │  │                  NaturalLanguageTask                │  │  │
 │  │  │  • input: String (用户输入)                         │  │  │
 │  │  │  • workflow_executor: WorkflowExecutor (工作流执行器)│  │  │
-│  │  │  • scheduler: SkillScheduler (技能调度器)           │  │  │
+│  │  │  • scheduler: DriverScheduler (驱动调度器)           │  │  │
 │  │  └─────────────────────────────────────────────────────┘  │  │
 │  └───────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -361,8 +361,8 @@ pub struct IdentityInformation {
 
 | 模式           | 枚举值                       | 核心特点                                                                                   | LLM调用次数            | 适用场景                         |
 | -------------- | ---------------------------- | ------------------------------------------------------------------------------------------ | ---------------------- | -------------------------------- |
-| ReAct          | WorkflowMode::ReAct          | 思考→行动→观察循环，每步执行后由LLM决定下一步                                              | 1次/技能 + 1次最终响应 | 开放性任务、动态决策、错误恢复   |
-| Batch          | WorkflowMode::Batch          | 并行执行多个无依赖关系的独立技能                                                           | 1次（生成批量计划）    | 独立操作、批量处理               |
+| ReAct          | WorkflowMode::ReAct          | 思考→行动→观察循环，每步执行后由LLM决定下一步                                              | 1次/驱动 + 1次最终响应 | 开放性任务、动态决策、错误恢复   |
+| Batch          | WorkflowMode::Batch          | 并行执行多个无依赖关系的独立驱动                                                           | 1次（生成批量计划）    | 独立操作、批量处理               |
 | Chain          | WorkflowMode::Chain          | 顺序执行，支持变量传递（{{variable}}语法）                                                 | 1次（生成链）          | 线性管道、数据转换链             |
 | PlanAndExecute | WorkflowMode::PlanAndExecute | 一次性规划完整工作流，支持条件分支、变量引用（{"$ref":"var"}）、错误处理（重试/跳过/失败） | 1次规划 + 可选动态决策 | 复杂工作流、条件逻辑、确定性任务 |
 
@@ -393,7 +393,7 @@ pub struct IdentityInformation {
   </tr>
 </table>
 
-## 工作流原子Skill重试策略
+## 工作流原子Driver重试策略
 
 <table>
   <tr>
@@ -422,18 +422,16 @@ pub struct IdentityInformation {
   </tr>
 </table>
 
-## 原子Skill注册表
-
-> 💡 **提示**：在Hippox中, 原子Skill代表执行的最小不可分割单元, 这与用户业务中的"Skill"概念不同。
+## 驱动注册表
 
 ## 工作原理
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                      技 能 注 册 表                        │
+│                      驱 动 注 册 表                        │
 │                                                           │
-│  SkillRegistryMap = HashMap<SkillCategory,               │
-│                      HashMap<String, Arc<dyn Skill>>>    │
+│  DriverRegistryMap = HashMap<DriverCategory,               │
+│                      HashMap<String, Arc<dyn Driver>>>    │
 │                                                           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
 │  │ 文件     │  │ 数学     │  │ 网络     │              │
@@ -448,42 +446,42 @@ pub struct IdentityInformation {
 注册方式:
 
   编译时: file_register() / math_register() / net_register()
-  运行时: register_skill(分类, 名称, 技能)
+  运行时: register_driver(分类, 名称, 驱动)
 
 查询方式:
 
-  get_skill_by_name("读文件") → 技能实现 → execute()
+  get_driver_by_name("读文件") → 驱动实现 → execute()
 ```
 
 ## 核心类型
 
 ```rust
-pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill>>>;
+pub type DriverRegistryMap = HashMap<DriverCategory, HashMap<String, Arc<dyn Driver>>>;
 ```
 
 ## 主要函数
 
-| 函数                                           | 说明                   |
-| ---------------------------------------------- | ---------------------- |
-| get_registry()                                 | 获取注册表读锁         |
-| get_registry_mut()                             | 获取注册表写锁         |
-| register_skill(category, name, skill)          | 动态注册技能           |
-| get_all_skills()                               | 获取所有技能           |
-| get_skill_by_name(name)                        | 按名称查找技能         |
-| get_skill_by_name_and_category(name, category) | 按名称和分类查找       |
-| has_skill(name)                                | 检查技能是否存在       |
-| list_skills_names()                            | 列出所有技能名称       |
-| list_skills_name_by_category(category)         | 列出指定分类的技能名称 |
-| get_skills_by_category(category)               | 按分类字符串获取技能   |
-| get_skills_by_category_list(categories)        | 按多个分类获取技能     |
-| list_skills_name_by_category_list(categories)  | 按多个分类获取技能名称 |
-| get_all_categorys()                            | 获取所有分类名称       |
-| get_skill_category()                           | 获取各分类及其技能数量 |
-| get_skill_category_names()                     | 获取所有分类名称       |
-| get_skill_category_name_and_describe()         | 获取分类名称及描述     |
-| generate_skill_registry_table_json_str()       | 生成注册表 JSON 字符串 |
+| 函数                                            | 说明                   |
+| ----------------------------------------------- | ---------------------- |
+| get_registry()                                  | 获取注册表读锁         |
+| get_registry_mut()                              | 获取注册表写锁         |
+| register_driver(category, name, driver)         | 动态注册驱动           |
+| get_all_drivers()                               | 获取所有驱动           |
+| get_driver_by_name(name)                        | 按名称查找驱动         |
+| get_driver_by_name_and_category(name, category) | 按名称和分类查找       |
+| has_driver(name)                                | 检查驱动是否存在       |
+| list_drivers_names()                            | 列出所有驱动名称       |
+| list_drivers_name_by_category(category)         | 列出指定分类的驱动名称 |
+| get_drivers_by_category(category)               | 按分类字符串获取驱动   |
+| get_drivers_by_category_list(categories)        | 按多个分类获取驱动     |
+| list_drivers_name_by_category_list(categories)  | 按多个分类获取驱动名称 |
+| get_all_categorys()                             | 获取所有分类名称       |
+| get_driver_category()                           | 获取各分类及其驱动数量 |
+| get_driver_category_names()                     | 获取所有分类名称       |
+| get_driver_category_name_and_describe()         | 获取分类名称及描述     |
+| generate_driver_registry_table_json_str()       | 生成注册表 JSON 字符串 |
 
-## SkillCategory 方法
+## DriverCategory 方法
 
 | 方法             | 说明                 |
 | ---------------- | -------------------- |

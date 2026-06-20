@@ -5,8 +5,8 @@
     HippoX
 </h1>
 <h4 align="center">
-A reliable, autonomous LLM runtime and skill orchestration engine.<br> 
-Capable of processing natural language and automatically executing OS-native atomic skills, fundamentally enabling the LLM to truly take over the computer.
+A reliable, autonomous LLM runtime and driver orchestration engine.<br> 
+Capable of processing natural language and automatically executing OS-native drivers, fundamentally enabling the LLM to truly take over the computer.
 </h4>
 <p align="center">
   <a href="https://github.com/0xhappyboy/hippo/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache2.0-d1d1f6.svg?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=googledocs&label=license&logoColor=BEC5C9" alt="License"></a>
@@ -212,7 +212,7 @@ pub struct IdentityInformation {
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
 │  │ 2. Intent Analysis (Step 1)                                           │ │
 │  │    build_intent_parser_prompt() → LLM.generate() → parse              │ │
-│  │    Output: clean_intent, skill_categories                             │ │
+│  │    Output: clean_intent, driver_categories                             │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                      │                                      │
 │                                      ▼                                      │
@@ -222,7 +222,7 @@ pub struct IdentityInformation {
 │  │    │  ReAct   │ │  Batch   │ │  Chain   │ │ PlanAndExecute  │        │ │
 │  │    └────┬─────┘ └────┬─────┘ └────┬─────┘ └───────┬─────────┘        │ │
 │  │         └────────────┴────────────┴──────────────┘                   │ │
-│  │    LLM generates SkillCall → Executor.execute() → raw_json           │ │
+│  │    LLM generates DriverCall → Executor.execute() → raw_json           │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │                                      │                                      │
 │                                      ▼                                      │
@@ -252,12 +252,12 @@ User Input
 ┌─────────────┐
 │   Step 1    │ → Intent Analysis
 │   Analysis  │   build_intent_parser_prompt() → LLM
-└──────┬──────┘   Output: clean_intent, skill_categories
+└──────┬──────┘   Output: clean_intent, driver_categories
        │
        ▼
 ┌─────────────┐
 │   Step 2    │ → Workflow Execution
-│  Execution  │   Execute skills using clean_intent
+│  Execution  │   Execute drivers using clean_intent
 └──────┬──────┘   Output: raw_json
        │
        ▼
@@ -340,7 +340,7 @@ Pending ──► Running ──► Completed
 │  │  │                  NaturalLanguageTask                │  │  │
 │  │  │  • input: String                                    │  │  │
 │  │  │  • workflow_executor: WorkflowExecutor              │  │  │
-│  │  │  • scheduler: SkillScheduler                        │  │  │
+│  │  │  • scheduler: DriverScheduler                        │  │  │
 │  │  └─────────────────────────────────────────────────────┘  │  │
 │  └───────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -358,8 +358,8 @@ Pending ──► Running ──► Completed
 
 | Mode           | Enum Value                   | Core Features                                                                                                        | LLM Calls                           | Use Cases                                                 |
 | -------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------- |
-| ReAct          | WorkflowMode::ReAct          | Think → Act → Observe loop, LLM decides next step after each execution                                               | 1 per skill + 1 final response      | Open-ended tasks, dynamic decision making, error recovery |
-| Batch          | WorkflowMode::Batch          | Execute multiple independent skills in parallel                                                                      | 1 (generates batch plan)            | Independent operations, bulk processing                   |
+| ReAct          | WorkflowMode::ReAct          | Think → Act → Observe loop, LLM decides next step after each execution                                               | 1 per driver + 1 final response     | Open-ended tasks, dynamic decision making, error recovery |
+| Batch          | WorkflowMode::Batch          | Execute multiple independent drivers in parallel                                                                     | 1 (generates batch plan)            | Independent operations, bulk processing                   |
 | Chain          | WorkflowMode::Chain          | Sequential execution with variable passing ({{variable}} syntax)                                                     | 1 (generates chain)                 | Linear pipelines, data transformation chains              |
 | PlanAndExecute | WorkflowMode::PlanAndExecute | One-time planning with conditional branching, variable references ({"$ref":"var"}), error handling (retry/skip/fail) | 1 plan + optional dynamic decisions | Complex workflows, conditional logic, deterministic tasks |
 
@@ -390,7 +390,7 @@ Pending ──► Running ──► Completed
   </tr>
 </table>
 
-## Workflow Atomic Skill Retry Strategy
+## Workflow Atomic Driver Retry Strategy
 
 <table>
   <tr>
@@ -419,18 +419,16 @@ Pending ──► Running ──► Completed
   </tr>
 </table>
 
-## Atomic Skill Registry
-
-> 💡 **Hint**：In Hippox, an atomic skill represents a smallest indivisible unit of execution, This is a different concept from "Skill" in user business.
+## Driver Registry
 
 ### Working Principle
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      SKILL REGISTRY                        │
+│                      DRIVER REGISTRY                        │
 │                                                           │
-│  SkillRegistryMap = HashMap<SkillCategory,               │
-│                      HashMap<String, Arc<dyn Skill>>>    │
+│  DriverRegistryMap = HashMap<DriverCategory,               │
+│                      HashMap<String, Arc<dyn Driver>>>    │
 │                                                           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
 │  │ File     │  │ Math     │  │ Net      │              │
@@ -445,42 +443,42 @@ Pending ──► Running ──► Completed
 Registration:
 
   Compile-time: file_register() / math_register() / net_register()
-  Runtime: register_skill(category, name, skill)
+  Runtime: register_driver(category, name, driver)
 
 Query:
 
-  get_skill_by_name("read") → Skill impl → execute()
+  get_driver_by_name("read") → Driver impl → execute()
 ```
 
 ### Core Type
 
 ```rust
-pub type SkillRegistryMap = HashMap<SkillCategory, HashMap<String, Arc<dyn Skill>>>;
+pub type DriverRegistryMap = HashMap<DriverCategory, HashMap<String, Arc<dyn Driver>>>;
 ```
 
 ### Main Functions
 
-| Function                                       | Description                             |
-| ---------------------------------------------- | --------------------------------------- |
-| get_registry()                                 | Get read lock on the registry           |
-| get_registry_mut()                             | Get write lock on the registry          |
-| register_skill(category, name, skill)          | Dynamically register a skill            |
-| get_all_skills()                               | Get all registered skills               |
-| get_skill_by_name(name)                        | Find a skill by name                    |
-| get_skill_by_name_and_category(name, category) | Find a skill by name and category       |
-| has_skill(name)                                | Check if a skill exists                 |
-| list_skills_names()                            | List all skill names                    |
-| list_skills_name_by_category(category)         | List skill names in a category          |
-| get_skills_by_category(category)               | Get skills by category string           |
-| get_skills_by_category_list(categories)        | Get skills by multiple categories       |
-| list_skills_name_by_category_list(categories)  | List skill names by multiple categories |
-| get_all_categorys()                            | Get all category names                  |
-| get_skill_category()                           | Get categories with skill counts        |
-| get_skill_category_names()                     | Get all category names                  |
-| get_skill_category_name_and_describe()         | Get category names with descriptions    |
-| generate_skill_registry_table_json_str()       | Generate registry JSON string           |
+| Function                                        | Description                              |
+| ----------------------------------------------- | ---------------------------------------- |
+| get_registry()                                  | Get read lock on the registry            |
+| get_registry_mut()                              | Get write lock on the registry           |
+| register_driver(category, name, driver)         | Dynamically register a driver            |
+| get_all_drivers()                               | Get all registered drivers               |
+| get_driver_by_name(name)                        | Find a driver by name                    |
+| get_driver_by_name_and_category(name, category) | Find a driver by name and category       |
+| has_driver(name)                                | Check if a driver exists                 |
+| list_drivers_names()                            | List all driver names                    |
+| list_drivers_name_by_category(category)         | List driver names in a category          |
+| get_drivers_by_category(category)               | Get drivers by category string           |
+| get_drivers_by_category_list(categories)        | Get drivers by multiple categories       |
+| list_drivers_name_by_category_list(categories)  | List driver names by multiple categories |
+| get_all_categorys()                             | Get all category names                   |
+| get_driver_category()                           | Get categories with driver counts        |
+| get_driver_category_names()                     | Get all category names                   |
+| get_driver_category_name_and_describe()         | Get category names with descriptions     |
+| generate_driver_registry_table_json_str()       | Generate registry JSON string            |
 
-### SkillCategory Methods
+### DriverCategory Methods
 
 | Method           | Description                          |
 | ---------------- | ------------------------------------ |
