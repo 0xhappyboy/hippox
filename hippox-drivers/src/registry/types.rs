@@ -66,6 +66,12 @@ pub enum DriverCategory {
     SpeechSpeak,
     OperatingSystemServices,
     OperatingSystemSecurity,
+    /// CPU information, usage, load, frequency, features, temperature
+    OperatingSystemCpu,
+    /// GPU information, usage, memory, temperature, fan, power, processes
+    OperatingSystemGpu,
+    /// Disk information, usage, partitions, I/O, SMART, encryption
+    OperatingSystemDisk,
 }
 
 impl DriverCategory {
@@ -97,6 +103,9 @@ impl DriverCategory {
             "system_ops" => Some(DriverCategory::OperatingSystem),
             "process_ops" => Some(DriverCategory::OperatingSystemProcess),
             "memory_ops" => Some(DriverCategory::OperatingSystemMemory),
+            "cpu_ops" => Some(DriverCategory::OperatingSystemCpu),
+            "gpu_ops" => Some(DriverCategory::OperatingSystemGpu),
+            "disk_ops" => Some(DriverCategory::OperatingSystemDisk),
             "document_ops" => Some(DriverCategory::Document),
             "social_ops" => Some(DriverCategory::SocialPlatform),
             "database_ops" => Some(DriverCategory::Database),
@@ -155,6 +164,9 @@ impl DriverCategory {
             DriverCategory::OperatingSystem => "system_ops",
             DriverCategory::OperatingSystemProcess => "process_ops",
             DriverCategory::OperatingSystemMemory => "memory_ops",
+            DriverCategory::OperatingSystemCpu => "cpu_ops",
+            DriverCategory::OperatingSystemGpu => "gpu_ops",
+            DriverCategory::OperatingSystemDisk => "disk_ops",
             DriverCategory::Document => "document_ops",
             DriverCategory::SocialPlatform => "social_ops",
             DriverCategory::Database => "database_ops",
@@ -192,6 +204,9 @@ impl DriverCategory {
             DriverCategory::OperatingSystem => "Operating System",
             DriverCategory::OperatingSystemProcess => "Operating System Process Management",
             DriverCategory::OperatingSystemMemory => "Operating System Process Memory Operations",
+            DriverCategory::OperatingSystemCpu => "Operating System CPU Operations",
+            DriverCategory::OperatingSystemGpu => "Operating System GPU Operations",
+            DriverCategory::OperatingSystemDisk => "Operating System Disk Operations",
             DriverCategory::Document => "Document Processing",
             DriverCategory::SocialPlatform => "Social Platform",
             DriverCategory::Database => "Database",
@@ -240,6 +255,15 @@ impl DriverCategory {
             }
             DriverCategory::OperatingSystemMemory => {
                 "Low-level process memory access for debugging, reverse engineering, and security analysis"
+            }
+            DriverCategory::OperatingSystemCpu => {
+                "CPU information, usage monitoring, load averages, cache info, frequency, features, temperature, and affinity control"
+            }
+            DriverCategory::OperatingSystemGpu => {
+                "GPU information, usage monitoring, memory, temperature, fan speed, power, processes, clock speeds, and video engine utilization"
+            }
+            DriverCategory::OperatingSystemDisk => {
+                "Disk information, usage, partitions, I/O statistics, SMART health, encryption status, and TRIM support"
             }
             DriverCategory::Document => {
                 "Markdown, CSV, XML, Excel, PDF, JSON, YAML, TOML document processing"
@@ -308,6 +332,9 @@ impl DriverCategory {
             DriverCategory::OperatingSystem => "💻",
             DriverCategory::OperatingSystemProcess => "⚙️",
             DriverCategory::OperatingSystemMemory => "🧠",
+            DriverCategory::OperatingSystemCpu => "🔄",
+            DriverCategory::OperatingSystemGpu => "🎮",
+            DriverCategory::OperatingSystemDisk => "💾",
             DriverCategory::Document => "📄",
             DriverCategory::SocialPlatform => "📱",
             DriverCategory::Database => "🗄️",
@@ -345,6 +372,9 @@ impl DriverCategory {
             DriverCategory::OperatingSystem => 40,
             DriverCategory::OperatingSystemProcess => 41,
             DriverCategory::OperatingSystemMemory => 43,
+            DriverCategory::OperatingSystemCpu => 43,
+            DriverCategory::OperatingSystemGpu => 44,
+            DriverCategory::OperatingSystemDisk => 45,
             DriverCategory::Document => 50,
             DriverCategory::SocialPlatform => 55,
             DriverCategory::Database => 70,
@@ -394,6 +424,9 @@ impl DriverCategory {
             OperatingSystem.metadata(),
             OperatingSystemProcess.metadata(),
             OperatingSystemMemory.metadata(),
+            OperatingSystemCpu.metadata(),
+            OperatingSystemGpu.metadata(),
+            OperatingSystemDisk.metadata(),
             Document.metadata(),
             SocialPlatform.metadata(),
             Database.metadata(),

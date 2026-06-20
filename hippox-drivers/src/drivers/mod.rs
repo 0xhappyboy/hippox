@@ -53,6 +53,12 @@ pub mod display_control;
 pub mod keyboard_control;
 #[cfg(feature = "mouse_control")]
 pub mod mouse_control;
+#[cfg(feature = "operating_system_cpu")]
+pub mod operating_system_cpu;
+#[cfg(feature = "operating_system_disk")]
+pub mod operating_system_disk;
+#[cfg(feature = "operating_system_gpu")]
+pub mod operating_system_gpu;
 #[cfg(feature = "operating_system_memory")]
 pub mod operating_system_memory;
 #[cfg(feature = "operating_system_process")]
@@ -101,6 +107,12 @@ pub use mouse_control::*;
 pub use network::*;
 #[cfg(feature = "operating_system")]
 pub use operating_system::*;
+#[cfg(feature = "operating_system_cpu")]
+pub use operating_system_cpu::*;
+#[cfg(feature = "operating_system_disk")]
+pub use operating_system_disk::*;
+#[cfg(feature = "operating_system_gpu")]
+pub use operating_system_gpu::*;
 #[cfg(feature = "operating_system_memory")]
 pub use operating_system_memory::*;
 #[cfg(feature = "operating_system_process")]

@@ -124,6 +124,8 @@ rqrr = "0.10.1"
 qrcode = "0.14.1"
 barcoders = "2.0.0"
 ssh2 = "0.9.5"
+raw-cpuid = "11.6.0"
+nix = "0.31.3"
 
 [features]
 default = [
@@ -159,6 +161,9 @@ default = [
     "scheduled_tasks",
     "operating_system_process",
     "operating_system_memory",
+    "operating_system_cpu",
+    "operating_system_gpu",
+    "operating_system_disk",
 ]
 all = [
     "blockchain",
@@ -193,7 +198,13 @@ all = [
     "scheduled_tasks",
     "operating_system_process",
     "operating_system_memory",
+    "operating_system_cpu",
+    "operating_system_gpu",
+    "operating_system_disk",
 ]
+operating_system_disk = []
+operating_system_gpu = []
+operating_system_cpu = []
 operating_system_memory = []
 scheduled_tasks = []
 operating_system = []

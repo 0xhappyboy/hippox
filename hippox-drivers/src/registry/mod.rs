@@ -42,6 +42,12 @@ mod media_register;
 mod mouse_register;
 #[cfg(any(feature = "network", feature = "all"))]
 mod network_register;
+#[cfg(any(feature = "operating_system_cpu", feature = "all"))]
+mod operating_system_cpu_register;
+#[cfg(any(feature = "operating_system_disk", feature = "all"))]
+mod operating_system_disk_register;
+#[cfg(any(feature = "operating_system_gpu", feature = "all"))]
+mod operating_system_gpu_register;
 #[cfg(any(feature = "operating_system_memory", feature = "all"))]
 mod operating_system_memory_register;
 #[cfg(any(feature = "operating_system_process", feature = "all"))]

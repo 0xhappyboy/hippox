@@ -50,6 +50,12 @@ use crate::registry::math_register;
 use crate::registry::media_register;
 #[cfg(any(feature = "mouse_control", feature = "all"))]
 use crate::registry::mouse_register;
+#[cfg(any(feature = "operating_system_cpu", feature = "all"))]
+use crate::registry::operating_system_cpu_register;
+#[cfg(any(feature = "operating_system_disk", feature = "all"))]
+use crate::registry::operating_system_disk_register;
+#[cfg(any(feature = "operating_system_gpu", feature = "all"))]
+use crate::registry::operating_system_gpu_register;
 #[cfg(any(feature = "operating_system_memory", feature = "all"))]
 use crate::registry::operating_system_memory_register;
 #[cfg(any(feature = "operating_system_process", feature = "all"))]
@@ -141,6 +147,12 @@ static SKILL_REGISTRY: Lazy<RwLock<DriverRegistryMap>> = Lazy::new(|| {
     operating_system_process_register::register(&mut registry);
     #[cfg(any(feature = "operating_system_memory", feature = "all"))]
     operating_system_memory_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_cpu", feature = "all"))]
+    operating_system_cpu_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_gpu", feature = "all"))]
+    operating_system_gpu_register::register(&mut registry);
+    #[cfg(any(feature = "operating_system_disk", feature = "all"))]
+    operating_system_disk_register::register(&mut registry);
 
     RwLock::new(registry)
 });
