@@ -1,4 +1,5 @@
 //! Clipboard clear driver
+use super::clipboard_set::ClipboardSetDriver;
 use crate::DriverCallback;
 use crate::DriverContext;
 use crate::{

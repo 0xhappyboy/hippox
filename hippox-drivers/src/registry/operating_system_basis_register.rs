@@ -30,5 +30,31 @@ pub fn register(registry: &mut DriverRegistryMap) {
             "os_notification".to_string(),
             Arc::new(OsNotificationDriver),
         );
+        map.insert("os_get_time".to_string(), Arc::new(OsGetTimeDriver));
+        map.insert("os_set_time".to_string(), Arc::new(OsSetTimeDriver));
+        map.insert("os_get_timezone".to_string(), Arc::new(OsGetTimezoneDriver));
+        map.insert("os_set_timezone".to_string(), Arc::new(OsSetTimezoneDriver));
+        map.insert("os_get_env".to_string(), Arc::new(OsGetEnvDriver));
+        map.insert("os_set_env".to_string(), Arc::new(OsSetEnvDriver));
+        map.insert("os_get_locale".to_string(), Arc::new(OsGetLocaleDriver));
+        map.insert(
+            "os_get_os_version".to_string(),
+            Arc::new(OsGetOsVersionDriver),
+        );
+        map.insert("os_get_domain".to_string(), Arc::new(OsGetDomainDriver));
+        map.insert("os_screen_off".to_string(), Arc::new(OsScreenOffDriver));
+        map.insert("os_screen_on".to_string(), Arc::new(OsScreenOnDriver));
+        map.insert(
+            "os_wallpaper_get".to_string(),
+            Arc::new(OsWallpaperGetDriver),
+        );
+        map.insert(
+            "os_wallpaper_set".to_string(),
+            Arc::new(OsWallpaperSetDriver),
+        );
+        map.insert(
+            "os_get_default_browser".to_string(),
+            Arc::new(OsGetDefaultBrowserDriver),
+        );
     }
 }

@@ -1,6 +1,6 @@
 //! OS battery info driver
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, exec_async,
     types::{Driver, DriverParameter},
 };
 use anyhow::Result;
@@ -95,7 +95,6 @@ impl Driver for OsBatteryInfoDriver {
         }
         #[cfg(target_os = "windows")]
         {
-            use crate::exec_async;
             let result = exec_async("powercfg", &["/getbatteryreport"], None).await?;
             if detailed {
                 return Ok(result.stdout);

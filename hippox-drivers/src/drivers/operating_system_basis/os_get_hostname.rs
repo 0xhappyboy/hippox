@@ -1,6 +1,6 @@
 //! OS get hostname driver
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, exec_async,
     types::{Driver, DriverParameter},
 };
 use anyhow::Result;
@@ -56,7 +56,6 @@ impl Driver for OsGetHostnameDriver {
             }
             #[cfg(target_os = "windows")]
             {
-                use crate::exec_async;
                 let _ = exec_async(
                     "powershell",
                     &["-Command", &format!("Rename-Computer -NewName '{}'", name)],
