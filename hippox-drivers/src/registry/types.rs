@@ -14,7 +14,7 @@ pub enum DriverCategory {
     /// HTTP requests, DNS lookup, Ping, TCP/UDP communication, FTP
     Network,
     /// System information, power management, environment variables, clipboard
-    OperatingSystem,
+    OperatingSystemBasis,
     /// Process listing, start, terminate, monitoring
     OperatingSystemProcess,
     /// Process memory reading, scanning, module base address
@@ -100,7 +100,7 @@ impl DriverCategory {
             "file_ops" => Some(DriverCategory::File),
             "math_ops" => Some(DriverCategory::Math),
             "network_ops" => Some(DriverCategory::Network),
-            "system_ops" => Some(DriverCategory::OperatingSystem),
+            "system_ops" => Some(DriverCategory::OperatingSystemBasis),
             "process_ops" => Some(DriverCategory::OperatingSystemProcess),
             "memory_ops" => Some(DriverCategory::OperatingSystemMemory),
             "cpu_ops" => Some(DriverCategory::OperatingSystemCpu),
@@ -161,12 +161,12 @@ impl DriverCategory {
             DriverCategory::File => "file_ops",
             DriverCategory::Math => "math_ops",
             DriverCategory::Network => "network_ops",
-            DriverCategory::OperatingSystem => "system_ops",
-            DriverCategory::OperatingSystemProcess => "process_ops",
-            DriverCategory::OperatingSystemMemory => "memory_ops",
-            DriverCategory::OperatingSystemCpu => "cpu_ops",
-            DriverCategory::OperatingSystemGpu => "gpu_ops",
-            DriverCategory::OperatingSystemDisk => "disk_ops",
+            DriverCategory::OperatingSystemBasis => "operating_system_ops",
+            DriverCategory::OperatingSystemProcess => "operating_system_process_ops",
+            DriverCategory::OperatingSystemMemory => "operating_system_memory_ops",
+            DriverCategory::OperatingSystemCpu => "operating_system_cpu_ops",
+            DriverCategory::OperatingSystemGpu => "operating_system_gpu_ops",
+            DriverCategory::OperatingSystemDisk => "operating_system_disk_ops",
             DriverCategory::Document => "document_ops",
             DriverCategory::SocialPlatform => "social_ops",
             DriverCategory::Database => "database_ops",
@@ -189,8 +189,8 @@ impl DriverCategory {
             DriverCategory::Time => "time_ops",
             DriverCategory::Cryptography => "crypto_ops",
             DriverCategory::SpeechSpeak => "tts_play_on_speaker",
-            DriverCategory::OperatingSystemServices => "service_ops",
-            DriverCategory::OperatingSystemSecurity => "security_ops",
+            DriverCategory::OperatingSystemServices => "operating_system_service_ops",
+            DriverCategory::OperatingSystemSecurity => "operating_system_security_ops",
         }
     }
 
@@ -201,7 +201,7 @@ impl DriverCategory {
             DriverCategory::File => "File System",
             DriverCategory::Math => "Mathematics",
             DriverCategory::Network => "Network",
-            DriverCategory::OperatingSystem => "Operating System",
+            DriverCategory::OperatingSystemBasis => "Operating System Basis Operations",
             DriverCategory::OperatingSystemProcess => "Operating System Process Management",
             DriverCategory::OperatingSystemMemory => "Operating System Process Memory Operations",
             DriverCategory::OperatingSystemCpu => "Operating System CPU Operations",
@@ -229,8 +229,8 @@ impl DriverCategory {
             DriverCategory::Time => "Time & Date",
             DriverCategory::Cryptography => "Cryptography",
             DriverCategory::SpeechSpeak => "Speech Speak",
-            DriverCategory::OperatingSystemServices => "Operating System Services",
-            DriverCategory::OperatingSystemSecurity => "Operating System Security",
+            DriverCategory::OperatingSystemServices => "Operating System Services Operations",
+            DriverCategory::OperatingSystemSecurity => "Operating System Security Operations",
         }
     }
 
@@ -247,8 +247,8 @@ impl DriverCategory {
             DriverCategory::Network => {
                 "HTTP/HTTPS requests, DNS lookup, Ping/TCP/UDP, FTP, port scanning, HTML parsing, SSH execution, webhook notifications, network diagnostics"
             }
-            DriverCategory::OperatingSystem => {
-                "System information, power management, environment variables, clipboard operations"
+            DriverCategory::OperatingSystemBasis => {
+                "Core system operations: clipboard, system info, reboot/shutdown, sleep/hibernate, screen lock, logout, uptime, hostname, user info, memory info, battery status, desktop notifications"
             }
             DriverCategory::OperatingSystemProcess => {
                 "Process listing, starting, terminating, and monitoring"
@@ -329,7 +329,7 @@ impl DriverCategory {
             DriverCategory::File => "📁",
             DriverCategory::Math => "🔢",
             DriverCategory::Network => "🌐",
-            DriverCategory::OperatingSystem => "💻",
+            DriverCategory::OperatingSystemBasis => "💻",
             DriverCategory::OperatingSystemProcess => "⚙️",
             DriverCategory::OperatingSystemMemory => "🧠",
             DriverCategory::OperatingSystemCpu => "🔄",
@@ -369,7 +369,7 @@ impl DriverCategory {
             DriverCategory::File => 10,
             DriverCategory::Math => 20,
             DriverCategory::Network => 30,
-            DriverCategory::OperatingSystem => 40,
+            DriverCategory::OperatingSystemBasis => 40,
             DriverCategory::OperatingSystemProcess => 41,
             DriverCategory::OperatingSystemMemory => 43,
             DriverCategory::OperatingSystemCpu => 43,
@@ -421,7 +421,7 @@ impl DriverCategory {
             File.metadata(),
             Math.metadata(),
             Network.metadata(),
-            OperatingSystem.metadata(),
+            OperatingSystemBasis.metadata(),
             OperatingSystemProcess.metadata(),
             OperatingSystemMemory.metadata(),
             OperatingSystemCpu.metadata(),

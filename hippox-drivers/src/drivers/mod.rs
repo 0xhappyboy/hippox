@@ -20,8 +20,8 @@ pub mod math;
 pub mod media;
 #[cfg(feature = "network")]
 pub mod network;
-#[cfg(feature = "operating_system")]
-pub mod operating_system;
+#[cfg(feature = "operating_system_basis")]
+pub mod operating_system_basis;
 #[cfg(feature = "operating_system_services")]
 pub mod operating_system_services;
 #[cfg(feature = "social_platform")]
@@ -105,8 +105,8 @@ pub use media::*;
 pub use mouse_control::*;
 #[cfg(feature = "network")]
 pub use network::*;
-#[cfg(feature = "operating_system")]
-pub use operating_system::*;
+#[cfg(feature = "operating_system_basis")]
+pub use operating_system_basis::*;
 #[cfg(feature = "operating_system_cpu")]
 pub use operating_system_cpu::*;
 #[cfg(feature = "operating_system_disk")]

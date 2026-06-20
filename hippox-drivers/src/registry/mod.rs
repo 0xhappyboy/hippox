@@ -52,8 +52,8 @@ mod operating_system_gpu_register;
 mod operating_system_memory_register;
 #[cfg(any(feature = "operating_system_process", feature = "all"))]
 mod operating_system_process_register;
-#[cfg(any(feature = "operating_system", feature = "all"))]
-mod operating_system_register;
+#[cfg(any(feature = "operating_system_basis", feature = "all"))]
+mod operating_system_basis_register;
 #[cfg(any(feature = "operating_system_security", feature = "all"))]
 mod operating_system_security_register;
 #[cfg(any(feature = "operating_system_services", feature = "all"))]

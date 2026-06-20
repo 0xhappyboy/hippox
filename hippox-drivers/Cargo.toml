@@ -139,7 +139,7 @@ default = [
     "media",
     "social_platform",
     "network",
-    "operating_system",
+    "operating_system_basis",
     "task",
     "time",
     "text",
@@ -176,7 +176,7 @@ all = [
     "media",
     "social_platform",
     "network",
-    "operating_system",
+    "operating_system_basis",
     "task",
     "time",
     "text",
@@ -207,7 +207,7 @@ operating_system_gpu = []
 operating_system_cpu = []
 operating_system_memory = []
 scheduled_tasks = []
-operating_system = []
+operating_system_basis = []
 operating_system_process = []
 operating_system_security = []
 operating_system_services = []

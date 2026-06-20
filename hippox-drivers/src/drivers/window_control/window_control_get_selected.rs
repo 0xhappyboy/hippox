@@ -49,7 +49,7 @@ impl Driver for WindowControlGetSelectedDriver {
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
     ) -> Result<String> {
-        use crate::drivers::operating_system::clipboard::ClipboardGetDriver;
+        use crate::drivers::operating_system_basis::clipboard::ClipboardGetDriver;
         // First copy selected text
         #[cfg(target_os = "windows")]
         {
