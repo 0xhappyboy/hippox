@@ -10,7 +10,9 @@ use crate::{
     HippoxVoidResult, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
     WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
-use hippox_drivers::{DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names};
+use hippox_drivers::{
+    DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names,
+};
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
 use serde_json::{Value, json};
@@ -167,16 +169,23 @@ impl Hippox {
             workflow_callback,
             driver_callback,
         ));
-        let task_id = futures::executor::block_on(tasks::create_task_with_executable(
+        let result = futures::executor::block_on(tasks::create_task_with_executable(
             "natural_language".to_string(),
             input.to_string(),
             executable,
         ));
-        info!(
-            "Created natural language task: {} with input: {}",
-            task_id, input
-        );
-        HippoxResult::ok(task_id)
+        if result.is_ok() {
+            let task_id = result.unwrap();
+            info!(
+                "Created natural language task: {} with input: {}",
+                task_id, input
+            );
+            HippoxResult::ok(task_id)
+        } else {
+            let error = result.error.unwrap_or_else(|| "Unknown error".to_string());
+            tracing::error!("Failed to create task: {}", error);
+            HippoxResult::system_error(format!("Failed to create task: {}", error))
+        }
     }
 
     /// Submit multiple natural language tasks in batch and return task IDs immediately
@@ -333,12 +342,10 @@ impl Hippox {
         } else {
             workflow_result.json_output
         };
-        let (input_tokens, output_tokens) = if let Some(task) = tasks::get_task(&temp_task_id).await
-        {
-            (task.input_token_count, task.output_token_count)
-        } else {
-            (0, 0)
-        };
+        let (input_tokens, output_tokens) = tasks::get_task(&temp_task_id)
+            .await
+            .map(|task| (task.input_token_count, task.output_token_count))
+            .unwrap_or((0, 0));
         {
             let mut pool = tasks::TASK_POOL.write().await;
             // Remove temporary tasks from the task pool.
@@ -347,74 +354,6 @@ impl Hippox {
         INPUT_TOKEN_COUNT.fetch_add(input_tokens, std::sync::atomic::Ordering::Relaxed);
         OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, std::sync::atomic::Ordering::Relaxed);
         HippoxResult::ok_with_tokens(final_output, input_tokens, output_tokens)
-    }
-
-    /// Wait for a task to complete and return its result
-    ///
-    /// This function blocks until the specified task completes, then returns
-    /// the final output (including token usage) similar to `execute()`.
-    ///
-    /// # Arguments
-    /// * `task_id` - The task ID returned from `submit()`
-    ///
-    /// # Returns
-    /// The final output of the task as a HippoxStringResult with token usage
-    ///
-    /// # Example
-    /// ```
-    /// let task_id = hippox.submit("Help me organize my folders", None)?;
-    /// let result = hippox.wait_task(&task_id).await?;
-    /// println!("Result: {}", result);
-    /// ```
-    pub async fn wait_task(&self, task_id: &str) -> HippoxStringResult {
-        use std::time::Duration;
-        use tokio::time::sleep;
-        // Poll task status until terminal state
-        loop {
-            let status = match tasks::get_task_status(task_id).await {
-                Some(s) => s,
-                None => {
-                    return HippoxResult::system_error(format!("Task not found: {}", task_id));
-                }
-            };
-            match status {
-                TaskStatus::Completed => {
-                    // Get the task and extract result
-                    if let Some(task) = tasks::get_task(task_id).await {
-                        let output = task.final_output.unwrap_or_default();
-                        return HippoxResult::ok_with_tokens(
-                            output,
-                            task.input_token_count,
-                            task.output_token_count,
-                        );
-                    } else {
-                        return HippoxResult::system_error(format!(
-                            "Task completed but data not found: {}",
-                            task_id
-                        ));
-                    }
-                }
-                TaskStatus::Failed => {
-                    if let Some(task) = tasks::get_task(task_id).await {
-                        let error = task.error.unwrap_or_else(|| "Unknown error".to_string());
-                        return HippoxResult::system_error(format!("Task failed: {}", error));
-                    } else {
-                        return HippoxResult::system_error(format!("Task failed: {}", task_id));
-                    }
-                }
-                TaskStatus::Cancelled => {
-                    return HippoxResult::system_error(format!("Task was cancelled: {}", task_id));
-                }
-                TaskStatus::Timeout => {
-                    return HippoxResult::system_error(format!("Task timed out: {}", task_id));
-                }
-                TaskStatus::Pending | TaskStatus::Running | TaskStatus::Paused => {
-                    // Wait before polling again (with backoff)
-                    sleep(Duration::from_millis(100)).await;
-                    continue;
-                }
-            }
-        }
     }
 
     /// heartbeat
@@ -437,55 +376,6 @@ impl Hippox {
         }
     }
 
-    /// Get task status by ID
-    pub fn get_task_status(&self, task_id: &str) -> HippoxResult<TaskStatus> {
-        match futures::executor::block_on(tasks::get_task_status(task_id)) {
-            Some(status) => HippoxResult::ok(status),
-            None => HippoxResult::system_error(format!("Task not found: {}", task_id)),
-        }
-    }
-
-    /// Get task by ID
-    pub fn get_task(&self, task_id: &str) -> HippoxResult<tasks::Task> {
-        match futures::executor::block_on(tasks::get_task(task_id)) {
-            Some(task) => HippoxResult::ok(task),
-            None => HippoxResult::system_error(format!("Task not found: {}", task_id)),
-        }
-    }
-
-    /// Cancel a running or pending task
-    pub fn cancel_task(&self, task_id: &str) -> HippoxBoolResult {
-        match futures::executor::block_on(tasks::cancel_task(task_id)) {
-            true => HippoxResult::ok(true),
-            false => HippoxResult::system_error(format!("Failed to cancel task: {}", task_id)),
-        }
-    }
-
-    /// Pause a running task
-    pub fn pause_task(&self, task_id: &str) -> HippoxBoolResult {
-        match futures::executor::block_on(tasks::pause_task(task_id)) {
-            true => HippoxResult::ok(true),
-            false => HippoxResult::system_error(format!("Failed to pause task: {}", task_id)),
-        }
-    }
-
-    /// Resume a paused task
-    pub fn resume_task(&self, task_id: &str) -> HippoxBoolResult {
-        match futures::executor::block_on(tasks::resume_task(task_id)) {
-            true => HippoxResult::ok(true),
-            false => HippoxResult::system_error(format!("Failed to resume task: {}", task_id)),
-        }
-    }
-
-    /// Retry a failed task
-    pub fn retry_task(&self, task_id: &str) -> HippoxBoolResult {
-        match futures::executor::block_on(tasks::retry_task(task_id)) {
-            true => HippoxResult::ok(true),
-            false => HippoxResult::system_error(format!("Failed to retry task: {}", task_id)),
-        }
-    }
-
-    /// List all available atomic drivers
     /// List all available atomic drivers
     pub fn list_atomic_drivers(&self) -> HippoxStringResult {
         let drivers = get_all_drivers();
