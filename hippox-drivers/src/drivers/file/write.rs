@@ -119,11 +119,6 @@ impl Driver for WriteFileDriver {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'content' parameter"))?;
         if let Some(cb) = cb {
-            let content_preview = if content.len() > 100 {
-                format!("{}...", &content[..100])
-            } else {
-                content.to_string()
-            };
             cb.on_log(
                 task_id.clone(),
                 driver_index,
