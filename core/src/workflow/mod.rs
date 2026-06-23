@@ -6,6 +6,7 @@
 //! - PlanAndExecute: One-time planning with dependency resolution
 //! - Chain: Simple sequential execution with variable passing
 
+pub mod api;
 pub(crate) mod batch;
 pub(crate) mod chain;
 pub(crate) mod core;
@@ -15,6 +16,7 @@ pub(crate) mod retry;
 pub mod types;
 pub(crate) mod utils;
 
+pub use api::*;
 pub(crate) use batch::*;
 pub(crate) use chain::*;
 pub(crate) use core::*;

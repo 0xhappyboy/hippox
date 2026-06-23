@@ -10,7 +10,6 @@ pub struct HippoxBuilder {
     api_key: Option<String>,
     extra_keys: Option<HashMap<String, String>>,
     config: HippoxConfig,
-    workflow_mode: WorkflowMode,
 }
 
 impl HippoxBuilder {
@@ -21,7 +20,6 @@ impl HippoxBuilder {
             api_key: None,
             extra_keys: None,
             config: HippoxConfig::default(),
-            workflow_mode: WorkflowMode::default(),
         }
     }
 
@@ -43,12 +41,6 @@ impl HippoxBuilder {
         self
     }
 
-    /// Set workflow mode
-    pub fn workflow_mode(mut self, mode: WorkflowMode) -> Self {
-        self.workflow_mode = mode;
-        self
-    }
-
     /// Set identity with a closure
     pub fn identity(mut self, f: impl FnOnce(&mut IdentityInformation)) -> Self {
         f(&mut self.config.identity_information);
@@ -62,7 +54,6 @@ impl HippoxBuilder {
             self.api_key,
             self.extra_keys,
             Some(self.config),
-            self.workflow_mode,
         )
         .await
     }

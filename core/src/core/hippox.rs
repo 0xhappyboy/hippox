@@ -38,8 +38,6 @@ pub static OUTPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
 pub struct Hippox {
     scheduler: DriverScheduler,
     executor: Executor,
-    workflow_mode: WorkflowMode,
-    workflow_executor: WorkflowExecutor,
     is_first_message: Arc<AtomicBool>,
 }
 
@@ -51,14 +49,7 @@ impl Hippox {
         extra_keys: Option<HashMap<String, String>>,
         config: Option<HippoxConfig>,
     ) -> anyhow::Result<Self> {
-        Self::with_workflow_mode(
-            provider,
-            api_key,
-            extra_keys,
-            config,
-            WorkflowMode::default(),
-        )
-        .await
+        Self::with_workflow_mode(provider, api_key, extra_keys, config).await
     }
 
     /// Create a new Hippox core instance with specified workflow mode
@@ -67,12 +58,7 @@ impl Hippox {
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
         config: Option<HippoxConfig>,
-        workflow_mode: WorkflowMode,
     ) -> anyhow::Result<Self> {
-        info!(
-            "Initializing Hippox core with workflow mode: {}",
-            workflow_mode
-        );
         // init config
         update_config(|global| *global = config.unwrap_or_default())?;
         // set i18n
@@ -83,12 +69,9 @@ impl Hippox {
         // init llm scheduler
         let scheduler = DriverScheduler::new(llm);
         let executor = Executor::new();
-        let workflow_executor = WorkflowExecutor::new(workflow_mode);
         Ok(Self {
             scheduler,
             executor,
-            workflow_mode,
-            workflow_executor,
             is_first_message: Arc::new(AtomicBool::new(false)),
         })
     }
@@ -159,13 +142,15 @@ impl Hippox {
     pub fn submit(
         &self,
         input: &str,
+        workflow_mode: WorkflowMode,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
     ) -> HippoxStringResult {
+        let workflow_executor = WorkflowExecutor::new(workflow_mode);
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
-            self.workflow_executor.clone(),
+            workflow_executor,
             self.scheduler.clone(),
             workflow_callback,
             driver_callback,
@@ -201,6 +186,7 @@ impl Hippox {
         &self,
         inputs: Vec<(
             String,
+            WorkflowMode,
             Option<String>,
             Option<Arc<dyn WorkflowCallback>>,
             Option<Arc<dyn DriverCallback>>,
@@ -210,9 +196,22 @@ impl Hippox {
         let task_ids: Vec<String> = inputs
             .into_iter()
             .map(
-                |(input, _session_id, workflow_callback, driver_callback, disabled_drivers)| {
-                    self.submit(&input, workflow_callback, driver_callback, disabled_drivers)
-                        .unwrap_or(String::new())
+                |(
+                    input,
+                    workflow_mode,
+                    _session_id,
+                    workflow_callback,
+                    driver_callback,
+                    disabled_drivers,
+                )| {
+                    self.submit(
+                        &input,
+                        workflow_mode,
+                        workflow_callback,
+                        driver_callback,
+                        disabled_drivers,
+                    )
+                    .unwrap_or(String::new())
                 },
             )
             .collect();
@@ -230,17 +229,24 @@ impl Hippox {
         &self,
         inputs: Vec<(
             String,
+            WorkflowMode,
             Option<Arc<dyn WorkflowCallback>>,
             Option<Arc<dyn DriverCallback>>,
             Option<Vec<&str>>,
         )>,
     ) -> HippoxBatchResult {
         let mut results = Vec::new();
-        for (input, workflow_callback, driver_callback, disabled_drivers) in inputs {
+        for (input, workflow_mode, workflow_callback, driver_callback, disabled_drivers) in inputs {
             results.push(
-                self.execute(&input, workflow_callback, driver_callback, disabled_drivers)
-                    .await
-                    .unwrap_or(String::new()),
+                self.execute(
+                    &input,
+                    workflow_mode,
+                    workflow_callback,
+                    driver_callback,
+                    disabled_drivers,
+                )
+                .await
+                .unwrap_or(String::new()),
             );
         }
         HippoxResult::ok(results)
@@ -267,10 +273,12 @@ impl Hippox {
     pub async fn execute(
         &self,
         input: &str,
+        workflow_mode: WorkflowMode,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
     ) -> HippoxStringResult {
+        let workflow_executor = WorkflowExecutor::new(workflow_mode);
         let temp_task_id = uuid::Uuid::new_v4().to_string();
         {
             let mut pool = tasks::TASK_POOL.write().await;
@@ -297,10 +305,8 @@ impl Hippox {
         let clean_intent = &intent_result.clean_intent;
         let categories = &intent_result.categories;
         // Step 2: Workflow execution
-        let workflow_executor_with_id = self
-            .workflow_executor
-            .clone()
-            .with_task_id(temp_task_id.clone());
+        let workflow_executor_with_id =
+            workflow_executor.clone().with_task_id(temp_task_id.clone());
         // workflow callback
         let workflow_executor_with_callbacks = if let Some(cb) = workflow_callback {
             workflow_executor_with_id.with_workflow_callback(cb)
@@ -316,7 +322,7 @@ impl Hippox {
         let workflow_result = if categories.is_empty() {
             pipeline
                 .workflow_execution(
-                    self.workflow_mode,
+                    workflow_mode,
                     &workflow_executor_with_driver_cb,
                     &self.scheduler,
                     clean_intent,
@@ -429,12 +435,7 @@ impl Hippox {
     pub fn scheduler(&self) -> &DriverScheduler {
         &self.scheduler
     }
-
-    /// Get the current workflow mode
-    pub fn workflow_mode(&self) -> WorkflowMode {
-        self.workflow_mode
-    }
-
+ 
     /// Update configuration
     pub fn update_config<F>(&self, f: F) -> anyhow::Result<()>
     where
