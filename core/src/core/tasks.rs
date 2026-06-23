@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
 
-use crate::pipeline::{Pipeline, SystemPipeline, WorkflowExecResult, needs_format_conversion};
 use crate::driver_scheduler::DriverScheduler;
+use crate::pipeline::{Pipeline, SystemPipeline, WorkflowExecResult, needs_format_conversion};
 use crate::t;
 use crate::tasks::{ExecutableTask, TaskStateUpdater};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor};
@@ -22,6 +22,7 @@ pub(crate) struct NaturalLanguageTask {
     scheduler: DriverScheduler,
     workflow_callback: Option<Arc<dyn WorkflowCallback>>,
     driver_callback: Option<Arc<dyn DriverCallback>>,
+    disabled_drivers: Option<Vec<String>>,
 }
 
 impl NaturalLanguageTask {
@@ -31,6 +32,7 @@ impl NaturalLanguageTask {
         scheduler: DriverScheduler,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
+        disabled_drivers: Option<Vec<&str>>,
     ) -> Self {
         Self {
             input,
@@ -38,7 +40,12 @@ impl NaturalLanguageTask {
             scheduler,
             workflow_callback,
             driver_callback,
+            disabled_drivers: disabled_drivers.map(|v| v.into_iter().map(String::from).collect()),
         }
+    }
+
+    pub(crate) fn disabled_drivers(&self) -> Option<&[String]> {
+        self.disabled_drivers.as_deref()
     }
 }
 
@@ -55,6 +62,8 @@ impl ExecutableTask for NaturalLanguageTask {
         let task_id = state_updater.task_id().to_string();
         let overall_start = Instant::now();
         let pipeline = SystemPipeline::new();
+        let disabled_drivers = self.disabled_drivers.clone();
+
         Box::pin(async move {
             let intent_result = match pipeline.intent_analysis(&scheduler, &input, &task_id).await {
                 Ok(result) => result,
@@ -82,6 +91,7 @@ impl ExecutableTask for NaturalLanguageTask {
                     &executor_with_callback,
                     clean_intent,
                     categories,
+                    disabled_drivers.as_deref(),
                 )
                 .await;
             let total_duration = overall_start.elapsed().as_millis() as u64;

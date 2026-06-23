@@ -1,10 +1,10 @@
 //! Core WorkflowExecutor implementation
 
-use hippox_drivers::{Executor, DriverCallback};
+use hippox_drivers::{DriverCallback, Executor};
 
 use super::types::*;
-use crate::prompts::{build_react_prompt, build_driver_md_prompt};
 use crate::driver_scheduler::DriverScheduler;
+use crate::prompts::{build_driver_md_prompt, build_react_prompt};
 use crate::{
     execute_batch_with_categories, execute_chain_with_categories,
     execute_plan_and_execute_with_categories, execute_react_with_categories,
@@ -80,19 +80,30 @@ impl WorkflowExecutor {
         scheduler: &DriverScheduler,
         input: &str,
         categories: &[String],
+        disabled_drivers: Option<&[String]>,
     ) -> WorkflowExecutionResult {
         match self.mode {
             WorkflowMode::ReAct => {
-                execute_react_with_categories(self, scheduler, input, categories).await
+                execute_react_with_categories(self, scheduler, input, categories, disabled_drivers)
+                    .await
             }
             WorkflowMode::Batch => {
-                execute_batch_with_categories(self, scheduler, input, categories).await
+                execute_batch_with_categories(self, scheduler, input, categories, disabled_drivers)
+                    .await
             }
             WorkflowMode::Chain => {
-                execute_chain_with_categories(self, scheduler, input, categories).await
+                execute_chain_with_categories(self, scheduler, input, categories, disabled_drivers)
+                    .await
             }
             WorkflowMode::PlanAndExecute => {
-                execute_plan_and_execute_with_categories(self, scheduler, input, categories).await
+                execute_plan_and_execute_with_categories(
+                    self,
+                    scheduler,
+                    input,
+                    categories,
+                    disabled_drivers,
+                )
+                .await
             }
         }
     }

@@ -60,6 +60,7 @@ pub async fn execute_react_with_categories(
     scheduler: &DriverScheduler,
     input: &str,
     categories: &[String],
+    disabled_drivers: Option<&[String]>,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let input_trimmed = input.trim();
@@ -76,7 +77,8 @@ pub async fn execute_react_with_categories(
         DEFAULT_MAX_CONSECUTIVE_FAILURES,
     );
     // Build filtered drivers prompt
-    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories);
+    let filtered_drivers =
+        crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let react_workflow_prompt =
         crate::prompts::build_react_prompt_with_categories(&filtered_drivers);
     messages.push(ChatMessage::system(&react_workflow_prompt));

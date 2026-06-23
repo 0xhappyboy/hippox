@@ -2,8 +2,8 @@
 
 use crate::get_config;
 use hippox_drivers::{
-    get_all_categorys, get_all_drivers, get_registry, get_driver_by_name, get_drivers_by_category,
-    get_drivers_by_category_list, list_drivers_names,
+    get_all_categorys, get_all_drivers, get_driver_by_name, get_drivers_by_category,
+    get_drivers_by_category_list, get_registry, list_drivers_names,
 };
 use serde_json::{Value, json};
 
@@ -27,12 +27,21 @@ pub fn generate_drivers_registry() -> String {
 }
 
 /// Generate filtered drivers registry by categories
-pub fn generate_drivers_registry_by_categories(categories: &[String]) -> String {
+pub fn generate_drivers_registry_by_categories(
+    categories: &[String],
+    disabled: Option<&[String]>,
+) -> String {
     if categories.is_empty() {
         return "[]".to_string();
     }
     let drivers = get_drivers_by_category_list(categories);
-    let registry: Vec<serde_json::Value> = drivers
+    let disabled_set: std::collections::HashSet<&str> =
+        disabled.unwrap_or(&[]).iter().map(|s| s.as_str()).collect();
+    let filtered_drivers: Vec<_> = drivers
+        .iter()
+        .filter(|driver| !disabled_set.contains(driver.name()))
+        .collect();
+    let registry: Vec<serde_json::Value> = filtered_drivers
         .iter()
         .map(|driver| {
             serde_json::json!({
@@ -65,12 +74,21 @@ pub fn generate_minimal_drivers_registry() -> String {
 }
 
 /// Generate filtered minimal drivers registry by categories
-pub fn generate_minimal_drivers_registry_by_categories(categories: &[String]) -> String {
+pub fn generate_minimal_drivers_registry_by_categories(
+    categories: &[String],
+    disabled: Option<&[String]>,
+) -> String {
     if categories.is_empty() {
         return "[]".to_string();
     }
     let drivers = get_drivers_by_category_list(categories);
-    let registry: Vec<serde_json::Value> = drivers
+    let disabled_set: std::collections::HashSet<&str> =
+        disabled.unwrap_or(&[]).iter().map(|s| s.as_str()).collect();
+    let filtered_drivers: Vec<_> = drivers
+        .iter()
+        .filter(|driver| !disabled_set.contains(driver.name()))
+        .collect();
+    let registry: Vec<serde_json::Value> = filtered_drivers
         .iter()
         .map(|driver| {
             serde_json::json!({

@@ -43,6 +43,7 @@ impl SystemPipeline {
         executor: &WorkflowExecutor,
         clean_intent: &str,
         categories: &[String],
+        disabled_drivers: Option<&[String]>,
     ) -> crate::workflow::WorkflowExecutionResult {
         if categories.is_empty() {
             match scheduler.fallback_chat(clean_intent).await {
@@ -61,7 +62,7 @@ impl SystemPipeline {
             }
         } else {
             executor
-                .execute_with_categories(scheduler, clean_intent, categories)
+                .execute_with_categories(scheduler, clean_intent, categories, disabled_drivers)
                 .await
         }
     }
@@ -90,8 +91,11 @@ impl Pipeline for SystemPipeline {
         executor: &WorkflowExecutor,
         scheduler: &DriverScheduler,
         input: &str,
+        disabled_drivers: Option<&[String]>,
     ) -> WorkflowExecResult {
-        let result = self.execute_workflow(scheduler, executor, input, &[]).await;
+        let result = self
+            .execute_workflow(scheduler, executor, input, &[], disabled_drivers)
+            .await;
         let json_output = match result {
             crate::workflow::WorkflowExecutionResult::Completed(output) => output,
             crate::workflow::WorkflowExecutionResult::CompletedWithRaw { raw_json, .. } => raw_json,

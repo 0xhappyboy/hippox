@@ -161,6 +161,7 @@ impl Hippox {
         input: &str,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
+        disabled_drivers: Option<Vec<&str>>,
     ) -> HippoxStringResult {
         let executable = Arc::new(NaturalLanguageTask::new(
             input.to_string(),
@@ -168,6 +169,7 @@ impl Hippox {
             self.scheduler.clone(),
             workflow_callback,
             driver_callback,
+            disabled_drivers,
         ));
         let result = futures::executor::block_on(tasks::create_task_with_executable(
             "natural_language".to_string(),
@@ -202,14 +204,17 @@ impl Hippox {
             Option<String>,
             Option<Arc<dyn WorkflowCallback>>,
             Option<Arc<dyn DriverCallback>>,
+            Option<Vec<&str>>,
         )>,
     ) -> HippoxBatchResult {
         let task_ids: Vec<String> = inputs
             .into_iter()
-            .map(|(input, _session_id, workflow_callback, driver_callback)| {
-                self.submit(&input, workflow_callback, driver_callback)
-                    .unwrap_or(String::new())
-            })
+            .map(
+                |(input, _session_id, workflow_callback, driver_callback, disabled_drivers)| {
+                    self.submit(&input, workflow_callback, driver_callback, disabled_drivers)
+                        .unwrap_or(String::new())
+                },
+            )
             .collect();
         HippoxResult::ok(task_ids)
     }
@@ -227,12 +232,13 @@ impl Hippox {
             String,
             Option<Arc<dyn WorkflowCallback>>,
             Option<Arc<dyn DriverCallback>>,
+            Option<Vec<&str>>,
         )>,
     ) -> HippoxBatchResult {
         let mut results = Vec::new();
-        for (input, workflow_callback, driver_callback) in inputs {
+        for (input, workflow_callback, driver_callback, disabled_drivers) in inputs {
             results.push(
-                self.execute(&input, workflow_callback, driver_callback)
+                self.execute(&input, workflow_callback, driver_callback, disabled_drivers)
                     .await
                     .unwrap_or(String::new()),
             );
@@ -263,6 +269,7 @@ impl Hippox {
         input: &str,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
+        disabled_drivers: Option<Vec<&str>>,
     ) -> HippoxStringResult {
         let temp_task_id = uuid::Uuid::new_v4().to_string();
         {
@@ -271,6 +278,8 @@ impl Hippox {
             pool.tasks.insert(temp_task_id.clone(), task);
         }
         let pipeline = SystemPipeline::new();
+        let disabled_drivers_owned =
+            disabled_drivers.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
         // Step 1: intent analysis
         let intent_result = match pipeline
             .intent_analysis(&self.scheduler, input, &temp_task_id)
@@ -311,12 +320,18 @@ impl Hippox {
                     &workflow_executor_with_driver_cb,
                     &self.scheduler,
                     clean_intent,
+                    disabled_drivers_owned.as_deref(),
                 )
                 .await
         } else {
             let result = workflow_executor_with_driver_cb
                 .clone()
-                .execute_with_categories(&self.scheduler, clean_intent, categories)
+                .execute_with_categories(
+                    &self.scheduler,
+                    clean_intent,
+                    categories,
+                    disabled_drivers_owned.as_deref(),
+                )
                 .await;
             let json_output = match result {
                 WorkflowExecutionResult::Completed(output) => output,

@@ -46,6 +46,7 @@ pub trait Pipeline: Send + Sync {
         executor: &WorkflowExecutor,
         scheduler: &DriverScheduler,
         input: &str,
+        disabled_drivers: Option<&[String]>,
     ) -> WorkflowExecResult;
 
     /// Step 3: Format conversion based on user's structure requirements

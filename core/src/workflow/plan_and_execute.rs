@@ -65,7 +65,7 @@
 use crate::prompts::build_plan_prompt;
 use crate::t;
 use crate::{DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
-use hippox_drivers::{Executor, DriverCall, DriverCallback, DriverContext};
+use hippox_drivers::{DriverCall, DriverCallback, DriverContext, Executor};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -441,10 +441,12 @@ pub async fn execute_plan_and_execute_with_categories(
     scheduler: &DriverScheduler,
     input: &str,
     categories: &[String],
+    disabled_drivers: Option<&[String]>,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories);
+    let filtered_drivers =
+        crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let plan_prompt = crate::prompts::build_plan_prompt_with_categories(&filtered_drivers, input);
     let llm_response = match scheduler
         .generate_with_task(&plan_prompt, &task_id.clone().unwrap())
