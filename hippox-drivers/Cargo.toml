@@ -164,6 +164,7 @@ default = [
     "operating_system_cpu",
     "operating_system_gpu",
     "operating_system_disk",
+    "finance",
 ]
 all = [
     "blockchain",
@@ -201,7 +202,9 @@ all = [
     "operating_system_cpu",
     "operating_system_gpu",
     "operating_system_disk",
+    "finance",
 ]
+finance = []
 operating_system_disk = []
 operating_system_gpu = []
 operating_system_cpu = []

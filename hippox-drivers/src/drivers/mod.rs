@@ -49,6 +49,8 @@ pub mod bluetooth;
 pub mod cryptography;
 #[cfg(feature = "display_control")]
 pub mod display_control;
+#[cfg(feature = "finance")]
+pub mod finance;
 #[cfg(feature = "keyboard_control")]
 pub mod keyboard_control;
 #[cfg(feature = "mouse_control")]
@@ -91,6 +93,8 @@ pub use document::*;
 pub use email::*;
 #[cfg(feature = "file")]
 pub use file::*;
+#[cfg(feature = "finance")]
+pub use finance::*;
 #[cfg(feature = "have_head_browser")]
 pub use have_head_browser::*;
 #[cfg(feature = "helloworld")]

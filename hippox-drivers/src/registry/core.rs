@@ -42,6 +42,8 @@ use crate::registry::display_register;
 use crate::registry::document_register;
 #[cfg(any(feature = "file", feature = "all"))]
 use crate::registry::file_register;
+#[cfg(any(feature = "finance", feature = "all"))]
+use crate::registry::finance_register;
 #[cfg(any(feature = "keyboard_control", feature = "all"))]
 use crate::registry::keyboard_register;
 #[cfg(any(feature = "math", feature = "all"))]
@@ -50,6 +52,8 @@ use crate::registry::math_register;
 use crate::registry::media_register;
 #[cfg(any(feature = "mouse_control", feature = "all"))]
 use crate::registry::mouse_register;
+#[cfg(any(feature = "operating_system_basis", feature = "all"))]
+use crate::registry::operating_system_basis_register;
 #[cfg(any(feature = "operating_system_cpu", feature = "all"))]
 use crate::registry::operating_system_cpu_register;
 #[cfg(any(feature = "operating_system_disk", feature = "all"))]
@@ -60,8 +64,6 @@ use crate::registry::operating_system_gpu_register;
 use crate::registry::operating_system_memory_register;
 #[cfg(any(feature = "operating_system_process", feature = "all"))]
 use crate::registry::operating_system_process_register;
-#[cfg(any(feature = "operating_system_basis", feature = "all"))]
-use crate::registry::operating_system_basis_register;
 #[cfg(any(feature = "operating_system_security", feature = "all"))]
 use crate::registry::operating_system_security_register;
 #[cfg(any(feature = "operating_system_services", feature = "all"))]
@@ -153,6 +155,8 @@ static SKILL_REGISTRY: Lazy<RwLock<DriverRegistryMap>> = Lazy::new(|| {
     operating_system_gpu_register::register(&mut registry);
     #[cfg(any(feature = "operating_system_disk", feature = "all"))]
     operating_system_disk_register::register(&mut registry);
+    #[cfg(any(feature = "finance", feature = "all"))]
+    finance_register::register(&mut registry);
 
     RwLock::new(registry)
 });

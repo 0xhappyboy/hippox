@@ -72,6 +72,7 @@ pub enum DriverCategory {
     OperatingSystemGpu,
     /// Disk information, usage, partitions, I/O, SMART, encryption
     OperatingSystemDisk,
+    Finance,
 }
 
 impl DriverCategory {
@@ -130,6 +131,7 @@ impl DriverCategory {
             "tts_play_on_speaker" => Some(DriverCategory::SpeechSpeak),
             "os_service_ops" => Some(DriverCategory::OperatingSystemServices),
             "os_security_ops" => Some(DriverCategory::OperatingSystemSecurity),
+            "finance_ops" => Some(DriverCategory::Finance),
             _ => None,
         }
     }
@@ -191,6 +193,7 @@ impl DriverCategory {
             DriverCategory::SpeechSpeak => "tts_play_on_speaker",
             DriverCategory::OperatingSystemServices => "os_service_ops",
             DriverCategory::OperatingSystemSecurity => "os_security_ops",
+            DriverCategory::Finance => "finance_ops",
         }
     }
 
@@ -231,6 +234,7 @@ impl DriverCategory {
             DriverCategory::SpeechSpeak => "Speech Speak",
             DriverCategory::OperatingSystemServices => "Operating System Services Operations",
             DriverCategory::OperatingSystemSecurity => "Operating System Security Operations",
+            DriverCategory::Finance => "Financial Data",
         }
     }
 
@@ -319,6 +323,9 @@ impl DriverCategory {
             DriverCategory::OperatingSystemSecurity => {
                 "Security operations: weak password detection, security policy assessment, CVE query, threat intelligence, phishing detection"
             }
+            DriverCategory::Finance => {
+                "Financial data generation and analysis: OHLCV market data, technical indicators, scenario simulation"
+            }
         }
     }
 
@@ -359,6 +366,7 @@ impl DriverCategory {
             DriverCategory::SpeechSpeak => "🎤",
             DriverCategory::OperatingSystemServices => "🔧",
             DriverCategory::OperatingSystemSecurity => "🛡️",
+            DriverCategory::Finance => "📈",
         }
     }
 
@@ -399,6 +407,7 @@ impl DriverCategory {
             DriverCategory::SpeechSpeak => 255,
             DriverCategory::OperatingSystemServices => 35,
             DriverCategory::OperatingSystemSecurity => 36,
+            DriverCategory::Finance => 15,
         }
     }
 
@@ -451,6 +460,7 @@ impl DriverCategory {
             SpeechSpeak.metadata(),
             OperatingSystemServices.metadata(),
             OperatingSystemSecurity.metadata(),
+            Finance.metadata(),
         ]
     }
 }
