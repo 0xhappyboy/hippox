@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 
+use super::core::{MAX_HISTORY_TASKS, TASK_POOL, Task, TaskPool, TaskStatus};
 use super::executor::ExecutableTask;
-use super::types::{MAX_HISTORY_TASKS, TASK_POOL, Task, TaskPool, TaskStatus};
 use crate::workflow::WorkflowCallback;
 use crate::{
     HippoxBatchResult, HippoxBoolResult, HippoxResult, HippoxStringResult, HippoxVoidResult,

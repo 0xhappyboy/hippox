@@ -1,14 +1,44 @@
 use crate::WorkflowMode;
 
+/// Get workflow mode display name in English
+pub fn workflow_mode_display_name_en(mode: WorkflowMode) -> &'static str {
+    match mode {
+        WorkflowMode::ReAct => "ReAct",
+        WorkflowMode::Batch => "Batch",
+        WorkflowMode::Chain => "Chain",
+        WorkflowMode::PlanAndExecute => "PlanAndExecute",
+    }
+}
+
+/// Get workflow mode display name in Chinese
+pub fn workflow_mode_display_name_zh(mode: WorkflowMode) -> &'static str {
+    match mode {
+        WorkflowMode::ReAct => "反应式",
+        WorkflowMode::Batch => "批量式",
+        WorkflowMode::Chain => "链式",
+        WorkflowMode::PlanAndExecute => "计划执行式",
+    }
+}
+
+/// Get workflow mode display name by language
+pub fn workflow_mode_display_name_by_lang(mode: WorkflowMode, lang: &str) -> &'static str {
+    match lang {
+        "zh" | "zh-CN" | "zh-TW" => workflow_mode_display_name_zh(mode),
+        _ => workflow_mode_display_name_en(mode),
+    }
+}
+
+/// Get workflow mode names in English (for dropdown/list)
 pub fn get_workflow_mode_names_en() -> Vec<&'static str> {
     vec!["ReAct", "Batch", "Chain", "PlanAndExecute"]
 }
 
-/// Get workflow mode names in Chinese
+/// Get workflow mode names in Chinese (for dropdown/list)
 pub fn get_workflow_mode_names_zh() -> Vec<&'static str> {
     vec!["反应式", "批量式", "链式", "计划执行式"]
 }
 
+/// Convert string to WorkflowMode
 pub fn string_to_workflow_mode(s: &str) -> Option<WorkflowMode> {
     match s {
         "ReAct" | "react" => Some(WorkflowMode::ReAct),
@@ -29,14 +59,9 @@ pub fn workflow_mode_to_string(mode: WorkflowMode) -> String {
     }
 }
 
-/// Get WorkflowMode display name
+/// Get WorkflowMode display name (default to English)
 pub fn workflow_mode_display_name(mode: WorkflowMode) -> &'static str {
-    match mode {
-        WorkflowMode::ReAct => "ReAct",
-        WorkflowMode::Batch => "Batch",
-        WorkflowMode::Chain => "Chain",
-        WorkflowMode::PlanAndExecute => "Plan & Execute",
-    }
+    workflow_mode_display_name_en(mode)
 }
 
 /// Get WorkflowMode description in Chinese

@@ -6,12 +6,13 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
-
 use super::executor::ExecutableTask;
 use crate::workflow::WorkflowCallback;
+use crate::{TaskLifecycleEvent, TaskStateUpdater, publish_task_pool_event};
 
 /// Maximum number of concurrent tasks allowed
 pub const MAX_CONCURRENT_TASKS: usize = 10;
@@ -23,12 +24,92 @@ pub const MAX_HISTORY_TASKS: usize = 100;
 pub static TASK_POOL: Lazy<Arc<RwLock<TaskPool>>> = Lazy::new(|| {
     let pool = Arc::new(RwLock::new(TaskPool::new()));
     let pool_clone = pool.clone();
-    crate::tasks::engine::start_execution_engine(pool_clone);
+    start_execution_engine(pool_clone);
     pool
 });
 
 /// Global notifier for task queue (wakes up the execution engine)
 pub static TASK_NOTIFIER: Lazy<Notify> = Lazy::new(Notify::new);
+
+pub fn start_execution_engine(pool: Arc<RwLock<TaskPool>>) {
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.spawn(async move {
+            run_execution_engine(pool).await;
+        });
+        return;
+    }
+    thread::spawn(|| {
+        let rt = tokio::runtime::Runtime::new()
+            .expect("Failed to create Tokio runtime for execution engine");
+        rt.block_on(async {
+            run_execution_engine(pool).await;
+        });
+    });
+}
+
+/// Background execution engine - runs automatically when the static variable is initialized
+async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
+    loop {
+        {
+            let pool = task_pool.read().await;
+            if pool.is_shutdown() {
+                break;
+            }
+        }
+        let task_id = {
+            let mut pool = task_pool.write().await;
+            pool.next_task()
+        };
+        if let Some(task_id) = task_id {
+            // Check if task is still valid to run
+            {
+                let pool = task_pool.read().await;
+                if let Some(task) = pool.get_task(&task_id) {
+                    // Skip only Paused tasks (not ready to run)
+                    if task.status == TaskStatus::Paused {
+                        continue;
+                    }
+                    // Terminal states - clean up
+                    if task.status == TaskStatus::Cancelled
+                        || task.status == TaskStatus::Completed
+                        || task.status == TaskStatus::Failed
+                        || task.status == TaskStatus::Timeout
+                    {
+                        let mut pool = task_pool.write().await;
+                        pool.complete_task(&task_id);
+                        continue;
+                    }
+                    // For Running and Pending, continue to execute
+                } else {
+                    let mut pool = task_pool.write().await;
+                    pool.complete_task(&task_id);
+                    continue;
+                }
+            }
+            // Get the executable task
+            let executable = {
+                let pool = task_pool.read().await;
+                if let Some(task) = pool.get_task(&task_id) {
+                    task.get_executable()
+                } else {
+                    None
+                }
+            };
+            if let Some(executable_task) = executable {
+                let state_updater = TaskStateUpdater::new(task_id.clone(), task_pool.clone());
+                executable_task.execute(state_updater).await;
+            } else {
+                let mut pool = task_pool.write().await;
+                if let Some(task) = pool.get_task_mut(&task_id) {
+                    task.failed("No executable associated with task".to_string());
+                }
+                pool.complete_task(&task_id);
+            }
+        } else {
+            TASK_NOTIFIER.notified().await;
+        }
+    }
+}
 
 /// Task priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -389,6 +470,7 @@ impl TaskPool {
         self.tasks.insert(task_id.clone(), task);
         self.enqueue_task(&task_id);
         TASK_NOTIFIER.notify_one();
+        publish_task_pool_event(TaskLifecycleEvent::created(task_id.clone()));
         task_id
     }
 
@@ -404,6 +486,7 @@ impl TaskPool {
         self.tasks.insert(task_id.clone(), task);
         self.enqueue_task(&task_id);
         TASK_NOTIFIER.notify_one();
+        publish_task_pool_event(TaskLifecycleEvent::created(task_id.clone()));
         task_id
     }
 
@@ -467,9 +550,17 @@ impl TaskPool {
                 TaskStatus::Running => {
                     if task.status == TaskStatus::Pending {
                         task.started();
+                        publish_task_pool_event(TaskLifecycleEvent::status_changed(
+                            task_id.to_string(),
+                            TaskStatus::Running,
+                        ));
                         return true;
                     } else if task.status == TaskStatus::Paused {
                         task.status = TaskStatus::Running;
+                        publish_task_pool_event(TaskLifecycleEvent::status_changed(
+                            task_id.to_string(),
+                            TaskStatus::Running,
+                        ));
                         return true;
                     }
                     false
@@ -481,31 +572,54 @@ impl TaskPool {
                         task.completed(String::new());
                     }
                     self.complete_task(task_id);
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
+                        task_id.to_string(),
+                        TaskStatus::Completed,
+                    ));
                     true
                 }
                 TaskStatus::Failed => {
                     let error = task.error.clone().unwrap_or_default();
                     task.failed(error);
                     self.complete_task(task_id);
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
+                        task_id.to_string(),
+                        TaskStatus::Failed,
+                    ));
                     true
                 }
                 TaskStatus::Cancelled => {
                     task.cancelled();
                     self.complete_task(task_id);
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
+                        task_id.to_string(),
+                        TaskStatus::Cancelled,
+                    ));
                     true
                 }
                 TaskStatus::Paused => {
-                    // Allow pausing both Running and Pending tasks
                     if (task.status == TaskStatus::Running || task.status == TaskStatus::Pending)
                         && task.interruptible
                     {
                         task.status = TaskStatus::Paused;
-                        // Remove from running and pending queues but DO NOT call complete_task
                         self.running_tasks.retain(|id| id != task_id);
                         self.pending_queue.retain(|id| id != task_id);
+                        publish_task_pool_event(TaskLifecycleEvent::status_changed(
+                            task_id.to_string(),
+                            TaskStatus::Paused,
+                        ));
                         return true;
                     }
                     false
+                }
+                TaskStatus::Timeout => {
+                    task.status = TaskStatus::Timeout;
+                    self.complete_task(task_id);
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
+                        task_id.to_string(),
+                        TaskStatus::Timeout,
+                    ));
+                    true
                 }
                 _ => true,
             }

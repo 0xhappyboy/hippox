@@ -7,9 +7,10 @@ use std::sync::Arc;
 use std::{fmt::Debug, sync::atomic::Ordering};
 use tokio::sync::RwLock;
 
-use super::types::{TASK_POOL, TaskPool, TaskStatus};
+use super::core::{TASK_POOL, TaskPool, TaskStatus};
 use crate::hippox::{INPUT_TOKEN_COUNT, OUTPUT_TOKEN_COUNT};
 use crate::workflow::WorkflowCallback;
+use crate::{StepStatus, TaskLifecycleEvent, publish_task_pool_event};
 
 /// Task trait - each task must implement this to be executable
 pub trait ExecutableTask: Send + Sync + Debug {
@@ -117,6 +118,15 @@ impl TaskStateUpdater {
                 }
             }
         }
+        publish_task_pool_event(TaskLifecycleEvent::step_changed(
+            self.task_id.clone(),
+            step_index,
+            step_name.to_string(),
+            StepStatus::Running,
+            None,
+            None,
+            None,
+        ));
     }
 
     /// Update step success in internal state
@@ -134,6 +144,15 @@ impl TaskStateUpdater {
                 }
             }
         }
+        publish_task_pool_event(TaskLifecycleEvent::step_changed(
+            self.task_id.clone(),
+            step_index,
+            step_name.to_string(),
+            StepStatus::Completed,
+            Some(output.to_string()),
+            None,
+            None,
+        ));
     }
 
     /// Update step failure in internal state
@@ -151,6 +170,15 @@ impl TaskStateUpdater {
                 }
             }
         }
+        publish_task_pool_event(TaskLifecycleEvent::step_changed(
+            self.task_id.clone(),
+            step_index,
+            step_name.to_string(),
+            StepStatus::Failed,
+            None,
+            Some(error.to_string()),
+            None,
+        ));
     }
 
     /// Update workflow completion in internal state
@@ -189,5 +217,18 @@ impl TaskStateUpdater {
         }
         INPUT_TOKEN_COUNT.fetch_add(input_tokens, Ordering::Relaxed);
         OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, Ordering::Relaxed);
+    }
+}
+
+/// Get a TaskStateUpdater for a specific task ID
+pub async fn get_state_updater(task_id: &str) -> Option<TaskStateUpdater> {
+    let pool = TASK_POOL.read().await;
+    if pool.has_task(task_id) {
+        Some(TaskStateUpdater::new(
+            task_id.to_string(),
+            TASK_POOL.clone(),
+        ))
+    } else {
+        None
     }
 }
