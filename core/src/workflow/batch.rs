@@ -20,23 +20,18 @@
 //! - Up to 3 retry attempts per driver
 //! - 60-second timeout per execution attempt
 //! - Individual drivers do not affect each other's retry state
-
+use super::core::WorkflowExecutor;
+use super::retry::*;
+use super::types::*;
+use super::utils::format_step_results;
 use crate::prompts::build_batch_prompt;
-use crate::{
-    DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
-};
+use crate::{DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t};
 use futures::future::join_all;
 use hippox_drivers::{DriverCall, DriverCallback, DriverContext, Executor};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-
-use super::core::WorkflowExecutor;
-use super::retry::*;
-use super::types::*;
-use super::utils::format_step_results;
-
 /// Execute a single driver with retry and timeout protection in batch mode.
 ///
 /// This function handles the complete lifecycle of a single batch task:
@@ -79,32 +74,18 @@ async fn execute_batch_driver_with_retry(
             extra: HashMap::new(),
             signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
-        let result = execute_driver_with_timeout(
-            executor,
-            &call,
-            driver_callback.clone(),
-            Some(&driver_context),
-            timeout_secs,
-        )
-        .await;
+        let result = execute_driver_with_timeout(executor, &call, driver_callback.clone(), Some(&driver_context), timeout_secs).await;
         match result {
             DriverExecutionResult::Success(output) => {
                 let duration = step_start.elapsed().as_millis() as u64;
                 if let Some(cb) = callback {
                     if let Some(ref tid) = task_id {
-                        cb.on_step_success(tid, &step_name, idx, &output, duration)
-                            .await;
+                        cb.on_step_success(tid, &step_name, idx, &output, duration).await;
                     }
                 }
-                return StepResult {
-                    driver: step.action.clone(),
-                    parameters: step.parameters.clone(),
-                    output,
-                    status: ExecutionStatus::Success,
-                };
+                return StepResult { driver: step.action.clone(), parameters: step.parameters.clone(), output, status: ExecutionStatus::Success };
             }
-            DriverExecutionResult::Timeout(ref error_msg)
-            | DriverExecutionResult::Failure(ref error_msg) => {
+            DriverExecutionResult::Timeout(ref error_msg) | DriverExecutionResult::Failure(ref error_msg) => {
                 let is_timeout = result.is_timeout();
                 let duration = step_start.elapsed().as_millis() as u64;
                 let retry_count = retry_context.get_retry_count(&step_name);
@@ -112,11 +93,9 @@ async fn execute_batch_driver_with_retry(
                 if let Some(cb) = callback {
                     if let Some(ref tid) = task_id {
                         if is_timeout {
-                            cb.on_step_timeout(tid, &step_name, idx, &error_msg, duration)
-                                .await;
+                            cb.on_step_timeout(tid, &step_name, idx, &error_msg, duration).await;
                         } else {
-                            cb.on_step_failure(tid, &step_name, idx, &error_msg, duration)
-                                .await;
+                            cb.on_step_failure(tid, &step_name, idx, &error_msg, duration).await;
                         }
                     }
                 }
@@ -130,11 +109,7 @@ async fn execute_batch_driver_with_retry(
                     return StepResult {
                         driver: step.action.clone(),
                         parameters: step.parameters.clone(),
-                        output: format!(
-                            "Failed after {} retries: {}",
-                            max_retries,
-                            last_error.unwrap_or_default()
-                        ),
+                        output: format!("Failed after {} retries: {}", max_retries, last_error.unwrap_or_default()),
                         status: ExecutionStatus::Failure,
                     };
                 }
@@ -142,7 +117,6 @@ async fn execute_batch_driver_with_retry(
         }
     }
 }
-
 /// Execute a batch plan by running all drivers in parallel.
 ///
 /// Each driver in the batch is executed as an independent tokio task.
@@ -154,26 +128,17 @@ async fn execute_batch_driver_with_retry(
 ///
 /// # Returns
 /// A vector of StepResult for all executed drivers
-pub async fn execute_batch_plan(
-    executor: &WorkflowExecutor,
-    steps: &[DriverCall],
-) -> Vec<StepResult> {
+pub async fn execute_batch_plan(executor: &WorkflowExecutor, steps: &[DriverCall]) -> Vec<StepResult> {
     if steps.is_empty() {
         return Vec::new();
     }
     let callback = executor.get_workflow_callback().clone();
     let executor_clone = executor.get_executor().clone();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    if let Err(_) =
-        check_task_interruption(task_id.as_deref(), &callback, 0, "batch_plan", None).await
-    {
+    if let Err(_) = check_task_interruption(task_id.as_deref(), &callback, 0, "batch_plan", None).await {
         return Vec::new();
     }
-    let step_metadata: Vec<(usize, String)> = steps
-        .iter()
-        .enumerate()
-        .map(|(idx, step)| (idx, step.action.clone()))
-        .collect();
+    let step_metadata: Vec<(usize, String)> = steps.iter().enumerate().map(|(idx, step)| (idx, step.action.clone())).collect();
     let driver_callback_arc: Option<Arc<dyn DriverCallback>> = executor.get_driver_callback();
     let timeout_secs = get_timeout_secs(executor);
     let max_retries = DEFAULT_MAX_RETRIES_PER_SKILL;
@@ -184,33 +149,18 @@ pub async fn execute_batch_plan(
         let task_id = task_id.clone();
         let driver_callback = driver_callback_arc.clone();
         tokio::spawn(async move {
-            if let Err(_) =
-                check_task_interruption(task_id.as_deref(), &callback, idx, &step_name, None).await
-            {
+            if let Err(_) = check_task_interruption(task_id.as_deref(), &callback, idx, &step_name, None).await {
                 return None;
             }
-            let result = execute_batch_driver_with_retry(
-                &executor,
-                step,
-                step_name,
-                idx,
-                task_id,
-                &callback,
-                driver_callback,
-                max_retries,
-                timeout_secs,
-            )
-            .await;
+            let result =
+                execute_batch_driver_with_retry(&executor, step, step_name, idx, task_id, &callback, driver_callback, max_retries, timeout_secs)
+                    .await;
             Some(result)
         })
     });
     let results = join_all(futures).await;
-    results
-        .into_iter()
-        .filter_map(|r| r.ok().flatten())
-        .collect()
+    results.into_iter().filter_map(|r| r.ok().flatten()).collect()
 }
-
 /// Execute a batch workflow with category filtering.
 ///
 /// This is the main entry point for batch mode execution. It:
@@ -235,21 +185,13 @@ pub async fn execute_batch_with_categories(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    let filtered_drivers =
-        crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let batch_prompt = crate::prompts::build_batch_prompt_with_categories(&filtered_drivers, input);
     let task_id_str = task_id.as_deref().unwrap_or("unknown");
-
-    let llm_response = match scheduler
-        .generate_with_task(&batch_prompt, task_id_str)
-        .await
-    {
+    let llm_response = match scheduler.generate_with_task(&batch_prompt, task_id_str).await {
         Ok(resp) => resp,
         Err(e) => {
-            return WorkflowExecutionResult::Failed {
-                error: format!("{}: {}", t!("error.llm_error"), e),
-                completed_steps: 0,
-            };
+            return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };
         }
     };
     let instruction = match parse_react_response(&llm_response) {
@@ -279,8 +221,6 @@ pub async fn execute_batch_with_categories(
             .to_string();
             WorkflowExecutionResult::CompletedWithRaw { display, raw_json }
         }
-        ReactInstruction::Single(_) => {
-            WorkflowExecutionResult::Completed(t!("error.batch_mode_invalid").to_string())
-        }
+        ReactInstruction::Single(_) => WorkflowExecutionResult::Completed(t!("error.batch_mode_invalid").to_string()),
     }
 }

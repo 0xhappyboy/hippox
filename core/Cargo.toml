@@ -25,7 +25,8 @@ tracing = "0.1.44"
 toml = "1.1.2"
 regex = "1.12.4"
 chrono = "0.4.45"
-hippox-drivers = "0.3.3"
+# hippox-drivers = "0.3.3"
+hippox-drivers = { path = "../hippox-drivers" }
 
 [dev-dependencies]
 tempfile = "3.27.0"

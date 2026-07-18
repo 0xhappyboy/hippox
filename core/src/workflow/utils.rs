@@ -1,20 +1,15 @@
 //! Shared utility functions for workflow execution
-
-use std::sync::Arc;
-
 use super::types::{ExecutionStatus, StepResult};
 use crate::{ReactInstruction, StepInterruptionInfo, WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, t};
 use hippox_drivers::DriverCall;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::Value;
-
+use std::sync::Arc;
 /// Shared regex for variable resolution
 pub static VARIABLE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\{([^}]+)\}\}").unwrap());
-
 /// Maximum length for output summary (200 characters)
 pub const OUTPUT_SUMMARY_MAX_LEN: usize = 200;
-
 /// Get output summary (truncated for display)
 ///
 /// # Arguments
@@ -23,13 +18,8 @@ pub const OUTPUT_SUMMARY_MAX_LEN: usize = 200;
 /// # Returns
 /// Truncated string if longer than OUTPUT_SUMMARY_MAX_LEN, otherwise the original string
 pub fn get_output_summary(output: &str) -> String {
-    if output.len() <= OUTPUT_SUMMARY_MAX_LEN {
-        output.to_string()
-    } else {
-        format!("{}...", &output[..OUTPUT_SUMMARY_MAX_LEN])
-    }
+    if output.len() <= OUTPUT_SUMMARY_MAX_LEN { output.to_string() } else { format!("{}...", &output[..OUTPUT_SUMMARY_MAX_LEN]) }
 }
-
 /// Format step results for output
 ///
 /// # Arguments
@@ -44,17 +34,9 @@ pub fn format_step_results(results: &[StepResult]) -> String {
     if results.len() == 1 {
         return results[0].output.clone();
     }
-    let success_count = results
-        .iter()
-        .filter(|r| r.status == ExecutionStatus::Success)
-        .count();
+    let success_count = results.iter().filter(|r| r.status == ExecutionStatus::Success).count();
     let failure_count = results.len() - success_count;
-    let mut output = format!(
-        "{} (SUCCESS {} / FAILURE {}):\n\n",
-        t!("driver.executed_steps", results.len()),
-        success_count,
-        failure_count
-    );
+    let mut output = format!("{} (SUCCESS {} / FAILURE {}):\n\n", t!("driver.executed_steps", results.len()), success_count, failure_count);
     for (i, result) in results.iter().enumerate() {
         let marker = match result.status {
             ExecutionStatus::Success => "SUCCESS",
@@ -64,7 +46,6 @@ pub fn format_step_results(results: &[StepResult]) -> String {
     }
     output
 }
-
 /// Format duration in milliseconds to human-readable string
 ///
 /// # Arguments
@@ -81,7 +62,6 @@ pub fn format_duration(ms: u64) -> String {
         "<1ms".to_string()
     }
 }
-
 /// Format parameters for display (JSON string with limited length)
 ///
 /// # Arguments
@@ -89,22 +69,15 @@ pub fn format_duration(ms: u64) -> String {
 ///
 /// # Returns
 /// Formatted JSON string or "{}" if None
-pub fn format_parameters(
-    params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-) -> String {
+pub fn format_parameters(params: Option<&std::collections::HashMap<String, serde_json::Value>>) -> String {
     match params {
         Some(p) if !p.is_empty() => {
             let json_str = serde_json::to_string(p).unwrap_or_else(|_| "{}".to_string());
-            if json_str.len() > 100 {
-                format!("{}...", &json_str[..100])
-            } else {
-                json_str
-            }
+            if json_str.len() > 100 { format!("{}...", &json_str[..100]) } else { json_str }
         }
         _ => "{}".to_string(),
     }
 }
-
 pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> {
     let json_str = WorkflowExecutor::extract_json(response);
     let value: Value = serde_json::from_str(&json_str)?;
@@ -130,7 +103,6 @@ pub fn parse_react_response(response: &str) -> anyhow::Result<ReactInstruction> 
     }
     anyhow::bail!("Unable to parse LLM response: {}", response)
 }
-
 pub async fn check_task_interruption(
     task_id: Option<&str>,
     callback: &Option<Arc<dyn WorkflowCallback>>,
@@ -151,9 +123,7 @@ pub async fn check_task_interruption(
                     };
                     cb.on_step_interrupted(tid, &info).await;
                     cb.on_workflow_cancelled(tid, 0, step_index).await;
-                    return Err(WorkflowExecutionResult::Cancelled {
-                        completed_steps: step_index,
-                    });
+                    return Err(WorkflowExecutionResult::Cancelled { completed_steps: step_index });
                 }
                 if state_updater.is_paused().await {
                     if let Some(ref checkpoint_data) = checkpoint {
@@ -167,8 +137,7 @@ pub async fn check_task_interruption(
                         checkpoint: checkpoint.clone(),
                     };
                     cb.on_step_interrupted(tid, &info).await;
-                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index)
-                        .await;
+                    cb.on_workflow_paused(tid, checkpoint.as_deref(), 0, step_index).await;
                     return Err(WorkflowExecutionResult::Paused {
                         checkpoint: checkpoint.clone(),
                         completed_steps: step_index,

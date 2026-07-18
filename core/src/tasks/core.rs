@@ -1,5 +1,7 @@
 //! Data models for task management
-
+use super::executor::ExecutableTask;
+use crate::workflow::WorkflowCallback;
+use crate::{TaskLifecycleEvent, TaskStateUpdater, publish_task_pool_event};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -10,16 +12,10 @@ use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
-use super::executor::ExecutableTask;
-use crate::workflow::WorkflowCallback;
-use crate::{TaskLifecycleEvent, TaskStateUpdater, publish_task_pool_event};
-
 /// Maximum number of concurrent tasks allowed
 pub const MAX_CONCURRENT_TASKS: usize = 10;
-
 /// Maximum number of tasks to keep in history
 pub const MAX_HISTORY_TASKS: usize = 100;
-
 /// Global static task pool (auto-initialized at program start)
 pub static TASK_POOL: Lazy<Arc<RwLock<TaskPool>>> = Lazy::new(|| {
     let pool = Arc::new(RwLock::new(TaskPool::new()));
@@ -27,10 +23,8 @@ pub static TASK_POOL: Lazy<Arc<RwLock<TaskPool>>> = Lazy::new(|| {
     start_execution_engine(pool_clone);
     pool
 });
-
 /// Global notifier for task queue (wakes up the execution engine)
 pub static TASK_NOTIFIER: Lazy<Notify> = Lazy::new(Notify::new);
-
 pub fn start_execution_engine(pool: Arc<RwLock<TaskPool>>) {
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
         handle.spawn(async move {
@@ -39,14 +33,12 @@ pub fn start_execution_engine(pool: Arc<RwLock<TaskPool>>) {
         return;
     }
     thread::spawn(|| {
-        let rt = tokio::runtime::Runtime::new()
-            .expect("Failed to create Tokio runtime for execution engine");
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime for execution engine");
         rt.block_on(async {
             run_execution_engine(pool).await;
         });
     });
 }
-
 /// Background execution engine - runs automatically when the static variable is initialized
 async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
     loop {
@@ -89,11 +81,7 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
             // Get the executable task
             let executable = {
                 let pool = task_pool.read().await;
-                if let Some(task) = pool.get_task(&task_id) {
-                    task.get_executable()
-                } else {
-                    None
-                }
+                if let Some(task) = pool.get_task(&task_id) { task.get_executable() } else { None }
             };
             if let Some(executable_task) = executable {
                 let state_updater = TaskStateUpdater::new(task_id.clone(), task_pool.clone());
@@ -110,7 +98,6 @@ async fn run_execution_engine(task_pool: Arc<RwLock<TaskPool>>) {
         }
     }
 }
-
 /// Task priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -120,13 +107,11 @@ pub enum TaskPriority {
     High = 2,
     Critical = 3,
 }
-
 impl Default for TaskPriority {
     fn default() -> Self {
         TaskPriority::Normal
     }
 }
-
 /// Overall task status
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -139,7 +124,6 @@ pub enum TaskStatus {
     Failed,
     Timeout,
 }
-
 /// Individual step status within a task
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -150,7 +134,6 @@ pub enum StepStatus {
     Failed,
     Skipped,
 }
-
 /// Execution result of a step
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepResult {
@@ -163,26 +146,14 @@ pub struct StepResult {
     pub end_time: Option<u64>,
     pub duration_ms: Option<u64>,
 }
-
 impl StepResult {
     pub fn new(step_index: usize, driver_name: String) -> Self {
-        Self {
-            step_index,
-            driver_name,
-            status: StepStatus::Waiting,
-            output: None,
-            error: None,
-            start_time: None,
-            end_time: None,
-            duration_ms: None,
-        }
+        Self { step_index, driver_name, status: StepStatus::Waiting, output: None, error: None, start_time: None, end_time: None, duration_ms: None }
     }
-
     pub fn started(&mut self) {
         self.status = StepStatus::Running;
         self.start_time = Some(Self::now_timestamp());
     }
-
     pub fn completed(&mut self, output: String) {
         self.status = StepStatus::Completed;
         self.output = Some(output);
@@ -191,7 +162,6 @@ impl StepResult {
             self.duration_ms = Some((Self::now_timestamp() - start) * 1000);
         }
     }
-
     pub fn failed(&mut self, error: String) {
         self.status = StepStatus::Failed;
         self.error = Some(error);
@@ -200,15 +170,10 @@ impl StepResult {
             self.duration_ms = Some((Self::now_timestamp() - start) * 1000);
         }
     }
-
     fn now_timestamp() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
     }
 }
-
 /// Task structure representing a single execution unit
 pub struct Task {
     pub id: String,
@@ -230,7 +195,6 @@ pub struct Task {
     pub input_token_count: u64,
     pub output_token_count: u64,
 }
-
 impl Clone for Task {
     fn clone(&self) -> Self {
         Self {
@@ -255,7 +219,6 @@ impl Clone for Task {
         }
     }
 }
-
 impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Task")
@@ -278,7 +241,6 @@ impl Debug for Task {
             .finish()
     }
 }
-
 impl Task {
     pub fn new(task_type: String, input: String) -> Self {
         let now = Self::now_timestamp();
@@ -303,34 +265,28 @@ impl Task {
             output_token_count: 0,
         }
     }
-
     pub fn with_executable(mut self, executable: Arc<dyn ExecutableTask>) -> Self {
         self.task_type = executable.task_type().to_string();
         self.input = executable.input().to_string();
         self.executable = Some(executable);
         self
     }
-
     pub fn with_priority(mut self, priority: TaskPriority) -> Self {
         self.priority = priority;
         self
     }
-
     pub fn with_timeout(mut self, timeout_secs: u64) -> Self {
         self.timeout_secs = timeout_secs;
         self
     }
-
     pub fn non_interruptible(mut self) -> Self {
         self.interruptible = false;
         self
     }
-
     pub fn started(&mut self) {
         self.status = TaskStatus::Running;
         self.started_at = Some(Self::now_timestamp());
     }
-
     pub fn completed(&mut self, output: String) {
         self.status = TaskStatus::Completed;
         self.final_output = Some(output);
@@ -339,7 +295,6 @@ impl Task {
             self.duration_ms = Some((Self::now_timestamp() - start) * 1000);
         }
     }
-
     pub fn failed(&mut self, error: String) {
         self.status = TaskStatus::Failed;
         self.error = Some(error);
@@ -348,7 +303,6 @@ impl Task {
             self.duration_ms = Some((Self::now_timestamp() - start) * 1000);
         }
     }
-
     pub fn cancelled(&mut self) {
         self.status = TaskStatus::Cancelled;
         self.completed_at = Some(Self::now_timestamp());
@@ -356,7 +310,6 @@ impl Task {
             self.duration_ms = Some((Self::now_timestamp() - start) * 1000);
         }
     }
-
     pub fn paused(&mut self) -> bool {
         if self.status == TaskStatus::Running && self.interruptible {
             self.status = TaskStatus::Paused;
@@ -365,7 +318,6 @@ impl Task {
             false
         }
     }
-
     pub fn resume(&mut self) -> bool {
         if self.status == TaskStatus::Paused {
             self.status = TaskStatus::Running;
@@ -374,7 +326,6 @@ impl Task {
             false
         }
     }
-
     pub fn is_timed_out(&self) -> bool {
         if self.timeout_secs > 0 && self.status == TaskStatus::Running {
             if let Some(started_at) = self.started_at {
@@ -384,17 +335,14 @@ impl Task {
         }
         false
     }
-
     pub fn add_step(&mut self, driver_name: String) -> usize {
         let step_index = self.steps.len();
         self.steps.push(StepResult::new(step_index, driver_name));
         step_index
     }
-
     pub fn get_step_mut(&mut self, step_index: usize) -> Option<&mut StepResult> {
         self.steps.get_mut(step_index)
     }
-
     pub fn progress(&self) -> u8 {
         if self.steps.is_empty() {
             match self.status {
@@ -403,27 +351,17 @@ impl Task {
                 _ => 0,
             }
         } else {
-            let completed = self
-                .steps
-                .iter()
-                .filter(|s| s.status == StepStatus::Completed)
-                .count();
+            let completed = self.steps.iter().filter(|s| s.status == StepStatus::Completed).count();
             ((completed * 100) / self.steps.len()) as u8
         }
     }
-
     pub fn get_executable(&self) -> Option<Arc<dyn ExecutableTask>> {
         self.executable.clone()
     }
-
     fn now_timestamp() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
     }
 }
-
 /// Global task pool structure
 pub struct TaskPool {
     pub(crate) tasks: HashMap<String, Task>,
@@ -433,7 +371,6 @@ pub struct TaskPool {
     pub(crate) task_counter: AtomicUsize,
     pub(crate) shutdown: AtomicBool,
 }
-
 impl TaskPool {
     pub fn new() -> Self {
         Self {
@@ -445,24 +382,19 @@ impl TaskPool {
             shutdown: AtomicBool::new(false),
         }
     }
-
     pub fn set_max_concurrent(&mut self, max: usize) {
         self.max_concurrent = max.max(1);
     }
-
     pub fn max_concurrent(&self) -> usize {
         self.max_concurrent
     }
-
     pub fn shutdown(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
         TASK_NOTIFIER.notify_one();
     }
-
     pub fn is_shutdown(&self) -> bool {
         self.shutdown.load(Ordering::Relaxed)
     }
-
     pub fn create_task(&mut self, task_type: String, input: String) -> String {
         let task = Task::new(task_type, input);
         let task_id = task.id.clone();
@@ -473,13 +405,7 @@ impl TaskPool {
         publish_task_pool_event(TaskLifecycleEvent::created(task_id.clone()));
         task_id
     }
-
-    pub fn create_task_with_executable(
-        &mut self,
-        task_type: String,
-        input: String,
-        executable: Arc<dyn ExecutableTask>,
-    ) -> String {
+    pub fn create_task_with_executable(&mut self, task_type: String, input: String, executable: Arc<dyn ExecutableTask>) -> String {
         let task = Task::new(task_type, input).with_executable(executable);
         let task_id = task.id.clone();
         self.task_counter.fetch_add(1, Ordering::Relaxed);
@@ -489,7 +415,6 @@ impl TaskPool {
         publish_task_pool_event(TaskLifecycleEvent::created(task_id.clone()));
         task_id
     }
-
     pub(crate) fn enqueue_task(&mut self, task_id: &str) {
         if let Some(task) = self.tasks.get(task_id) {
             // Allow both Pending and Paused tasks to be enqueued
@@ -498,18 +423,12 @@ impl TaskPool {
                 let insert_pos = self
                     .pending_queue
                     .iter()
-                    .position(|id| {
-                        self.tasks
-                            .get(id)
-                            .map(|t| t.priority < priority)
-                            .unwrap_or(false)
-                    })
+                    .position(|id| self.tasks.get(id).map(|t| t.priority < priority).unwrap_or(false))
                     .unwrap_or(self.pending_queue.len());
                 self.pending_queue.insert(insert_pos, task_id.to_string());
             }
         }
     }
-
     pub(crate) fn next_task(&mut self) -> Option<String> {
         if self.running_tasks.len() >= self.max_concurrent {
             return None;
@@ -531,36 +450,26 @@ impl TaskPool {
         }
         None
     }
-
     pub(crate) fn complete_task(&mut self, task_id: &str) {
         self.running_tasks.retain(|id| id != task_id);
     }
-
     pub fn get_task(&self, task_id: &str) -> Option<Task> {
         self.tasks.get(task_id).cloned()
     }
-
     pub(crate) fn get_task_mut(&mut self, task_id: &str) -> Option<&mut Task> {
         self.tasks.get_mut(task_id)
     }
-
     pub fn update_task_status(&mut self, task_id: &str, status: TaskStatus) -> bool {
         if let Some(task) = self.tasks.get_mut(task_id) {
             match status {
                 TaskStatus::Running => {
                     if task.status == TaskStatus::Pending {
                         task.started();
-                        publish_task_pool_event(TaskLifecycleEvent::status_changed(
-                            task_id.to_string(),
-                            TaskStatus::Running,
-                        ));
+                        publish_task_pool_event(TaskLifecycleEvent::status_changed(task_id.to_string(), TaskStatus::Running));
                         return true;
                     } else if task.status == TaskStatus::Paused {
                         task.status = TaskStatus::Running;
-                        publish_task_pool_event(TaskLifecycleEvent::status_changed(
-                            task_id.to_string(),
-                            TaskStatus::Running,
-                        ));
+                        publish_task_pool_event(TaskLifecycleEvent::status_changed(task_id.to_string(), TaskStatus::Running));
                         return true;
                     }
                     false
@@ -572,42 +481,28 @@ impl TaskPool {
                         task.completed(String::new());
                     }
                     self.complete_task(task_id);
-                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
-                        task_id.to_string(),
-                        TaskStatus::Completed,
-                    ));
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(task_id.to_string(), TaskStatus::Completed));
                     true
                 }
                 TaskStatus::Failed => {
                     let error = task.error.clone().unwrap_or_default();
                     task.failed(error);
                     self.complete_task(task_id);
-                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
-                        task_id.to_string(),
-                        TaskStatus::Failed,
-                    ));
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(task_id.to_string(), TaskStatus::Failed));
                     true
                 }
                 TaskStatus::Cancelled => {
                     task.cancelled();
                     self.complete_task(task_id);
-                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
-                        task_id.to_string(),
-                        TaskStatus::Cancelled,
-                    ));
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(task_id.to_string(), TaskStatus::Cancelled));
                     true
                 }
                 TaskStatus::Paused => {
-                    if (task.status == TaskStatus::Running || task.status == TaskStatus::Pending)
-                        && task.interruptible
-                    {
+                    if (task.status == TaskStatus::Running || task.status == TaskStatus::Pending) && task.interruptible {
                         task.status = TaskStatus::Paused;
                         self.running_tasks.retain(|id| id != task_id);
                         self.pending_queue.retain(|id| id != task_id);
-                        publish_task_pool_event(TaskLifecycleEvent::status_changed(
-                            task_id.to_string(),
-                            TaskStatus::Paused,
-                        ));
+                        publish_task_pool_event(TaskLifecycleEvent::status_changed(task_id.to_string(), TaskStatus::Paused));
                         return true;
                     }
                     false
@@ -615,10 +510,7 @@ impl TaskPool {
                 TaskStatus::Timeout => {
                     task.status = TaskStatus::Timeout;
                     self.complete_task(task_id);
-                    publish_task_pool_event(TaskLifecycleEvent::status_changed(
-                        task_id.to_string(),
-                        TaskStatus::Timeout,
-                    ));
+                    publish_task_pool_event(TaskLifecycleEvent::status_changed(task_id.to_string(), TaskStatus::Timeout));
                     true
                 }
                 _ => true,
@@ -627,7 +519,6 @@ impl TaskPool {
             false
         }
     }
-
     pub fn cancel_task(&mut self, task_id: &str) -> bool {
         if let Some(task) = self.tasks.get_mut(task_id) {
             if task.status == TaskStatus::Pending {
@@ -645,12 +536,9 @@ impl TaskPool {
         }
         false
     }
-
     pub fn pause_task(&mut self, task_id: &str) -> bool {
         if let Some(task) = self.tasks.get_mut(task_id) {
-            if (task.status == TaskStatus::Running || task.status == TaskStatus::Pending)
-                && task.interruptible
-            {
+            if (task.status == TaskStatus::Running || task.status == TaskStatus::Pending) && task.interruptible {
                 task.status = TaskStatus::Paused;
                 self.running_tasks.retain(|id| id != task_id);
                 self.pending_queue.retain(|id| id != task_id);
@@ -659,7 +547,6 @@ impl TaskPool {
         }
         false
     }
-
     pub fn resume_task(&mut self, task_id: &str) -> bool {
         if let Some(task) = self.tasks.get(task_id) {
             if task.status == TaskStatus::Paused {
@@ -670,7 +557,6 @@ impl TaskPool {
         }
         false
     }
-
     pub fn retry_task(&mut self, task_id: &str) -> bool {
         if let Some(task) = self.tasks.get_mut(task_id) {
             if task.status == TaskStatus::Failed {
@@ -694,22 +580,18 @@ impl TaskPool {
         }
         false
     }
-
     pub fn get_all_tasks(&self, limit: Option<usize>) -> Vec<Task> {
         let mut tasks: Vec<Task> = self.tasks.values().cloned().collect();
         tasks.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         let limit = limit.unwrap_or(MAX_HISTORY_TASKS);
         tasks.into_iter().take(limit).collect()
     }
-
     pub fn running_count(&self) -> usize {
         self.running_tasks.len()
     }
-
     pub fn pending_count(&self) -> usize {
         self.pending_queue.len()
     }
-
     pub fn has_task(&self, task_id: &str) -> bool {
         self.tasks.contains_key(task_id)
     }

@@ -24,24 +24,19 @@
 //! - Retry decisions are made by LLM (not automatic)
 //! - LLM receives structured error feedback to make informed decisions
 //! - LLM can adjust parameters, switch drivers, or abort
-
+use super::batch::execute_batch_plan;
+use super::core::WorkflowExecutor;
+use super::retry::*;
+use super::types::*;
+use super::utils::format_step_results;
 use crate::prompts::build_react_prompt;
-use crate::{
-    DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t,
-};
+use crate::{DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption, parse_react_response, t};
 use hippox_drivers::{DriverCall, DriverCallback, DriverContext};
 use langhub::types::ChatMessage;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
-
-use super::batch::execute_batch_plan;
-use super::core::WorkflowExecutor;
-use super::retry::*;
-use super::types::*;
-use super::utils::format_step_results;
-
 /// Execute a ReAct workflow with category filtering.
 ///
 /// This is the main entry point for ReAct mode execution. It implements the
@@ -72,15 +67,10 @@ pub async fn execute_react_with_categories(
     let mut iteration = 0;
     let mut messages: Vec<ChatMessage> = Vec::new();
     // Initialize retry context with configured values
-    let mut retry_context = RetryContext::new(
-        DEFAULT_MAX_RETRIES_PER_SKILL,
-        DEFAULT_MAX_CONSECUTIVE_FAILURES,
-    );
+    let mut retry_context = RetryContext::new(DEFAULT_MAX_RETRIES_PER_SKILL, DEFAULT_MAX_CONSECUTIVE_FAILURES);
     // Build filtered drivers prompt
-    let filtered_drivers =
-        crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
-    let react_workflow_prompt =
-        crate::prompts::build_react_prompt_with_categories(&filtered_drivers);
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
+    let react_workflow_prompt = crate::prompts::build_react_prompt_with_categories(&filtered_drivers);
     messages.push(ChatMessage::system(&react_workflow_prompt));
     messages.push(ChatMessage::user(input_trimmed));
     let task_id = executor.get_task_id().map(|s| s.to_string());
@@ -88,22 +78,13 @@ pub async fn execute_react_with_categories(
     if let Some(ref tid) = task_id {
         if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
             if let Some(checkpoint_data) = state_updater.get_checkpoint().await {
-                if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data)
-                {
+                if let Ok(checkpoint) = serde_json::from_str::<WorkflowCheckpoint>(&checkpoint_data) {
                     step_results = checkpoint.completed_results;
                     for result in &step_results {
-                        messages.push(ChatMessage::user(&format!(
-                            "Driver '{}' executed. Result: {}",
-                            result.driver, result.output
-                        )));
+                        messages.push(ChatMessage::user(&format!("Driver '{}' executed. Result: {}", result.driver, result.output)));
                     }
                     if let Some(cb) = executor.get_workflow_callback() {
-                        cb.on_workflow_resumed(
-                            tid,
-                            overall_start.elapsed().as_millis() as u64,
-                            step_results.len(),
-                        )
-                        .await;
+                        cb.on_workflow_resumed(tid, overall_start.elapsed().as_millis() as u64, step_results.len()).await;
                     }
                 }
             }
@@ -113,10 +94,7 @@ pub async fn execute_react_with_categories(
         iteration += 1;
         // Check consecutive failures threshold
         if retry_context.has_exceeded_consecutive_failures() {
-            let warning_prompt = build_consecutive_failures_feedback(
-                retry_context.consecutive_failures(),
-                retry_context.max_consecutive_failures(),
-            );
+            let warning_prompt = build_consecutive_failures_feedback(retry_context.consecutive_failures(), retry_context.max_consecutive_failures());
             messages.push(warning_prompt);
         }
         // Check task interruption (cancelled/paused)
@@ -124,16 +102,9 @@ pub async fn execute_react_with_categories(
             if let Some(state_updater) = crate::tasks::get_state_updater(tid).await {
                 if state_updater.is_cancelled().await {
                     if let Some(cb) = executor.get_workflow_callback() {
-                        cb.on_workflow_cancelled(
-                            tid,
-                            overall_start.elapsed().as_millis() as u64,
-                            step_results.len(),
-                        )
-                        .await;
+                        cb.on_workflow_cancelled(tid, overall_start.elapsed().as_millis() as u64, step_results.len()).await;
                     }
-                    return WorkflowExecutionResult::Cancelled {
-                        completed_steps: step_results.len(),
-                    };
+                    return WorkflowExecutionResult::Cancelled { completed_steps: step_results.len() };
                 }
                 if state_updater.is_paused().await {
                     if let Some(cb) = executor.get_workflow_callback() {
@@ -148,13 +119,7 @@ pub async fn execute_react_with_categories(
                         if let Some(ref checkpoint_data) = checkpoint {
                             state_updater.save_checkpoint(checkpoint_data).await;
                         }
-                        cb.on_workflow_paused(
-                            tid,
-                            checkpoint.as_deref(),
-                            overall_start.elapsed().as_millis() as u64,
-                            step_results.len(),
-                        )
-                        .await;
+                        cb.on_workflow_paused(tid, checkpoint.as_deref(), overall_start.elapsed().as_millis() as u64, step_results.len()).await;
                     }
                     return WorkflowExecutionResult::Paused {
                         checkpoint: None,
@@ -165,16 +130,10 @@ pub async fn execute_react_with_categories(
             }
         }
         // Call LLM to get next instruction
-        let llm_response = match scheduler
-            .chat_with_task(messages.clone(), &task_id.clone().unwrap())
-            .await
-        {
+        let llm_response = match scheduler.chat_with_task(messages.clone(), &task_id.clone().unwrap()).await {
             Ok(resp) => resp,
             Err(e) => {
-                return WorkflowExecutionResult::Failed {
-                    error: format!("{}: {}", t!("error.llm_error"), e),
-                    completed_steps: step_results.len(),
-                };
+                return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: step_results.len() };
             }
         };
         messages.push(ChatMessage::assistant(&llm_response));
@@ -194,43 +153,27 @@ pub async fn execute_react_with_categories(
                 let step_index = step_results.len();
                 // Check if this driver has permanently failed
                 if retry_context.is_driver_permanently_failed(&step_name) {
-                    let error_msg = format!(
-                        "Driver '{}' has exceeded max retries ({}) and is permanently failed.",
-                        step_name, DEFAULT_MAX_RETRIES_PER_SKILL
-                    );
+                    let error_msg =
+                        format!("Driver '{}' has exceeded max retries ({}) and is permanently failed.", step_name, DEFAULT_MAX_RETRIES_PER_SKILL);
                     step_results.push(create_failed_step_result(&call, &error_msg));
-
-                    let force_prompt = build_max_retries_exceeded_feedback(
-                        &step_name,
-                        DEFAULT_MAX_RETRIES_PER_SKILL,
-                        &error_msg,
-                    );
+                    let force_prompt = build_max_retries_exceeded_feedback(&step_name, DEFAULT_MAX_RETRIES_PER_SKILL, &error_msg);
                     messages.push(force_prompt);
                     continue;
                 }
                 let step_start = Instant::now();
                 // Check task interruption before execution
-                if let Err(result) = check_task_interruption(
-                    task_id.as_deref(),
-                    executor.get_workflow_callback(),
-                    step_index,
-                    &step_name,
-                    None,
-                )
-                .await
+                if let Err(result) = check_task_interruption(task_id.as_deref(), executor.get_workflow_callback(), step_index, &step_name, None).await
                 {
                     return result;
                 }
                 // Trigger on_step_start callback
                 if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
-                        cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters))
-                            .await;
+                        cb.on_step_start(tid, &step_name, step_index, Some(&call.parameters)).await;
                     }
                 }
                 // Prepare driver execution context
-                let driver_callback_arc: Option<Arc<dyn DriverCallback>> =
-                    executor.get_driver_callback();
+                let driver_callback_arc: Option<Arc<dyn DriverCallback>> = executor.get_driver_callback();
                 let driver_context = DriverContext {
                     task_id: task_id.clone(),
                     driver_index: Some(step_index),
@@ -253,18 +196,13 @@ pub async fn execute_react_with_categories(
                         let duration = step_start.elapsed().as_millis() as u64;
                         if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
-                                cb.on_step_success(tid, &step_name, step_index, &output, duration)
-                                    .await;
+                                cb.on_step_success(tid, &step_name, step_index, &output, duration).await;
                             }
                         }
                         step_results.push(create_success_step_result(&call, &output));
-                        messages.push(ChatMessage::user(&format!(
-                            "Driver '{}' executed successfully. Result: {}",
-                            call.action, output
-                        )));
+                        messages.push(ChatMessage::user(&format!("Driver '{}' executed successfully. Result: {}", call.action, output)));
                     }
-                    DriverExecutionResult::Failure(ref error_msg)
-                    | DriverExecutionResult::Timeout(ref error_msg) => {
+                    DriverExecutionResult::Failure(ref error_msg) | DriverExecutionResult::Timeout(ref error_msg) => {
                         retry_context.record_failure(&step_name);
                         let duration = step_start.elapsed().as_millis() as u64;
                         let retry_count = retry_context.get_retry_count(&step_name);
@@ -273,46 +211,24 @@ pub async fn execute_react_with_categories(
                         if let Some(cb) = executor.get_workflow_callback() {
                             if let Some(ref tid) = task_id {
                                 if is_timeout {
-                                    cb.on_step_timeout(
-                                        tid, &step_name, step_index, error_msg, duration,
-                                    )
-                                    .await;
+                                    cb.on_step_timeout(tid, &step_name, step_index, error_msg, duration).await;
                                 } else {
-                                    cb.on_step_failure(
-                                        tid, &step_name, step_index, error_msg, duration,
-                                    )
-                                    .await;
+                                    cb.on_step_failure(tid, &step_name, step_index, error_msg, duration).await;
                                 }
                             }
                         }
                         step_results.push(create_step_result(&call, &result));
                         // Build appropriate feedback for LLM
                         let feedback = if is_timeout {
-                            build_timeout_feedback(
-                                &step_name,
-                                DEFAULT_SKILL_TIMEOUT_SECS,
-                                retry_count,
-                                DEFAULT_MAX_RETRIES_PER_SKILL,
-                            )
+                            build_timeout_feedback(&step_name, DEFAULT_SKILL_TIMEOUT_SECS, retry_count, DEFAULT_MAX_RETRIES_PER_SKILL)
                         } else {
-                            build_error_feedback(
-                                &step_name,
-                                error_msg,
-                                retry_count,
-                                DEFAULT_MAX_RETRIES_PER_SKILL,
-                                &call.parameters,
-                            )
+                            build_error_feedback(&step_name, error_msg, retry_count, DEFAULT_MAX_RETRIES_PER_SKILL, &call.parameters)
                         };
                         messages.push(feedback);
-
                         // Check if we've reached max retries for this driver
                         let can_retry = retry_context.can_retry(&step_name);
                         if !can_retry {
-                            let force_prompt = build_max_retries_exceeded_feedback(
-                                &step_name,
-                                DEFAULT_MAX_RETRIES_PER_SKILL,
-                                error_msg,
-                            );
+                            let force_prompt = build_max_retries_exceeded_feedback(&step_name, DEFAULT_MAX_RETRIES_PER_SKILL, error_msg);
                             messages.push(force_prompt);
                         }
                     }
@@ -321,22 +237,12 @@ pub async fn execute_react_with_categories(
             ReactInstruction::Batch(steps) => {
                 let step_index = step_results.len();
                 let step_name = format!("batch_{}_steps", steps.len());
-
-                if let Err(result) = check_task_interruption(
-                    task_id.as_deref(),
-                    executor.get_workflow_callback(),
-                    step_index,
-                    &step_name,
-                    None,
-                )
-                .await
+                if let Err(result) = check_task_interruption(task_id.as_deref(), executor.get_workflow_callback(), step_index, &step_name, None).await
                 {
                     return result;
                 }
                 let batch_results = execute_batch_plan(executor, &steps).await;
-                let has_failure = batch_results
-                    .iter()
-                    .any(|r| r.status == ExecutionStatus::Failure);
+                let has_failure = batch_results.iter().any(|r| r.status == ExecutionStatus::Failure);
                 if has_failure {
                     retry_context.record_failure(&step_name);
                 } else {
@@ -345,23 +251,13 @@ pub async fn execute_react_with_categories(
                 for result in &batch_results {
                     step_results.push(result.clone());
                 }
-                messages.push(ChatMessage::user(&format!(
-                    "Batch execution completed. Results:\n{}",
-                    format_step_results(&batch_results)
-                )));
+                messages.push(ChatMessage::user(&format!("Batch execution completed. Results:\n{}", format_step_results(&batch_results))));
                 if has_failure {
-                    let failed_results: Vec<_> = batch_results
-                        .iter()
-                        .filter(|r| r.status == ExecutionStatus::Failure)
-                        .collect();
+                    let failed_results: Vec<_> = batch_results.iter().filter(|r| r.status == ExecutionStatus::Failure).collect();
                     let error_context = format!(
                         "Batch execution had {} failures:\n{}\n\nPlease decide how to proceed.",
                         failed_results.len(),
-                        failed_results
-                            .iter()
-                            .map(|r| format!("- {}: {}", r.driver, r.output))
-                            .collect::<Vec<_>>()
-                            .join("\n")
+                        failed_results.iter().map(|r| format!("- {}: {}", r.driver, r.output)).collect::<Vec<_>>().join("\n")
                     );
                     messages.push(ChatMessage::user(&error_context));
                     continue;
@@ -375,13 +271,8 @@ pub async fn execute_react_with_categories(
     if iteration >= executor.max_iterations {
         final_response = Some(t!("error.max_iterations_reached").to_string());
     }
-    let final_response = final_response.unwrap_or_else(|| {
-        if step_results.is_empty() {
-            t!("driver.no_actions_executed").to_string()
-        } else {
-            format_step_results(&step_results)
-        }
-    });
+    let final_response = final_response
+        .unwrap_or_else(|| if step_results.is_empty() { t!("driver.no_actions_executed").to_string() } else { format_step_results(&step_results) });
     let raw_json = serde_json::json!({
         "mode": "react",
         "result": final_response,
@@ -397,8 +288,5 @@ pub async fn execute_react_with_categories(
         }).collect::<Vec<_>>()
     })
     .to_string();
-    WorkflowExecutionResult::CompletedWithRaw {
-        display: final_response,
-        raw_json,
-    }
+    WorkflowExecutionResult::CompletedWithRaw { display: final_response, raw_json }
 }

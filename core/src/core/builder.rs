@@ -1,9 +1,6 @@
-use std::collections::HashMap;
-
-use langhub::types::ModelProvider;
-
 use crate::{Hippox, HippoxConfig, IdentityInformation, WorkflowMode};
-
+use langhub::types::ModelProvider;
+use std::collections::HashMap;
 /// Builder for creating Hippox instances
 pub struct HippoxBuilder {
     provider: ModelProvider,
@@ -11,54 +8,36 @@ pub struct HippoxBuilder {
     extra_keys: Option<HashMap<String, String>>,
     config: HippoxConfig,
 }
-
 impl HippoxBuilder {
     /// Create a new builder with required provider
     pub fn new(provider: ModelProvider) -> Self {
-        Self {
-            provider,
-            api_key: None,
-            extra_keys: None,
-            config: HippoxConfig::default(),
-        }
+        Self { provider, api_key: None, extra_keys: None, config: HippoxConfig::default() }
     }
-
     /// Set API key
     pub fn api_key(mut self, key: impl Into<String>) -> Self {
         self.api_key = Some(key.into());
         self
     }
-
     /// Set extra keys (e.g., for Azure, custom endpoints)
     pub fn extra_keys(mut self, keys: HashMap<String, String>) -> Self {
         self.extra_keys = Some(keys);
         self
     }
-
     /// Set language
     pub fn lang(mut self, lang: impl Into<String>) -> Self {
         self.config.lang = lang.into();
         self
     }
-
     /// Set identity with a closure
     pub fn identity(mut self, f: impl FnOnce(&mut IdentityInformation)) -> Self {
         f(&mut self.config.identity_information);
         self
     }
-
     /// Build the Hippox instance
     pub async fn build(self) -> anyhow::Result<Hippox> {
-        Hippox::with_workflow_mode(
-            self.provider,
-            self.api_key,
-            self.extra_keys,
-            Some(self.config),
-        )
-        .await
+        Hippox::with_workflow_mode(self.provider, self.api_key, self.extra_keys, Some(self.config)).await
     }
 }
-
 impl Hippox {
     /// Create a new builder
     pub fn builder(provider: ModelProvider) -> HippoxBuilder {

@@ -7,10 +7,8 @@
 //! - **Lenient**: Prefer false positives over false negatives
 //! - **Multi-language**: Supports both English and Chinese patterns
 //! - **Extensible**: Easy to add new patterns
-
 use once_cell::sync::Lazy;
 use regex::Regex;
-
 /// Check if user input contains any format/structure requirement
 ///
 /// This is a LENIENT detector. If it returns true, we proceed to Stage Two (LLM conversion).
@@ -88,8 +86,7 @@ pub fn needs_format_conversion(user_input: &str) -> bool {
         return true;
     }
     // Placeholder Patterns - Variables/templates to be filled
-    static PLACEHOLDER_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"\{\{?[^{}]+\}\}?|<[^>]+>|\$\{[^}]+\}").unwrap());
+    static PLACEHOLDER_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\{?[^{}]+\}\}?|<[^>]+>|\$\{[^}]+\}").unwrap());
     if PLACEHOLDER_REGEX.is_match(user_input) {
         return true;
     }
@@ -137,10 +134,7 @@ pub fn needs_format_conversion(user_input: &str) -> bool {
         return true;
     }
     // Key-Value Pair Patterns - User defines fields
-    let kv_patterns = [
-        r"(?m)^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*:",
-        r"(?m)^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*：",
-    ];
+    let kv_patterns = [r"(?m)^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*:", r"(?m)^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*："];
     for pattern in kv_patterns {
         if let Ok(re) = Regex::new(pattern) {
             if re.is_match(user_input) {
@@ -157,7 +151,6 @@ pub fn needs_format_conversion(user_input: &str) -> bool {
     }
     false
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,9 +186,7 @@ mod tests {
         assert!(needs_format_conversion("{weather}"));
         assert!(needs_format_conversion("{{result}}"));
         assert!(needs_format_conversion("<temperature>"));
-        assert!(needs_format_conversion(
-            "Hello {name}, your score is {score}"
-        ));
+        assert!(needs_format_conversion("Hello {name}, your score is {score}"));
         assert!(needs_format_conversion("${value}"));
         assert!(needs_format_conversion("{{ user.name }}"));
     }
@@ -208,7 +199,6 @@ mod tests {
         assert!(needs_format_conversion("use this structure for output"));
         assert!(needs_format_conversion("follow this format"));
     }
-
     #[test]
     fn test_template_keywords_chinese() {
         assert!(needs_format_conversion("天气放这里"));
@@ -230,7 +220,6 @@ mod tests {
         assert!(needs_format_conversion("  a: value\n  b: value"));
         assert!(needs_format_conversion("名称：\n年龄：\n地址："));
     }
-
     #[test]
     fn test_arrow_keywords() {
         assert!(needs_format_conversion("result -> output"));
@@ -238,13 +227,11 @@ mod tests {
         assert!(needs_format_conversion("结果 → 输出"));
         assert!(needs_format_conversion("映射到新结构"));
     }
-
     #[test]
     fn test_yaml_frontmatter() {
         assert!(needs_format_conversion("---\ntitle: Test\n---"));
         assert!(needs_format_conversion("---\nname: value\n---"));
     }
-
     #[test]
     fn test_no_requirement() {
         assert!(!needs_format_conversion("calculate 2+3"));
@@ -252,11 +239,8 @@ mod tests {
         assert!(!needs_format_conversion("what is the weather today"));
         assert!(!needs_format_conversion("tell me a joke"));
         assert!(!needs_format_conversion(""));
-        assert!(!needs_format_conversion(
-            "just a normal sentence without any format keywords"
-        ));
+        assert!(!needs_format_conversion("just a normal sentence without any format keywords"));
     }
-
     #[test]
     fn test_edge_cases() {
         assert!(!needs_format_conversion("a"));
@@ -267,7 +251,6 @@ mod tests {
         assert!(!needs_format_conversion("Hello, how are you?"));
         assert!(!needs_format_conversion("The answer is 42"));
     }
-
     #[test]
     fn test_complex_scenarios() {
         assert!(needs_format_conversion(
@@ -276,12 +259,8 @@ mod tests {
              Humidity: {humidity}\n\
              Wind: {wind}"
         ));
-        assert!(needs_format_conversion(
-            "Calculate the sum and return as XML"
-        ));
-        assert!(needs_format_conversion(
-            "{\n  \"result\": \"{value}\",\n  \"status\": \"{status}\"\n}"
-        ));
+        assert!(needs_format_conversion("Calculate the sum and return as XML"));
+        assert!(needs_format_conversion("{\n  \"result\": \"{value}\",\n  \"status\": \"{status}\"\n}"));
         assert!(needs_format_conversion(
             "把计算结果放入以下结构：\n\
              a: \n\

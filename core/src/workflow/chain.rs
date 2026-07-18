@@ -20,7 +20,10 @@
 //! Unlike PlanAndExecute, Chain mode does NOT support variable passing
 //! between steps. Each step operates independently with only the user input
 //! available as context.
-
+use super::core::WorkflowExecutor;
+use super::retry::*;
+use super::types::*;
+use super::utils::{VARIABLE_REGEX, format_step_results};
 use crate::prompts::build_chain_prompt;
 use crate::t;
 use crate::{DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
@@ -29,12 +32,6 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-
-use super::core::WorkflowExecutor;
-use super::retry::*;
-use super::types::*;
-use super::utils::{VARIABLE_REGEX, format_step_results};
-
 /// Parse the LLM response into a ChainPlan.
 ///
 /// The expected response format is a JSON object with:
@@ -49,7 +46,6 @@ use super::utils::{VARIABLE_REGEX, format_step_results};
 pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
     let json_str = WorkflowExecutor::extract_json(response);
     let value: Value = serde_json::from_str(&json_str)?;
-
     #[derive(serde::Deserialize)]
     struct ChainStep {
         action: String,
@@ -61,23 +57,13 @@ pub fn parse_chain_response(response: &str) -> anyhow::Result<ChainPlan> {
         mode: String,
         steps: Vec<ChainStep>,
     }
-
     let chain: ChainResponse = serde_json::from_value(value)?;
     if chain.mode != "chain" {
         anyhow::bail!("Invalid chain mode: expected 'chain', got '{}'", chain.mode);
     }
-    let steps = chain
-        .steps
-        .into_iter()
-        .map(|s| ChainStepDef {
-            action: s.action,
-            parameters: s.parameters,
-            output_as: s.output_as,
-        })
-        .collect();
+    let steps = chain.steps.into_iter().map(|s| ChainStepDef { action: s.action, parameters: s.parameters, output_as: s.output_as }).collect();
     Ok(ChainPlan { steps })
 }
-
 /// Resolve variable placeholders in a value using context.
 ///
 /// Supports `{{variable_name}}` syntax for variable substitution.
@@ -128,15 +114,11 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
         return Value::Object(new_obj);
     }
     if let Some(arr) = value.as_array() {
-        let new_arr: Vec<Value> = arr
-            .iter()
-            .map(|v| resolve_variables_deep(v, context))
-            .collect();
+        let new_arr: Vec<Value> = arr.iter().map(|v| resolve_variables_deep(v, context)).collect();
         return Value::Array(new_arr);
     }
     value.clone()
 }
-
 /// Execute a single chain step with retry and timeout protection.
 ///
 /// This function handles the complete lifecycle of a single chain step:
@@ -179,22 +161,13 @@ async fn execute_chain_step_with_retry(
             extra: HashMap::new(),
             signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
-        let result = execute_driver_with_timeout(
-            executor,
-            &call,
-            driver_callback_arc.clone(),
-            Some(&driver_context),
-            timeout_secs,
-        )
-        .await;
+        let result = execute_driver_with_timeout(executor, &call, driver_callback_arc.clone(), Some(&driver_context), timeout_secs).await;
         match result {
             DriverExecutionResult::Success(output) => {
                 return Ok(output);
             }
-            DriverExecutionResult::Timeout(ref error_msg)
-            | DriverExecutionResult::Failure(ref error_msg) => {
+            DriverExecutionResult::Timeout(ref error_msg) | DriverExecutionResult::Failure(ref error_msg) => {
                 let is_timeout = result.is_timeout();
-
                 if let Some(cb) = workflow_callback {
                     if let Some(ref tid) = task_id {
                         if is_timeout {
@@ -208,18 +181,12 @@ async fn execute_chain_step_with_retry(
                 if retry_context.can_retry(&step_name) {
                     continue;
                 } else {
-                    return Err(anyhow::anyhow!(
-                        "Driver '{}' failed after {} retries: {}",
-                        step_name,
-                        max_retries,
-                        last_error.unwrap_or_default()
-                    ));
+                    return Err(anyhow::anyhow!("Driver '{}' failed after {} retries: {}", step_name, max_retries, last_error.unwrap_or_default()));
                 }
             }
         }
     }
 }
-
 /// Execute a chain workflow with category filtering.
 ///
 /// This is the main entry point for chain mode execution. It:
@@ -245,68 +212,40 @@ pub async fn execute_chain_with_categories(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    let filtered_drivers =
-        crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_drivers, input);
-
-    let llm_response = match scheduler
-        .generate_with_task(&chain_prompt, &task_id.clone().unwrap())
-        .await
-    {
+    let llm_response = match scheduler.generate_with_task(&chain_prompt, &task_id.clone().unwrap()).await {
         Ok(resp) => resp,
         Err(e) => {
-            return WorkflowExecutionResult::Failed {
-                error: format!("{}: {}", t!("error.llm_error"), e),
-                completed_steps: 0,
-            };
+            return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };
         }
     };
-
     let chain = match parse_chain_response(&llm_response) {
         Ok(chain) => chain,
         Err(e) => {
-            return WorkflowExecutionResult::Failed {
-                error: format!("Failed to parse chain: {}", e),
-                completed_steps: 0,
-            };
+            return WorkflowExecutionResult::Failed { error: format!("Failed to parse chain: {}", e), completed_steps: 0 };
         }
     };
-
     let mut context = HashMap::new();
     context.insert("user_input".to_string(), Value::String(input.to_string()));
     let mut results = Vec::new();
-
     let driver_callback_arc: Option<Arc<dyn DriverCallback>> = executor.get_driver_callback();
     let timeout_secs = get_timeout_secs(executor);
     let max_retries = DEFAULT_MAX_RETRIES_PER_SKILL;
-
     for (idx, step) in chain.steps.iter().enumerate() {
         // Check interruption before each step
-        if let Err(result) = check_task_interruption(
-            task_id.as_deref(),
-            executor.get_workflow_callback(),
-            idx,
-            &step.action,
-            None,
-        )
-        .await
-        {
+        if let Err(result) = check_task_interruption(task_id.as_deref(), executor.get_workflow_callback(), idx, &step.action, None).await {
             return result;
         }
-
         let step_name = step.action.clone();
         let step_start = Instant::now();
-
         // Resolve parameters
         let mut resolved_params = HashMap::new();
         for (key, value) in &step.parameters {
             let resolved = resolve_variables_deep(value, &context);
             resolved_params.insert(key.clone(), resolved);
         }
-        let call = DriverCall {
-            action: step.action.clone(),
-            parameters: resolved_params,
-        };
+        let call = DriverCall { action: step.action.clone(), parameters: resolved_params };
         // Execute with retry
         match execute_chain_step_with_retry(
             executor.get_executor(),
@@ -333,8 +272,7 @@ pub async fn execute_chain_with_categories(
                 let duration = step_start.elapsed().as_millis() as u64;
                 if let Some(cb) = executor.get_workflow_callback() {
                     if let Some(ref tid) = task_id {
-                        cb.on_step_success(tid, &step_name, idx, &output, duration)
-                            .await;
+                        cb.on_step_success(tid, &step_name, idx, &output, duration).await;
                     }
                 }
                 results.push(StepResult {
@@ -370,8 +308,5 @@ pub async fn execute_chain_with_categories(
         }).collect::<Vec<_>>()
     })
     .to_string();
-    WorkflowExecutionResult::CompletedWithRaw {
-        display: final_display,
-        raw_json,
-    }
+    WorkflowExecutionResult::CompletedWithRaw { display: final_display, raw_json }
 }

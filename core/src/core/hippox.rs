@@ -1,18 +1,14 @@
 //! Main Hippox core implementation
-
 use crate::core::tasks::NaturalLanguageTask;
 use crate::driver_scheduler::DriverScheduler;
 use crate::prompts::{build_driver_md_prompt, generate_drivers_registry};
 use crate::tasks::{self, ExecutableTask, TaskStatus};
 use crate::workflow::{WorkflowCallback, WorkflowExecutionResult, WorkflowExecutor, WorkflowMode};
 use crate::{
-    HippoxBatchResult, HippoxBoolResult, HippoxConfig, HippoxResult, HippoxStringResult,
-    HippoxVoidResult, IdentityInformation, IntentAnalysisResult, Pipeline, SystemPipeline,
-    WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
+    HippoxBatchResult, HippoxBoolResult, HippoxConfig, HippoxResult, HippoxStringResult, HippoxVoidResult, IdentityInformation, IntentAnalysisResult,
+    Pipeline, SystemPipeline, WorkflowExecResult, get_config, i18n, needs_format_conversion, t, update_config,
 };
-use hippox_drivers::{
-    DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names,
-};
+use hippox_drivers::{DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names};
 use langhub::LLMClient;
 use langhub::types::{ChatMessage, ModelProvider};
 use serde_json::{Value, json};
@@ -21,13 +17,10 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tracing::info;
-
 /// Global input token count for the entire process
 pub static INPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
-
 /// Global output token count for the entire process
 pub static OUTPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
-
 /// Core engine for Hippox
 ///
 /// This is the main entry point for the Hippox engine. It handles:
@@ -40,7 +33,6 @@ pub struct Hippox {
     executor: Executor,
     is_first_message: Arc<AtomicBool>,
 }
-
 impl Hippox {
     /// Create a new Hippox core instance with default ReAct workflow mode
     pub async fn new(
@@ -51,7 +43,6 @@ impl Hippox {
     ) -> anyhow::Result<Self> {
         Self::with_workflow_mode(provider, api_key, extra_keys, config).await
     }
-
     /// Create a new Hippox core instance with specified workflow mode
     pub async fn with_workflow_mode(
         provider: ModelProvider,
@@ -69,13 +60,8 @@ impl Hippox {
         // init llm scheduler
         let scheduler = DriverScheduler::new(llm);
         let executor = Executor::new();
-        Ok(Self {
-            scheduler,
-            executor,
-            is_first_message: Arc::new(AtomicBool::new(false)),
-        })
+        Ok(Self { scheduler, executor, is_first_message: Arc::new(AtomicBool::new(false)) })
     }
-
     /// Notify LLM about updated drivers registry
     ///
     /// Call this after dynamically registering new drivers.
@@ -84,7 +70,6 @@ impl Hippox {
         self.is_first_message.store(false, Ordering::SeqCst);
         HippoxResult::ok(())
     }
-
     /// Notify LLM about updated instances registry
     ///
     /// Call this after adding/removing instance configurations.
@@ -93,17 +78,14 @@ impl Hippox {
         self.is_first_message.store(false, Ordering::SeqCst);
         HippoxResult::ok(())
     }
-
     /// Get current drivers registry as JSON string
     pub fn get_drivers_registry(&self) -> HippoxStringResult {
         HippoxResult::ok(generate_drivers_registry())
     }
-
     /// Get identity information
     pub fn get_identity(&self) -> HippoxResult<IdentityInformation> {
         HippoxResult::ok(self.get_config().identity_information)
     }
-
     /// Update identity information with a closure
     pub fn update_identity<F>(&self, f: F) -> HippoxVoidResult
     where
@@ -116,7 +98,6 @@ impl Hippox {
             Err(e) => HippoxResult::system_error(e.to_string()),
         }
     }
-
     /// Set identity information directly
     pub fn set_identity(&self, identity: IdentityInformation) -> HippoxVoidResult {
         match self.update_config(|config| {
@@ -126,7 +107,6 @@ impl Hippox {
             Err(e) => HippoxResult::system_error(e.to_string()),
         }
     }
-
     /// Submit a natural language task and return task ID immediately
     ///
     /// This function creates a task, adds it to the global task pool, and returns the task ID.
@@ -156,17 +136,10 @@ impl Hippox {
             driver_callback,
             disabled_drivers,
         ));
-        let result = futures::executor::block_on(tasks::create_task_with_executable(
-            "natural_language".to_string(),
-            input.to_string(),
-            executable,
-        ));
+        let result = futures::executor::block_on(tasks::create_task_with_executable("natural_language".to_string(), input.to_string(), executable));
         if result.is_ok() {
             let task_id = result.unwrap();
-            info!(
-                "Created natural language task: {} with input: {}",
-                task_id, input
-            );
+            info!("Created natural language task: {} with input: {}", task_id, input);
             HippoxResult::ok(task_id)
         } else {
             let error = result.error.unwrap_or_else(|| "Unknown error".to_string());
@@ -174,7 +147,6 @@ impl Hippox {
             HippoxResult::system_error(format!("Failed to create task: {}", error))
         }
     }
-
     /// Submit multiple natural language tasks in batch and return task IDs immediately
     ///
     /// # Arguments
@@ -184,40 +156,16 @@ impl Hippox {
     /// Vector of task IDs in the same order as inputs wrapped in HippoxResult
     pub fn submit_batch(
         &self,
-        inputs: Vec<(
-            String,
-            WorkflowMode,
-            Option<String>,
-            Option<Arc<dyn WorkflowCallback>>,
-            Option<Arc<dyn DriverCallback>>,
-            Option<Vec<&str>>,
-        )>,
+        inputs: Vec<(String, WorkflowMode, Option<String>, Option<Arc<dyn WorkflowCallback>>, Option<Arc<dyn DriverCallback>>, Option<Vec<&str>>)>,
     ) -> HippoxBatchResult {
         let task_ids: Vec<String> = inputs
             .into_iter()
-            .map(
-                |(
-                    input,
-                    workflow_mode,
-                    _session_id,
-                    workflow_callback,
-                    driver_callback,
-                    disabled_drivers,
-                )| {
-                    self.submit(
-                        &input,
-                        workflow_mode,
-                        workflow_callback,
-                        driver_callback,
-                        disabled_drivers,
-                    )
-                    .unwrap_or(String::new())
-                },
-            )
+            .map(|(input, workflow_mode, _session_id, workflow_callback, driver_callback, disabled_drivers)| {
+                self.submit(&input, workflow_mode, workflow_callback, driver_callback, disabled_drivers).unwrap_or(String::new())
+            })
             .collect();
         HippoxResult::ok(task_ids)
     }
-
     /// Execute multiple natural language tasks in batch and return results directly
     ///
     /// # Arguments
@@ -227,31 +175,14 @@ impl Hippox {
     /// Vector of results in the same order as inputs wrapped in HippoxBatchResult
     pub async fn execute_batch(
         &self,
-        inputs: Vec<(
-            String,
-            WorkflowMode,
-            Option<Arc<dyn WorkflowCallback>>,
-            Option<Arc<dyn DriverCallback>>,
-            Option<Vec<&str>>,
-        )>,
+        inputs: Vec<(String, WorkflowMode, Option<Arc<dyn WorkflowCallback>>, Option<Arc<dyn DriverCallback>>, Option<Vec<&str>>)>,
     ) -> HippoxBatchResult {
         let mut results = Vec::new();
         for (input, workflow_mode, workflow_callback, driver_callback, disabled_drivers) in inputs {
-            results.push(
-                self.execute(
-                    &input,
-                    workflow_mode,
-                    workflow_callback,
-                    driver_callback,
-                    disabled_drivers,
-                )
-                .await
-                .unwrap_or(String::new()),
-            );
+            results.push(self.execute(&input, workflow_mode, workflow_callback, driver_callback, disabled_drivers).await.unwrap_or(String::new()));
         }
         HippoxResult::ok(results)
     }
-
     /// Execute natural language directly without task pool, returning the result asynchronously.
     ///
     /// Note: This function uses the task pool **only** for token counting via `TaskStateUpdater`.
@@ -286,39 +217,25 @@ impl Hippox {
             pool.tasks.insert(temp_task_id.clone(), task);
         }
         let pipeline = SystemPipeline::new();
-        let disabled_drivers_owned =
-            disabled_drivers.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
+        let disabled_drivers_owned = disabled_drivers.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
         // Step 1: intent analysis
-        let intent_result = match pipeline
-            .intent_analysis(&self.scheduler, input, &temp_task_id)
-            .await
-        {
+        let intent_result = match pipeline.intent_analysis(&self.scheduler, input, &temp_task_id).await {
             Ok(result) => result,
             Err(e) => {
                 tracing::warn!("Intent analysis failed: {}, using raw input", e);
-                IntentAnalysisResult {
-                    categories: vec![],
-                    clean_intent: input.to_string(),
-                }
+                IntentAnalysisResult { categories: vec![], clean_intent: input.to_string() }
             }
         };
         let clean_intent = &intent_result.clean_intent;
         let categories = &intent_result.categories;
         // Step 2: Workflow execution
-        let workflow_executor_with_id =
-            workflow_executor.clone().with_task_id(temp_task_id.clone());
+        let workflow_executor_with_id = workflow_executor.clone().with_task_id(temp_task_id.clone());
         // workflow callback
-        let workflow_executor_with_callbacks = if let Some(cb) = workflow_callback {
-            workflow_executor_with_id.with_workflow_callback(cb)
-        } else {
-            workflow_executor_with_id
-        };
+        let workflow_executor_with_callbacks =
+            if let Some(cb) = workflow_callback { workflow_executor_with_id.with_workflow_callback(cb) } else { workflow_executor_with_id };
         // driver callback
-        let workflow_executor_with_driver_cb = if let Some(cb) = driver_callback {
-            workflow_executor_with_callbacks.with_driver_callback(cb)
-        } else {
-            workflow_executor_with_callbacks
-        };
+        let workflow_executor_with_driver_cb =
+            if let Some(cb) = driver_callback { workflow_executor_with_callbacks.with_driver_callback(cb) } else { workflow_executor_with_callbacks };
         let workflow_result = if categories.is_empty() {
             pipeline
                 .workflow_execution(
@@ -332,41 +249,24 @@ impl Hippox {
         } else {
             let result = workflow_executor_with_driver_cb
                 .clone()
-                .execute_with_categories(
-                    &self.scheduler,
-                    clean_intent,
-                    categories,
-                    disabled_drivers_owned.as_deref(),
-                )
+                .execute_with_categories(&self.scheduler, clean_intent, categories, disabled_drivers_owned.as_deref())
                 .await;
             let json_output = match result {
                 WorkflowExecutionResult::Completed(output) => output,
                 WorkflowExecutionResult::CompletedWithRaw { raw_json, .. } => raw_json,
                 _ => String::new(),
             };
-            WorkflowExecResult {
-                json_output,
-                original_input: clean_intent.to_string(),
-            }
+            WorkflowExecResult { json_output, original_input: clean_intent.to_string() }
         };
         // Step 3: format conversion
         let final_output = if needs_format_conversion(input) {
-            let format_result = pipeline
-                .response_formatting(
-                    &self.scheduler,
-                    input,
-                    &workflow_result.json_output,
-                    &temp_task_id,
-                )
-                .await;
+            let format_result = pipeline.response_formatting(&self.scheduler, input, &workflow_result.json_output, &temp_task_id).await;
             format_result.final_output
         } else {
             workflow_result.json_output
         };
-        let (input_tokens, output_tokens) = tasks::get_task(&temp_task_id)
-            .await
-            .map(|task| (task.input_token_count, task.output_token_count))
-            .unwrap_or((0, 0));
+        let (input_tokens, output_tokens) =
+            tasks::get_task(&temp_task_id).await.map(|task| (task.input_token_count, task.output_token_count)).unwrap_or((0, 0));
         {
             let mut pool = tasks::TASK_POOL.write().await;
             // Remove temporary tasks from the task pool.
@@ -376,7 +276,6 @@ impl Hippox {
         OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, std::sync::atomic::Ordering::Relaxed);
         HippoxResult::ok_with_tokens(final_output, input_tokens, output_tokens)
     }
-
     /// heartbeat
     pub async fn heartbeat(&self) -> HippoxStringResult {
         let mut messages: Vec<ChatMessage> = Vec::new();
@@ -385,10 +284,7 @@ impl Hippox {
             Ok(result) => {
                 let usage = result.extract_usage();
                 let input_tokens = usage.as_ref().map(|u| u.prompt_tokens as u64).unwrap_or(0);
-                let output_tokens = usage
-                    .as_ref()
-                    .map(|u| u.completion_tokens as u64)
-                    .unwrap_or(0);
+                let output_tokens = usage.as_ref().map(|u| u.completion_tokens as u64).unwrap_or(0);
                 INPUT_TOKEN_COUNT.fetch_add(input_tokens, std::sync::atomic::Ordering::Relaxed);
                 OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, std::sync::atomic::Ordering::Relaxed);
                 HippoxResult::ok_with_tokens(result.text, input_tokens, output_tokens)
@@ -396,7 +292,6 @@ impl Hippox {
             Err(e) => HippoxResult::network_error(e.to_string()),
         }
     }
-
     /// List all available atomic drivers
     pub fn list_atomic_drivers(&self) -> HippoxStringResult {
         let drivers = get_all_drivers();
@@ -406,36 +301,26 @@ impl Hippox {
         let mut result = String::new();
         for driver in drivers {
             let emoji = driver.category().icon();
-            result.push_str(&format!(
-                "   {} - **{}**: {}\n",
-                emoji,
-                driver.name(),
-                driver.description()
-            ));
+            result.push_str(&format!("   {} - **{}**: {}\n", emoji, driver.name(), driver.description()));
         }
         HippoxResult::ok(result)
     }
-
     /// Get all loaded atomic driver names
     pub fn get_driver_names(&self) -> HippoxBatchResult {
         HippoxResult::ok(list_drivers_names())
     }
-
     /// Check if there are any atomic drivers available
     pub fn has_atomic_drivers(&self) -> HippoxBoolResult {
         HippoxResult::ok(!list_drivers_names().is_empty())
     }
-
     /// Get the executor
     pub fn executor(&self) -> &Executor {
         &self.executor
     }
-
     /// Get the scheduler
     pub fn scheduler(&self) -> &DriverScheduler {
         &self.scheduler
     }
- 
     /// Update configuration
     pub fn update_config<F>(&self, f: F) -> anyhow::Result<()>
     where
@@ -443,12 +328,10 @@ impl Hippox {
     {
         crate::config::update_config(f)
     }
-
     /// Get configuration
     pub fn get_config(&self) -> HippoxConfig {
         crate::config::get_config()
     }
-
     /// Get current global input token count
     ///
     /// This returns the total input tokens consumed across all tasks
@@ -466,7 +349,6 @@ impl Hippox {
     pub fn get_current_input_token_count(&self) -> u64 {
         INPUT_TOKEN_COUNT.load(std::sync::atomic::Ordering::Relaxed)
     }
-
     /// Get current global output token count
     ///
     /// This returns the total output tokens consumed across all tasks
@@ -484,7 +366,6 @@ impl Hippox {
     pub fn get_current_output_token_count(&self) -> u64 {
         OUTPUT_TOKEN_COUNT.load(std::sync::atomic::Ordering::Relaxed)
     }
-
     /// Storage task pool to a JSON file and remove completed tasks from memory
     ///
     /// This function saves all completed/failed/cancelled/timeout tasks from the task pool
@@ -511,15 +392,7 @@ impl Hippox {
             let terminal_tasks: Vec<tasks::Task> = pool
                 .tasks
                 .values()
-                .filter(|task| {
-                    matches!(
-                        task.status,
-                        TaskStatus::Completed
-                            | TaskStatus::Failed
-                            | TaskStatus::Cancelled
-                            | TaskStatus::Timeout
-                    )
-                })
+                .filter(|task| matches!(task.status, TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled | TaskStatus::Timeout))
                 .cloned()
                 .collect();
             let removed_count = terminal_tasks.len();
@@ -576,24 +449,14 @@ impl Hippox {
         };
         match fs::write(&path, json_string) {
             Ok(_) => {
-                info!(
-                    "Successfully backed up and removed {} terminal tasks to: {}",
-                    removed_count, path
-                );
+                info!("Successfully backed up and removed {} terminal tasks to: {}", removed_count, path);
                 HippoxResult::ok(())
             }
             Err(e) => {
                 // File write failed, but tasks are already removed!
                 // This is a problem - data loss has occurred.
-                tracing::error!(
-                    "Failed to write backup file after removing tasks! Data loss occurred. Path: {}, Error: {}",
-                    path,
-                    e
-                );
-                HippoxResult::system_error(format!(
-                    "Failed to write file {} after removing tasks (data may be lost): {}",
-                    path, e
-                ))
+                tracing::error!("Failed to write backup file after removing tasks! Data loss occurred. Path: {}, Error: {}", path, e);
+                HippoxResult::system_error(format!("Failed to write file {} after removing tasks (data may be lost): {}", path, e))
             }
         }
     }

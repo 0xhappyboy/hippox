@@ -2,7 +2,6 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::RwLock;
-
 #[derive(Debug, Deserialize)]
 struct Translations {
     app: HashMap<String, String>,
@@ -10,20 +9,15 @@ struct Translations {
     error: HashMap<String, String>,
     prompt: HashMap<String, String>,
 }
-
 static CURRENT_LANG: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new("en".to_string()));
-static TRANSLATIONS: Lazy<RwLock<HashMap<String, Translations>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
-
+static TRANSLATIONS: Lazy<RwLock<HashMap<String, Translations>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 const EN_TOML: &str = include_str!("./i18n/en.toml");
 const ZH_TOML: &str = include_str!("./i18n/zh.toml");
-
 pub fn init() {
     load_translations();
     let lang = std::env::var("HIPPO_LANG").unwrap_or_else(|_| "en".to_string());
     set_language(&lang);
 }
-
 fn load_translations() {
     let mut translations = HashMap::new();
     if let Ok(trans) = toml::from_str(EN_TOML) {
@@ -35,12 +29,10 @@ fn load_translations() {
     let mut store = TRANSLATIONS.write().unwrap();
     *store = translations;
 }
-
 pub fn set_language(lang: &str) {
     let mut current = CURRENT_LANG.write().unwrap();
     *current = lang.to_string();
 }
-
 pub fn t(key: &str) -> String {
     let lang = get_language();
     let translations = TRANSLATIONS.read().unwrap();
@@ -56,7 +48,6 @@ pub fn t(key: &str) -> String {
     }
     key.to_string()
 }
-
 pub fn t_with_args(key: &str, args: &[String]) -> String {
     let mut result = t(key);
     for (i, arg) in args.iter().enumerate() {
@@ -64,7 +55,6 @@ pub fn t_with_args(key: &str, args: &[String]) -> String {
     }
     result
 }
-
 fn get_value(trans: &Translations, key: &str) -> Option<String> {
     let parts: Vec<&str> = key.split('.').collect();
     if parts.len() != 2 {
@@ -78,11 +68,9 @@ fn get_value(trans: &Translations, key: &str) -> Option<String> {
         _ => None,
     }
 }
-
 fn get_language() -> String {
     CURRENT_LANG.read().unwrap().clone()
 }
-
 #[macro_export]
 macro_rules! t {
     ($key:expr) => {

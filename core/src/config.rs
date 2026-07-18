@@ -1,13 +1,9 @@
 //! Core configuration structure and global state
-
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::RwLock;
-
 /// Global static configuration instance
-pub(crate) static HIPPOX_CORE_CONFIG: Lazy<RwLock<HippoxConfig>> =
-    Lazy::new(|| RwLock::new(HippoxConfig::default()));
-
+pub(crate) static HIPPOX_CORE_CONFIG: Lazy<RwLock<HippoxConfig>> = Lazy::new(|| RwLock::new(HippoxConfig::default()));
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct IdentityInformation {
     // Name, Default: Hippox
@@ -31,7 +27,6 @@ pub struct IdentityInformation {
     // Taboos / prohibited topics (e.g., "no politics", "no medical advice")
     pub taboos: Option<String>,
 }
-
 impl Default for IdentityInformation {
     fn default() -> Self {
         Self {
@@ -48,7 +43,6 @@ impl Default for IdentityInformation {
         }
     }
 }
-
 /// Hippox global configuration
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct HippoxConfig {
@@ -57,27 +51,20 @@ pub struct HippoxConfig {
     // Identity information
     pub identity_information: IdentityInformation,
 }
-
 impl Default for HippoxConfig {
     fn default() -> Self {
-        Self {
-            lang: "en".to_string(),
-            identity_information: IdentityInformation::default(),
-        }
+        Self { lang: "en".to_string(), identity_information: IdentityInformation::default() }
     }
 }
-
 impl HippoxConfig {
     /// Get identity information reference
     pub fn get_identity(&self) -> &IdentityInformation {
         &self.identity_information
     }
-
     /// Get mutable identity information reference
     pub fn get_identity_mut(&mut self) -> &mut IdentityInformation {
         &mut self.identity_information
     }
-
     /// Update identity information
     pub fn update_identity<F>(&mut self, f: F) -> &mut Self
     where
@@ -86,14 +73,12 @@ impl HippoxConfig {
         f(&mut self.identity_information);
         self
     }
-
     /// Load from TOML configuration file
     pub fn load_from_toml_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: HippoxConfig = toml::from_str(&content)?;
         Ok(config)
     }
-
     /// Load from JSON configuration file
     pub fn load_from_json_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
@@ -101,12 +86,10 @@ impl HippoxConfig {
         Ok(config)
     }
 }
-
 /// Get a clone of the global configuration
 pub fn get_config() -> HippoxConfig {
     HIPPOX_CORE_CONFIG.read().unwrap().clone()
 }
-
 /// Update config with a closure
 pub fn update_config<F>(f: F) -> anyhow::Result<()>
 where
@@ -116,19 +99,16 @@ where
     f(&mut global);
     Ok(())
 }
-
 /// Get current language setting
 pub fn get_lang() -> String {
     HIPPOX_CORE_CONFIG.read().unwrap().lang.clone()
 }
-
 /// Set language
 pub fn set_lang(lang: String) -> anyhow::Result<()> {
     let mut config = HIPPOX_CORE_CONFIG.write().unwrap();
     config.lang = lang;
     Ok(())
 }
-
 /// Get the global Hippox core configuration (alias for get_config for backward compatibility)
 pub fn get_hippox_core_config() -> HippoxConfig {
     HIPPOX_CORE_CONFIG.read().unwrap().clone()

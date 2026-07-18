@@ -61,7 +61,10 @@
 //! In this example:
 //! - If `step1` fails after retries, it is skipped and `step2` still executes (but `{{content}}` will be empty)
 //! - If `step2` fails after retries, the entire workflow terminates
-
+use super::core::WorkflowExecutor;
+use super::retry::*;
+use super::types::*;
+use super::utils::VARIABLE_REGEX;
 use crate::prompts::build_plan_prompt;
 use crate::t;
 use crate::{DriverScheduler, TASK_STEP_SIGNAL_BUS, check_task_interruption};
@@ -71,18 +74,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
-
-use super::core::WorkflowExecutor;
-use super::retry::*;
-use super::types::*;
-use super::utils::VARIABLE_REGEX;
-
 pub fn parse_plan_response(response: &str) -> anyhow::Result<PlanInstruction> {
     let json_str = WorkflowExecutor::extract_json(response);
     let instruction: PlanInstruction = serde_json::from_str(&json_str)?;
     Ok(instruction)
 }
-
 fn resolve_value_ref(value_ref: &ValueRef, context: &Workflow) -> Value {
     match value_ref {
         ValueRef::Literal(value) => value.clone(),
@@ -99,7 +95,6 @@ fn resolve_value_ref(value_ref: &ValueRef, context: &Workflow) -> Value {
         ValueRef::Expression(expr) => Value::String(expr.expr.clone()),
     }
 }
-
 fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Value {
     if let Some(s) = value.as_str() {
         if s.contains("{{") && s.contains("}}") {
@@ -139,15 +134,11 @@ fn resolve_variables_deep(value: &Value, context: &HashMap<String, Value>) -> Va
         return Value::Object(new_obj);
     }
     if let Some(arr) = value.as_array() {
-        let new_arr: Vec<Value> = arr
-            .iter()
-            .map(|v| resolve_variables_deep(v, context))
-            .collect();
+        let new_arr: Vec<Value> = arr.iter().map(|v| resolve_variables_deep(v, context)).collect();
         return Value::Array(new_arr);
     }
     value.clone()
 }
-
 fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
     let left = resolve_value_ref(&condition.left, context);
     let right = resolve_value_ref(&condition.right, context);
@@ -172,14 +163,10 @@ fn evaluate_condition(condition: &Condition, context: &Workflow) -> bool {
                 false
             }
         }
-        "contains" => left
-            .as_str()
-            .map(|s| s.contains(right.as_str().unwrap_or("")))
-            .unwrap_or(false),
+        "contains" => left.as_str().map(|s| s.contains(right.as_str().unwrap_or(""))).unwrap_or(false),
         _ => false,
     }
 }
-
 /// Execute a single plan step with retry and timeout
 async fn execute_plan_step_with_retry(
     executor: &Executor,
@@ -204,72 +191,41 @@ async fn execute_plan_step_with_retry(
             extra: HashMap::new(),
             signal_bus: Some(&TASK_STEP_SIGNAL_BUS),
         };
-        let result = execute_driver_with_timeout(
-            executor,
-            &call,
-            driver_callback_arc.clone(),
-            Some(&driver_context),
-            timeout_secs,
-        )
-        .await;
+        let result = execute_driver_with_timeout(executor, &call, driver_callback_arc.clone(), Some(&driver_context), timeout_secs).await;
         match result {
             DriverExecutionResult::Success(output) => {
                 return Ok(output);
             }
-            DriverExecutionResult::Timeout(ref error_msg)
-            | DriverExecutionResult::Failure(ref error_msg) => {
+            DriverExecutionResult::Timeout(ref error_msg) | DriverExecutionResult::Failure(ref error_msg) => {
                 let is_timeout = result.is_timeout();
                 if let Some(cb) = workflow_callback {
                     if let Some(ref tid) = task_id {
                         if is_timeout {
-                            cb.on_step_timeout(tid, &step_name, step_index, error_msg, 0)
-                                .await;
+                            cb.on_step_timeout(tid, &step_name, step_index, error_msg, 0).await;
                         } else {
-                            cb.on_step_failure(tid, &step_name, step_index, error_msg, 0)
-                                .await;
+                            cb.on_step_failure(tid, &step_name, step_index, error_msg, 0).await;
                         }
                     }
                 }
                 last_error = Some(error_msg.clone());
                 if retry_context.can_retry(&step_name) {
-                    info!(
-                        "Retrying plan step '{}' (attempt {}/{})",
-                        step_name,
-                        retry_context.get_retry_count(&step_name),
-                        max_retries
-                    );
+                    info!("Retrying plan step '{}' (attempt {}/{})", step_name, retry_context.get_retry_count(&step_name), max_retries);
                     continue;
                 } else {
                     // Check if we should skip on error
                     if let Some(action) = on_error_action {
                         if action == "skip" {
-                            info!(
-                                "Skipping plan step '{}' after {} retries",
-                                step_name, max_retries
-                            );
-                            return Err(anyhow::anyhow!(
-                                "SKIPPED: {}",
-                                last_error.unwrap_or_default()
-                            ));
+                            info!("Skipping plan step '{}' after {} retries", step_name, max_retries);
+                            return Err(anyhow::anyhow!("SKIPPED: {}", last_error.unwrap_or_default()));
                         }
                     }
-                    return Err(anyhow::anyhow!(
-                        "Driver '{}' failed after {} retries: {}",
-                        step_name,
-                        max_retries,
-                        last_error.unwrap_or_default()
-                    ));
+                    return Err(anyhow::anyhow!("Driver '{}' failed after {} retries: {}", step_name, max_retries, last_error.unwrap_or_default()));
                 }
             }
         }
     }
 }
-
-async fn execute_workflow_plan(
-    executor: &WorkflowExecutor,
-    plan: &WorkflowPlan,
-    task_id: Option<&str>,
-) -> anyhow::Result<(String, usize, usize)> {
+async fn execute_workflow_plan(executor: &WorkflowExecutor, plan: &WorkflowPlan, task_id: Option<&str>) -> anyhow::Result<(String, usize, usize)> {
     let mut context = Workflow::new();
     for (key, value) in &plan.parameters {
         context.set_variable(key, value.clone());
@@ -290,15 +246,7 @@ async fn execute_workflow_plan(
         })
         .ok();
         // Check interruption
-        match check_task_interruption(
-            task_id,
-            executor.get_workflow_callback(),
-            idx,
-            &step.action,
-            checkpoint.clone(),
-        )
-        .await
-        {
+        match check_task_interruption(task_id, executor.get_workflow_callback(), idx, &step.action, checkpoint.clone()).await {
             Ok(_) => {}
             Err(result) => {
                 return Err(anyhow::anyhow!("{:?}", result));
@@ -318,10 +266,7 @@ async fn execute_workflow_plan(
             let final_resolved = resolve_variables_deep(&resolved, &string_context);
             resolved_params.insert(key.clone(), final_resolved);
         }
-        let call = DriverCall {
-            action: step.action.clone(),
-            parameters: resolved_params,
-        };
+        let call = DriverCall { action: step.action.clone(), parameters: resolved_params };
         let on_error_action = step.on_error.as_ref().map(|e| e.action.as_str());
         // Execute with retry
         match execute_plan_step_with_retry(
@@ -347,11 +292,7 @@ async fn execute_workflow_plan(
                 context.add_step_result(WorkflowStepResult {
                     step_id: step.id.clone(),
                     driver: step.action.clone(),
-                    input: step
-                        .parameters
-                        .iter()
-                        .map(|(k, v)| (k.clone(), value_ref_to_value(v)))
-                        .collect(),
+                    input: step.parameters.iter().map(|(k, v)| (k.clone(), value_ref_to_value(v))).collect(),
                     output: output.clone(),
                     success: true,
                     error: None,
@@ -367,20 +308,13 @@ async fn execute_workflow_plan(
                     context.add_step_result(WorkflowStepResult {
                         step_id: step.id.clone(),
                         driver: step.action.clone(),
-                        input: step
-                            .parameters
-                            .iter()
-                            .map(|(k, v)| (k.clone(), value_ref_to_value(v)))
-                            .collect(),
+                        input: step.parameters.iter().map(|(k, v)| (k.clone(), value_ref_to_value(v))).collect(),
                         output: String::new(),
                         success: false,
                         error: Some(actual_error.to_string()),
                     });
                     failed_count += 1;
-                    info!(
-                        "Plan step '{}' skipped after retries, continuing chain",
-                        step.id
-                    );
+                    info!("Plan step '{}' skipped after retries, continuing chain", step.id);
                     continue;
                 }
                 // Check if this step has on_error handling
@@ -390,20 +324,13 @@ async fn execute_workflow_plan(
                             context.add_step_result(WorkflowStepResult {
                                 step_id: step.id.clone(),
                                 driver: step.action.clone(),
-                                input: step
-                                    .parameters
-                                    .iter()
-                                    .map(|(k, v)| (k.clone(), value_ref_to_value(v)))
-                                    .collect(),
+                                input: step.parameters.iter().map(|(k, v)| (k.clone(), value_ref_to_value(v))).collect(),
                                 output: String::new(),
                                 success: false,
                                 error: Some(e.to_string()),
                             });
                             failed_count += 1;
-                            info!(
-                                "Plan step '{}' skipped via error handler, continuing chain",
-                                step.id
-                            );
+                            info!("Plan step '{}' skipped via error handler, continuing chain", step.id);
                             continue;
                         }
                         "fail" => {
@@ -427,7 +354,6 @@ async fn execute_workflow_plan(
     };
     Ok((final_output, success_count, failed_count))
 }
-
 fn value_ref_to_value(value_ref: &ValueRef) -> Value {
     match value_ref {
         ValueRef::Literal(value) => value.clone(),
@@ -435,7 +361,6 @@ fn value_ref_to_value(value_ref: &ValueRef) -> Value {
         ValueRef::Expression(expr) => Value::String(format!("$expr:{}", expr.expr)),
     }
 }
-
 pub async fn execute_plan_and_execute_with_categories(
     executor: &WorkflowExecutor,
     scheduler: &DriverScheduler,
@@ -445,39 +370,24 @@ pub async fn execute_plan_and_execute_with_categories(
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
-    let filtered_drivers =
-        crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
+    let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let plan_prompt = crate::prompts::build_plan_prompt_with_categories(&filtered_drivers, input);
-    let llm_response = match scheduler
-        .generate_with_task(&plan_prompt, &task_id.clone().unwrap())
-        .await
-    {
+    let llm_response = match scheduler.generate_with_task(&plan_prompt, &task_id.clone().unwrap()).await {
         Ok(resp) => resp,
         Err(e) => {
-            return WorkflowExecutionResult::Failed {
-                error: format!("{}: {}", t!("error.llm_error"), e),
-                completed_steps: 0,
-            };
+            return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };
         }
     };
     let instruction = match parse_plan_response(&llm_response) {
         Ok(instr) => instr,
         Err(e) => {
-            return WorkflowExecutionResult::Failed {
-                error: format!("Failed to parse plan: {}", e),
-                completed_steps: 0,
-            };
+            return WorkflowExecutionResult::Failed { error: format!("Failed to parse plan: {}", e), completed_steps: 0 };
         }
     };
     match instruction {
-        PlanInstruction {
-            mode,
-            plan,
-            message,
-        } => {
+        PlanInstruction { mode, plan, message } => {
             if mode == "done" {
-                let final_msg =
-                    message.unwrap_or_else(|| t!("driver.no_actions_executed").to_string());
+                let final_msg = message.unwrap_or_else(|| t!("driver.no_actions_executed").to_string());
                 return WorkflowExecutionResult::Completed(final_msg);
             }
             if let Some(plan) = plan {
@@ -490,26 +400,16 @@ pub async fn execute_plan_and_execute_with_categories(
                             "failed_count": failed_count,
                         })
                         .to_string();
-                        WorkflowExecutionResult::CompletedWithRaw {
-                            display: result,
-                            raw_json,
-                        }
+                        WorkflowExecutionResult::CompletedWithRaw { display: result, raw_json }
                     }
                     Err(e) => {
                         let error_msg = e.to_string();
                         if error_msg.contains("Cancelled") {
                             return WorkflowExecutionResult::Cancelled { completed_steps: 0 };
                         } else if error_msg.contains("Paused") {
-                            return WorkflowExecutionResult::Paused {
-                                checkpoint: None,
-                                completed_steps: 0,
-                                partial_output: String::new(),
-                            };
+                            return WorkflowExecutionResult::Paused { checkpoint: None, completed_steps: 0, partial_output: String::new() };
                         }
-                        WorkflowExecutionResult::Failed {
-                            error: format!("Workflow failed: {}", error_msg),
-                            completed_steps: 0,
-                        }
+                        WorkflowExecutionResult::Failed { error: format!("Workflow failed: {}", error_msg), completed_steps: 0 }
                     }
                 }
             } else {
