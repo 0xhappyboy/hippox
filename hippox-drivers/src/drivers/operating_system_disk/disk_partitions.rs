@@ -1,67 +1,72 @@
-//! Disk partitions driver
-
+//! Disk partitions driver module
+//!
+//! This module provides functionality to get all disk partitions with
+//! mount points and filesystem types.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     drivers::operating_system_disk::common::DiskPartition,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::fs;
 use sysinfo::Disks;
-
+use tracing::{debug, info};
 /// Driver for getting disk partitions
 #[derive(Debug)]
 pub struct DiskPartitionsDriver;
-
 #[async_trait::async_trait]
 impl Driver for DiskPartitionsDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "disk_partitions"
+        return "disk_partitions";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Get all disk partitions with mount points and filesystem types"
+        return "Get all disk partitions with mount points and filesystem types";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to understand disk layout and mount points"
+        return "Use this skill to understand disk layout and mount points";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "disk_partitions",
             "parameters": {}
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        r#"Disk Partitions:
+        return r#"Disk Partitions:
 Device: /dev/sda1 | Mount: /boot | FS: ext4 | Size: 1 GB | Encrypted: No
 Device: /dev/sda2 | Mount: / | FS: ext4 | Size: 100 GB | Encrypted: No
 Device: /dev/sda3 | Mount: /home | FS: ext4 | Size: 400 GB | Encrypted: Yes"#
-            .to_string()
+            .to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemDisk
+        return DriverCategory::OperatingSystemDisk;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing disk_partitions driver");
         let partitions = get_partitions()?;
         if partitions.is_empty() {
+            info!("No partitions found");
             return Ok("No partitions found".to_string());
         }
         let mut output = String::from("Disk Partitions:\n");
+        let partitions_size = partitions.len();
         for part in partitions {
             output.push_str(&format!(
                 "Device: {} | Mount: {} | FS: {} | Size: {} GB | Encrypted: {}\n",
@@ -72,16 +77,19 @@ Device: /dev/sda3 | Mount: /home | FS: ext4 | Size: 400 GB | Encrypted: Yes"#
                 if part.is_encrypted { "Yes" } else { "No" }
             ));
         }
-        Ok(output)
+        info!("Retrieved {} partitions", partitions_size);
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        return Ok(());
     }
 }
-
-fn get_partitions() -> Result<Vec<DiskPartition>> {
+fn get_partitions() -> DriverResult<Vec<DiskPartition>> {
     let mut partitions = Vec::new();
     #[cfg(target_os = "linux")]
     {
-        // Read from /proc/mounts and /etc/mtab
-        if let Ok(content) = std::fs::read_to_string("/proc/mounts") {
+        if let Ok(content) = fs::read_to_string("/proc/mounts") {
             for line in content.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 3 {
@@ -109,21 +117,17 @@ fn get_partitions() -> Result<Vec<DiskPartition>> {
                         continue;
                     }
                     // Get size info
-                    let total_size = match std::fs::metadata(&mount_point) {
+                    let total_size = match fs::metadata(&mount_point) {
                         Ok(_) => {
                             if let Ok(statvfs) = nix::sys::statvfs::statvfs(&mount_point) {
-                                (statvfs.blocks() as u64 * statvfs.fragment_size() as u64)
-                                    / (1024 * 1024 * 1024)
+                                (statvfs.blocks() as u64 * statvfs.fragment_size() as u64) / (1024 * 1024 * 1024)
                             } else {
                                 0
                             }
                         }
                         Err(_) => 0,
                     };
-                    // Check encryption (simplified)
-                    let is_encrypted = device.contains("crypt")
-                        || file_system.contains("crypto")
-                        || file_system.contains("luks");
+                    let is_encrypted = device.contains("crypt") || file_system.contains("crypto") || file_system.contains("luks");
                     partitions.push(DiskPartition {
                         device,
                         mount_point,
@@ -140,7 +144,6 @@ fn get_partitions() -> Result<Vec<DiskPartition>> {
     }
     #[cfg(not(target_os = "linux"))]
     {
-        // Use sysinfo for non-Linux
         let disks = Disks::new_with_refreshed_list();
         for disk in &disks {
             partitions.push(DiskPartition {
@@ -155,13 +158,11 @@ fn get_partitions() -> Result<Vec<DiskPartition>> {
             });
         }
     }
-    Ok(partitions)
+    return Ok(partitions);
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_disk_partitions_metadata() {
         let driver = DiskPartitionsDriver;

@@ -1,35 +1,28 @@
-//! Service search Driver
-
+//! Service search Driver - search services by keyword
 use super::common::search_services;
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for searching services
 #[derive(Debug)]
 pub struct ServiceSearchDriver;
-
 #[async_trait::async_trait]
 impl Driver for ServiceSearchDriver {
     fn name(&self) -> &str {
-        "service_search"
+        return "service_search";
     }
-
     fn description(&self) -> &str {
-        "Search for services by keyword"
+        return "Search for services by keyword";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to find services matching a keyword in name or description."
+        return "Use this skill to find services matching a keyword in name or description.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "keyword".to_string(),
             param_type: "string".to_string(),
             description: "Keyword to search for".to_string(),
@@ -37,44 +30,46 @@ impl Driver for ServiceSearchDriver {
             default: None,
             example: Some(Value::String("web".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "service_search",
             "parameters": {
                 "keyword": "web"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Services matching 'web':\n1. nginx - Web Server\n2. apache2 - Web Server".to_string()
+        return "Services matching 'web':\n1. nginx - Web Server\n2. apache2 - Web Server".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemServices
+        return DriverCategory::OperatingSystemServices;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let keyword = parameters
-            .get("keyword")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'keyword' parameter"))?;
-        let services = search_services(keyword)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing service_search driver");
+        let keyword = parameters.get("keyword").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'keyword' parameter");
+            return DriverError::missing_parameter("keyword");
+        })?;
+        let services = search_services(keyword).map_err(|e| {
+            debug!("Failed to search services with keyword '{}': {}", keyword, e);
+            return DriverError::execution(format!("Failed to search services: {}", e));
+        })?;
         if services.is_empty() {
+            info!("No services found matching '{}'", keyword);
             return Ok(format!("No services found matching '{}'", keyword));
         }
         let mut result = format!("Services matching '{}':\n", keyword);
         for (i, svc) in services.iter().enumerate() {
             result.push_str(&format!("{}. {} - {}\n", i + 1, svc.name, svc.description));
         }
-        Ok(result)
+        info!("Found {} services matching '{}'", services.len(), keyword);
+        return Ok(result);
     }
 }

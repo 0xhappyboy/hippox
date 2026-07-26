@@ -1,71 +1,59 @@
 //! WiFi hotspot stop skill - stop mobile hotspot
-
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
-
+use tracing::{debug, info};
+/// Driver for stopping a mobile hotspot
 #[derive(Debug)]
 pub struct WifiHotspotStopDriver;
-
 #[async_trait::async_trait]
 impl Driver for WifiHotspotStopDriver {
     fn name(&self) -> &str {
-        "wifi_hotspot_stop"
+        return "wifi_hotspot_stop";
     }
-
     fn description(&self) -> &str {
-        "Stop the mobile hotspot (soft AP mode)"
+        return "Stop the mobile hotspot (soft AP mode)";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to stop the WiFi hotspot that was previously created."
+        return "Use this skill to stop the WiFi hotspot that was previously created.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "wifi_hotspot_stop"
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Hotspot stopped".to_string()
+        return "Hotspot stopped".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::Wifi
+        return DriverCategory::Wifi;
     }
-
     async fn execute(
         &self,
-        parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _parameters: &HashMap<String, Value>,
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing wifi_hotspot_stop driver");
         #[cfg(target_os = "windows")]
         {
-            Command::new("netsh")
-                .args(["wlan", "stop", "hostednetwork"])
-                .output()?;
+            Command::new("netsh").args(["wlan", "stop", "hostednetwork"]).output().map_err(|e| {
+                debug!("Failed to stop hostednetwork: {}", e);
+                return DriverError::execution(format!("Failed to stop hostednetwork: {}", e));
+            })?;
         }
-
         #[cfg(target_os = "linux")]
         {
-            let _ = Command::new("nmcli")
-                .args(["connection", "down", "Hotspot"])
-                .output();
+            let _ = Command::new("nmcli").args(["connection", "down", "Hotspot"]).output();
         }
-
-        Ok("Hotspot stopped".to_string())
+        info!("Hotspot stopped");
+        return Ok("Hotspot stopped".to_string());
     }
 }

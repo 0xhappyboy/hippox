@@ -1,12 +1,13 @@
 //! Shared utilities for operating system security
-
+//!
+//! This module provides common data structures and utility functions
+//! for security operations across all security drivers.
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use sysinfo::{System, Users};
-
-// ============ Existing types and constants (keep as is) ============
-
+use tracing::{debug, info};
+// ============ Existing types and constants ============
 /// Weak password detection result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeakPasswordResult {
@@ -16,7 +17,6 @@ pub struct WeakPasswordResult {
     pub reason: String,
     pub severity: String,
 }
-
 /// Security policy assessment result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityPolicyResult {
@@ -27,7 +27,6 @@ pub struct SecurityPolicyResult {
     pub severity: String,
     pub recommendation: String,
 }
-
 /// CVE vulnerability information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CveInfo {
@@ -40,7 +39,6 @@ pub struct CveInfo {
     pub references: Vec<String>,
     pub exploit_available: bool,
 }
-
 /// Threat intelligence result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThreatIntelResult {
@@ -54,7 +52,6 @@ pub struct ThreatIntelResult {
     pub related_indicators: Vec<String>,
     pub source: String,
 }
-
 /// Phishing URL detection result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhishingDetectionResult {
@@ -65,7 +62,6 @@ pub struct PhishingDetectionResult {
     pub redirects: Vec<String>,
     pub domain_reputation: String,
 }
-
 /// Password strength level
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PasswordStrength {
@@ -75,9 +71,8 @@ pub enum PasswordStrength {
     Strong,
     VeryStrong,
 }
-
 // ============ Permission Check Types ============
-
+/// Permission check result for a file or directory
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionCheckResult {
     pub path: String,
@@ -90,7 +85,7 @@ pub struct PermissionCheckResult {
     pub permissions: String,
     pub issues: Vec<String>,
 }
-
+/// Permission scan result for a directory
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionScanResult {
     pub path: String,
@@ -98,9 +93,8 @@ pub struct PermissionScanResult {
     pub issues_found: usize,
     pub results: Vec<PermissionCheckResult>,
 }
-
 // ============ Account Security Types ============
-
+/// Account security check result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountSecurityResult {
     pub username: String,
@@ -115,9 +109,8 @@ pub struct AccountSecurityResult {
     pub is_system: bool,
     pub issues: Vec<String>,
 }
-
 // ============ Baseline Check Types ============
-
+/// Baseline check result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BaselineCheckResult {
     pub category: String,
@@ -128,9 +121,8 @@ pub struct BaselineCheckResult {
     pub severity: String,
     pub recommendation: String,
 }
-
 // ============ Share Check Types ============
-
+/// Network share information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShareInfo {
     pub name: String,
@@ -141,9 +133,8 @@ pub struct ShareInfo {
     pub permissions: String,
     pub security_issues: Vec<String>,
 }
-
 // ============ System Log Types ============
-
+/// System log entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
     pub timestamp: String,
@@ -153,16 +144,15 @@ pub struct LogEntry {
     pub message: String,
     pub severity: String,
 }
-
+/// Log query result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogQueryResult {
     pub total_entries: usize,
     pub entries: Vec<LogEntry>,
     pub query: String,
 }
-
 // ============ Persistence Types ============
-
+/// Persistence mechanism entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistenceEntry {
     pub name: String,
@@ -173,9 +163,8 @@ pub struct PersistenceEntry {
     pub suspicious: bool,
     pub reason: String,
 }
-
 // ============ Privilege Escalation Types ============
-
+/// Privilege escalation check result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivilegeEscalationResult {
     pub check_name: String,
@@ -184,9 +173,8 @@ pub struct PrivilegeEscalationResult {
     pub details: String,
     pub severity: String,
 }
-
 // ============ Patch Detection Types ============
-
+/// Patch information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatchInfo {
     pub name: String,
@@ -196,7 +184,7 @@ pub struct PatchInfo {
     pub severity: String,
     pub description: String,
 }
-
+/// Patch scan result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatchScanResult {
     pub total_checked: usize,
@@ -204,9 +192,8 @@ pub struct PatchScanResult {
     pub missing: usize,
     pub patches: Vec<PatchInfo>,
 }
-
 // ============ Registry Monitor Types (Windows) ============
-
+/// Windows registry key information
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryKeyInfo {
@@ -217,9 +204,8 @@ pub struct RegistryKeyInfo {
     pub last_modified: String,
     pub security_issues: Vec<String>,
 }
-
 // ============ Common Constants ============
-
+/// Common weak passwords list for security checks
 pub const COMMON_WEAK_PASSWORDS: &[&str] = &[
     "password",
     "123456",
@@ -255,54 +241,35 @@ pub const COMMON_WEAK_PASSWORDS: &[&str] = &[
     "passw0rd",
     "p@ssw0rd",
 ];
-
-pub const COMMON_WEAK_USERNAMES: &[&str] = &[
-    "admin",
-    "root",
-    "user",
-    "guest",
-    "test",
-    "demo",
-    "administrator",
-    "sysadmin",
-    "webmaster",
-    "postgres",
-    "mysql",
-    "oracle",
-    "sa",
-];
-
-// ============ Existing Functions (keep as is) ============
-
+/// Common weak usernames for security checks
+pub const COMMON_WEAK_USERNAMES: &[&str] =
+    &["admin", "root", "user", "guest", "test", "demo", "administrator", "sysadmin", "webmaster", "postgres", "mysql", "oracle", "sa"];
+// ============ Password Functions ============
+/// Check if a password is weak based on common patterns and rules
 pub fn is_password_weak(password: &str) -> (bool, String) {
+    debug!("Checking password strength");
     let password_lower = password.to_lowercase();
     if COMMON_WEAK_PASSWORDS.contains(&password_lower.as_str()) {
-        return (
-            true,
-            "Password is in the list of common weak passwords".to_string(),
-        );
+        info!("Password is in common weak passwords list");
+        return (true, "Password is in the list of common weak passwords".to_string());
     }
     if password.len() < 8 {
-        return (
-            true,
-            "Password is too short (less than 8 characters)".to_string(),
-        );
+        info!("Password is too short");
+        return (true, "Password is too short (less than 8 characters)".to_string());
     }
     let has_upper = password.chars().any(|c| c.is_uppercase());
     let has_lower = password.chars().any(|c| c.is_lowercase());
     let has_digit = password.chars().any(|c| c.is_ascii_digit());
     let has_special = password.chars().any(|c| !c.is_alphanumeric());
     if !has_upper || !has_lower || !has_digit || !has_special {
-        return (
-            true,
-            "Password lacks complexity: need uppercase, lowercase, digit, and special character"
-                .to_string(),
-        );
+        info!("Password lacks complexity");
+        return (true, "Password lacks complexity: need uppercase, lowercase, digit, and special character".to_string());
     }
     if password.len() >= 4 {
         for i in 0..password.len() - 3 {
             let substr = &password[i..i + 4];
             if password.matches(substr).count() > 1 {
+                info!("Password contains repeated patterns");
                 return (true, "Password contains repeated patterns".to_string());
             }
         }
@@ -310,13 +277,16 @@ pub fn is_password_weak(password: &str) -> (bool, String) {
     let seq = "abcdefghijklmnopqrstuvwxyz0123456789";
     for i in 0..seq.len().saturating_sub(3) {
         if password_lower.contains(&seq[i..i + 3]) {
+            info!("Password contains sequential characters");
             return (true, "Password contains sequential characters".to_string());
         }
     }
+    info!("Password meets security requirements");
     (false, "Password meets security requirements".to_string())
 }
-
+/// Get password strength level
 pub fn get_password_strength(password: &str) -> PasswordStrength {
+    debug!("Getting password strength");
     let (is_weak, _) = is_password_weak(password);
     if is_weak {
         return PasswordStrength::Weak;
@@ -344,16 +314,19 @@ pub fn get_password_strength(password: &str) -> PasswordStrength {
     if has_special {
         score += 2;
     }
-    match score {
+    let strength = match score {
         0..=2 => PasswordStrength::VeryWeak,
         3..=4 => PasswordStrength::Weak,
         5..=6 => PasswordStrength::Medium,
         7..=8 => PasswordStrength::Strong,
         _ => PasswordStrength::VeryStrong,
-    }
+    };
+    info!("Password strength: {:?}", strength);
+    strength
 }
-
+/// Generate a password dictionary based on a seed string
 pub fn generate_password_dict(seed: &str, count: usize) -> Vec<String> {
+    debug!("Generating password dictionary with seed: {}, count: {}", seed, count);
     let mut dict: Vec<String> = Vec::new();
     let base = seed.to_lowercase();
     dict.push(base.clone());
@@ -381,12 +354,29 @@ pub fn generate_password_dict(seed: &str, count: usize) -> Vec<String> {
         }
     }
     dict.truncate(count);
+    info!("Generated {} password dictionary entries", dict.len());
     dict
 }
-
+// ============ CVE Functions ============
+/// Common CVE database
+pub const COMMON_CVES: &[(&str, &str, &str, f64)] = &[
+    ("CVE-2024-1234", "Buffer overflow in service X", "HIGH", 7.5),
+    ("CVE-2024-5678", "SQL injection vulnerability", "CRITICAL", 9.8),
+    ("CVE-2024-9012", "Cross-site scripting vulnerability", "MEDIUM", 6.1),
+    ("CVE-2024-3456", "Remote code execution vulnerability", "CRITICAL", 9.0),
+    ("CVE-2024-7890", "Privilege escalation vulnerability", "HIGH", 7.8),
+    ("CVE-2024-2345", "Information disclosure vulnerability", "MEDIUM", 5.3),
+    ("CVE-2024-6789", "Denial of service vulnerability", "HIGH", 7.0),
+    ("CVE-2024-0123", "Authentication bypass vulnerability", "CRITICAL", 9.1),
+    ("CVE-2024-4567", "Insecure deserialization vulnerability", "HIGH", 8.1),
+    ("CVE-2024-8901", "Server-side request forgery vulnerability", "MEDIUM", 6.5),
+];
+/// Query CVE by ID
 pub fn query_cve(cve_id: &str) -> Option<CveInfo> {
+    debug!("Querying CVE: {}", cve_id);
     for (id, desc, severity, score) in COMMON_CVES {
         if id.eq_ignore_ascii_case(cve_id) {
+            info!("Found CVE: {}", cve_id);
             return Some(CveInfo {
                 id: id.to_string(),
                 description: desc.to_string(),
@@ -399,17 +389,16 @@ pub fn query_cve(cve_id: &str) -> Option<CveInfo> {
             });
         }
     }
+    debug!("CVE not found: {}", cve_id);
     None
 }
-
+/// Query CVEs by keyword
 pub fn query_cves_by_keyword(keyword: &str) -> Vec<CveInfo> {
+    debug!("Querying CVEs by keyword: {}", keyword);
     let keyword_lower = keyword.to_lowercase();
-    COMMON_CVES
+    let results: Vec<CveInfo> = COMMON_CVES
         .iter()
-        .filter(|(id, desc, _, _)| {
-            id.to_lowercase().contains(&keyword_lower)
-                || desc.to_lowercase().contains(&keyword_lower)
-        })
+        .filter(|(id, desc, _, _)| id.to_lowercase().contains(&keyword_lower) || desc.to_lowercase().contains(&keyword_lower))
         .map(|(id, desc, severity, score)| CveInfo {
             id: id.to_string(),
             description: desc.to_string(),
@@ -420,126 +409,27 @@ pub fn query_cves_by_keyword(keyword: &str) -> Vec<CveInfo> {
             references: vec![format!("https://nvd.nist.gov/vuln/detail/{}", id)],
             exploit_available: *score >= 7.0,
         })
-        .collect()
+        .collect();
+    info!("Found {} CVEs matching keyword '{}'", results.len(), keyword);
+    results
 }
-
-pub const COMMON_CVES: &[(&str, &str, &str, f64)] = &[
-    ("CVE-2024-1234", "Buffer overflow in service X", "HIGH", 7.5),
-    (
-        "CVE-2024-5678",
-        "SQL injection vulnerability",
-        "CRITICAL",
-        9.8,
-    ),
-    (
-        "CVE-2024-9012",
-        "Cross-site scripting vulnerability",
-        "MEDIUM",
-        6.1,
-    ),
-    (
-        "CVE-2024-3456",
-        "Remote code execution vulnerability",
-        "CRITICAL",
-        9.0,
-    ),
-    (
-        "CVE-2024-7890",
-        "Privilege escalation vulnerability",
-        "HIGH",
-        7.8,
-    ),
-    (
-        "CVE-2024-2345",
-        "Information disclosure vulnerability",
-        "MEDIUM",
-        5.3,
-    ),
-    (
-        "CVE-2024-6789",
-        "Denial of service vulnerability",
-        "HIGH",
-        7.0,
-    ),
-    (
-        "CVE-2024-0123",
-        "Authentication bypass vulnerability",
-        "CRITICAL",
-        9.1,
-    ),
-    (
-        "CVE-2024-4567",
-        "Insecure deserialization vulnerability",
-        "HIGH",
-        8.1,
-    ),
-    (
-        "CVE-2024-8901",
-        "Server-side request forgery vulnerability",
-        "MEDIUM",
-        6.5,
-    ),
-];
-
+// ============ Threat Intelligence Functions ============
+/// Threat intelligence database
 pub const THREAT_INTEL_DATA: &[(&str, &str, bool, f64, &str)] = &[
     ("185.130.5.253", "ip", true, 0.95, "Known malware C2 server"),
-    (
-        "45.33.22.11",
-        "ip",
-        true,
-        0.92,
-        "Botnet command and control",
-    ),
+    ("45.33.22.11", "ip", true, 0.92, "Botnet command and control"),
     ("8.8.8.8", "ip", false, 0.0, "Google DNS - Legitimate"),
     ("1.1.1.1", "ip", false, 0.0, "Cloudflare DNS - Legitimate"),
-    (
-        "malware.example.com",
-        "domain",
-        true,
-        0.98,
-        "Known malware distribution domain",
-    ),
-    (
-        "phishing.example.org",
-        "domain",
-        true,
-        0.96,
-        "Active phishing domain",
-    ),
+    ("malware.example.com", "domain", true, 0.98, "Known malware distribution domain"),
+    ("phishing.example.org", "domain", true, 0.96, "Active phishing domain"),
     ("google.com", "domain", false, 0.0, "Legitimate domain"),
     ("github.com", "domain", false, 0.0, "Legitimate domain"),
-    (
-        "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
-        "hash",
-        true,
-        1.0,
-        "Known malware hash (SHA-256)",
-    ),
-    (
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "hash",
-        false,
-        0.0,
-        "Empty file hash",
-    ),
+    ("5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8", "hash", true, 1.0, "Known malware hash (SHA-256)"),
+    ("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "hash", false, 0.0, "Empty file hash"),
 ];
-
-pub const PHISHING_INDICATORS: &[(&str, &str)] = &[
-    ("secure-login", "Common phishing keyword"),
-    ("account-verify", "Common phishing keyword"),
-    ("update-payment", "Common phishing keyword"),
-    ("confirm-identity", "Common phishing keyword"),
-    ("password-reset", "Common phishing keyword"),
-    ("banking-secure", "Common phishing keyword"),
-    ("appleid", "Common phishing keyword"),
-    ("microsoft", "Common phishing keyword"),
-    ("paypal", "Common phishing keyword"),
-    ("amazon", "Common phishing keyword"),
-    ("netflix", "Common phishing keyword"),
-    ("spotify", "Common phishing keyword"),
-];
-
+/// Query threat intelligence for an indicator
 pub fn query_threat_intel(indicator: &str) -> ThreatIntelResult {
+    debug!("Querying threat intelligence for: {}", indicator);
     let indicator_lower = indicator.to_lowercase();
     for (ind, ind_type, malicious, confidence, desc) in THREAT_INTEL_DATA {
         if ind.eq_ignore_ascii_case(&indicator_lower) {
@@ -556,6 +446,7 @@ pub fn query_threat_intel(indicator: &str) -> ThreatIntelResult {
             } else {
                 vec!["legitimate".to_string()]
             };
+            info!("Threat intel found for {}: malicious={}, confidence={}", indicator, malicious, confidence);
             return ThreatIntelResult {
                 indicator: ind.to_string(),
                 indicator_type: ind_type.to_string(),
@@ -569,6 +460,7 @@ pub fn query_threat_intel(indicator: &str) -> ThreatIntelResult {
             };
         }
     }
+    debug!("No threat intel found for: {}", indicator);
     ThreatIntelResult {
         indicator: indicator.to_string(),
         indicator_type: "unknown".to_string(),
@@ -581,27 +473,38 @@ pub fn query_threat_intel(indicator: &str) -> ThreatIntelResult {
         source: "Internal Threat Intelligence Database".to_string(),
     }
 }
-
+// ============ Phishing Detection Functions ============
+/// Common phishing indicators
+pub const PHISHING_INDICATORS: &[(&str, &str)] = &[
+    ("secure-login", "Common phishing keyword"),
+    ("account-verify", "Common phishing keyword"),
+    ("update-payment", "Common phishing keyword"),
+    ("confirm-identity", "Common phishing keyword"),
+    ("password-reset", "Common phishing keyword"),
+    ("banking-secure", "Common phishing keyword"),
+    ("appleid", "Common phishing keyword"),
+    ("microsoft", "Common phishing keyword"),
+    ("paypal", "Common phishing keyword"),
+    ("amazon", "Common phishing keyword"),
+    ("netflix", "Common phishing keyword"),
+    ("spotify", "Common phishing keyword"),
+];
+/// Detect phishing URL
 pub fn detect_phishing(url: &str) -> PhishingDetectionResult {
+    debug!("Detecting phishing for URL: {}", url);
     let url_lower = url.to_lowercase();
     let mut reasons = Vec::new();
     let mut is_phishing = false;
     let mut confidence: f64 = 0.0;
+    // Check for phishing keywords
     for (pattern, reason) in PHISHING_INDICATORS {
         if url_lower.contains(pattern) {
             reasons.push(format!("Contains suspicious keyword: {}", reason));
             confidence += 0.1;
         }
     }
-    let domains = [
-        "paypal",
-        "amazon",
-        "microsoft",
-        "apple",
-        "google",
-        "netflix",
-        "spotify",
-    ];
+    // Check for domain spoofing
+    let domains = ["paypal", "amazon", "microsoft", "apple", "google", "netflix", "spotify"];
     let suspicious_domains = ["login", "verify", "secure", "account", "update", "confirm"];
     let mut count_spoofed = 0;
     let mut count_suspicious = 0;
@@ -619,42 +522,38 @@ pub fn detect_phishing(url: &str) -> PhishingDetectionResult {
         reasons.push("Potential domain spoofing with suspicious keywords".to_string());
         confidence += 0.3;
     }
+    // Check for IP address in URL
     if url_lower.contains("://") {
         let domain_part = url_lower.split("://").nth(1).unwrap_or("");
         let ip_pattern = r"^(\d{1,3}\.){3}\d{1,3}";
-        if regex::Regex::new(ip_pattern)
-            .unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap())
-            .is_match(&domain_part.split('/').next().unwrap_or(""))
+        if regex::Regex::new(ip_pattern).unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap()).is_match(&domain_part.split('/').next().unwrap_or(""))
         {
             reasons.push("URL uses IP address instead of domain name".to_string());
             confidence += 0.2;
         }
     }
-    let shorteners = [
-        "bit.ly", "tinyurl", "goo.gl", "shorturl", "rebrand", "is.gd",
-    ];
+    // Check for URL shorteners
+    let shorteners = ["bit.ly", "tinyurl", "goo.gl", "shorturl", "rebrand", "is.gd"];
     for shortener in &shorteners {
         if url_lower.contains(shortener) {
             reasons.push("URL uses a URL shortener service".to_string());
             confidence += 0.1;
         }
     }
-    if !url_lower.starts_with("https://") && !url_lower.starts_with("http://") {
-    } else if url_lower.starts_with("http://") && !url_lower.contains("localhost") {
+    // Check for HTTP (insecure)
+    if url_lower.starts_with("http://") && !url_lower.contains("localhost") {
         let domain_part = url_lower.split("://").nth(1).unwrap_or("");
         if !domain_part.starts_with("localhost") && !domain_part.starts_with("127.0.0.1") {
             reasons.push("URL uses insecure HTTP protocol".to_string());
             confidence += 0.05;
         }
     }
+    // Check domain against threat intelligence
     let domain = url_lower.split('/').nth(2).unwrap_or("");
     if !domain.is_empty() {
         let domain_intel = query_threat_intel(domain);
         if domain_intel.malicious {
-            reasons.push(format!(
-                "Domain is flagged as malicious by threat intelligence: {}",
-                domain
-            ));
+            reasons.push(format!("Domain is flagged as malicious by threat intelligence: {}", domain));
             confidence += 0.5;
         }
     }
@@ -669,60 +568,24 @@ pub fn detect_phishing(url: &str) -> PhishingDetectionResult {
     } else {
         "Legitimate".to_string()
     };
-    PhishingDetectionResult {
-        url: url.to_string(),
-        is_phishing,
-        confidence,
-        reasons,
-        redirects: vec![],
-        domain_reputation,
-    }
+    info!("Phishing detection for {}: is_phishing={}, confidence={:.0}%", url, is_phishing, confidence * 100.0);
+    PhishingDetectionResult { url: url.to_string(), is_phishing, confidence, reasons, redirects: vec![], domain_reputation }
 }
-
+// ============ Security Policy Functions ============
+/// Security policies database
 pub const SECURITY_POLICIES: &[(&str, &str, &str)] = &[
-    (
-        "password_min_length",
-        "Minimum password length should be at least 8 characters",
-        "8",
-    ),
-    (
-        "password_complexity",
-        "Password must contain uppercase, lowercase, number, special character",
-        "true",
-    ),
-    (
-        "password_history",
-        "Password history should remember at least 5 passwords",
-        "5",
-    ),
-    (
-        "account_lockout_threshold",
-        "Account should lock after 5 failed attempts",
-        "5",
-    ),
-    (
-        "account_lockout_duration",
-        "Account lockout duration should be at least 15 minutes",
-        "15",
-    ),
-    (
-        "session_timeout",
-        "Session timeout should be set to 30 minutes or less",
-        "30",
-    ),
-    (
-        "mfa_required",
-        "Multi-factor authentication should be enabled for all users",
-        "true",
-    ),
-    (
-        "audit_logging",
-        "Audit logging should be enabled for security events",
-        "true",
-    ),
+    ("password_min_length", "Minimum password length should be at least 8 characters", "8"),
+    ("password_complexity", "Password must contain uppercase, lowercase, number, special character", "true"),
+    ("password_history", "Password history should remember at least 5 passwords", "5"),
+    ("account_lockout_threshold", "Account should lock after 5 failed attempts", "5"),
+    ("account_lockout_duration", "Account lockout duration should be at least 15 minutes", "15"),
+    ("session_timeout", "Session timeout should be set to 30 minutes or less", "30"),
+    ("mfa_required", "Multi-factor authentication should be enabled for all users", "true"),
+    ("audit_logging", "Audit logging should be enabled for security events", "true"),
 ];
-
+/// Check security policies compliance
 pub fn check_security_policies() -> Vec<SecurityPolicyResult> {
+    debug!("Checking security policies");
     let mut results = Vec::new();
     for (name, desc, expected_val) in SECURITY_POLICIES {
         let current_val = get_policy_current_value(name);
@@ -747,10 +610,12 @@ pub fn check_security_policies() -> Vec<SecurityPolicyResult> {
             },
         });
     }
+    info!("Checked {} security policies", results.len());
     results
 }
-
+/// Get current policy value
 fn get_policy_current_value(policy_name: &str) -> String {
+    debug!("Getting current value for policy: {}", policy_name);
     match policy_name {
         "password_min_length" => "8".to_string(),
         "password_complexity" => "true".to_string(),
@@ -763,39 +628,23 @@ fn get_policy_current_value(policy_name: &str) -> String {
         _ => "unknown".to_string(),
     }
 }
-
-// ============ New Functions ============
-
+// ============ Permission Check Functions ============
+/// Check file permissions
 pub fn check_file_permissions(path: &str) -> PermissionCheckResult {
+    debug!("Checking file permissions for: {}", path);
     let path_obj = Path::new(path);
     let mut issues = Vec::new();
-
     let exists = path_obj.exists();
-    let readable = exists
-        && path_obj
-            .metadata()
-            .map(|m| m.permissions().readonly())
-            .unwrap_or(true);
-    let writable = exists
-        && fs::metadata(path)
-            .map(|m| !m.permissions().readonly())
-            .unwrap_or(false);
-    let executable = exists
-        && path_obj
-            .metadata()
-            .map(|m| m.permissions().readonly())
-            .unwrap_or(true);
-
+    let readable = exists && path_obj.metadata().map(|m| m.permissions().readonly()).unwrap_or(true);
+    let writable = exists && fs::metadata(path).map(|m| !m.permissions().readonly()).unwrap_or(false);
+    let executable = exists && path_obj.metadata().map(|m| m.permissions().readonly()).unwrap_or(true);
     let owner = if exists {
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
             if let Ok(meta) = fs::metadata(path) {
                 let uid = meta.uid();
-                if let Some(user) = Users::new_with_refreshed_list()
-                    .iter()
-                    .find(|u| u.id() == uid)
-                {
+                if let Some(user) = Users::new_with_refreshed_list().iter().find(|u| u.id() == uid) {
                     user.name().to_string()
                 } else {
                     uid.to_string()
@@ -811,17 +660,13 @@ pub fn check_file_permissions(path: &str) -> PermissionCheckResult {
     } else {
         "unknown".to_string()
     };
-
     let group = if exists {
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
             if let Ok(meta) = fs::metadata(path) {
                 let gid = meta.gid();
-                if let Some(user) = Users::new_with_refreshed_list()
-                    .iter()
-                    .find(|u| u.primary_group_id() == gid)
-                {
+                if let Some(user) = Users::new_with_refreshed_list().iter().find(|u| u.primary_group_id() == gid) {
                     user.name().to_string()
                 } else {
                     gid.to_string()
@@ -837,15 +682,11 @@ pub fn check_file_permissions(path: &str) -> PermissionCheckResult {
     } else {
         "unknown".to_string()
     };
-
     let permissions = if exists {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = path_obj
-                .metadata()
-                .map(|m| m.permissions().mode())
-                .unwrap_or(0);
+            let mode = path_obj.metadata().map(|m| m.permissions().mode()).unwrap_or(0);
             format!("{:o}", mode & 0o777)
         }
         #[cfg(not(unix))]
@@ -855,7 +696,6 @@ pub fn check_file_permissions(path: &str) -> PermissionCheckResult {
     } else {
         "unknown".to_string()
     };
-
     if !exists {
         issues.push("Path does not exist".to_string());
     }
@@ -865,65 +705,42 @@ pub fn check_file_permissions(path: &str) -> PermissionCheckResult {
     if exists && !writable {
         issues.push("Not writable".to_string());
     }
-
-    PermissionCheckResult {
-        path: path.to_string(),
-        exists,
-        readable,
-        writable,
-        executable,
-        owner,
-        group,
-        permissions,
-        issues,
-    }
+    info!("Permission check for {}: exists={}, issues={}", path, exists, issues.len());
+    PermissionCheckResult { path: path.to_string(), exists, readable, writable, executable, owner, group, permissions, issues }
 }
-
+/// Scan permissions recursively
 pub fn scan_permissions(path: &str, recursive: bool) -> PermissionScanResult {
+    debug!("Scanning permissions for: {}, recursive={}", path, recursive);
     let mut results = Vec::new();
     let path_obj = Path::new(path);
-
     if !path_obj.exists() {
-        return PermissionScanResult {
-            path: path.to_string(),
-            total_files: 0,
-            issues_found: 0,
-            results: vec![],
-        };
+        info!("Path does not exist: {}", path);
+        return PermissionScanResult { path: path.to_string(), total_files: 0, issues_found: 0, results: vec![] };
     }
-
     if path_obj.is_file() {
         results.push(check_file_permissions(path));
     } else if path_obj.is_dir() && recursive {
-        for entry in walkdir::WalkDir::new(path_obj)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_type().is_file())
-        {
+        debug!("Recursively scanning directory: {}", path);
+        for entry in walkdir::WalkDir::new(path_obj).into_iter().filter_map(|e| e.ok()).filter(|e| e.file_type().is_file()) {
             let file_path = entry.path().to_string_lossy().to_string();
             results.push(check_file_permissions(&file_path));
         }
     } else {
         results.push(check_file_permissions(path));
     }
-
     let issues_found = results.iter().filter(|r| !r.issues.is_empty()).count();
-
-    PermissionScanResult {
-        path: path.to_string(),
-        total_files: results.len(),
-        issues_found,
-        results,
-    }
+    info!("Permission scan complete: {} files, {} issues found", results.len(), issues_found);
+    PermissionScanResult { path: path.to_string(), total_files: results.len(), issues_found, results }
 }
-
+// ============ Account Security Functions ============
+/// Check account security for a user
 pub fn check_account_security(username: &str) -> AccountSecurityResult {
+    debug!("Checking account security for: {}", username);
     let mut issues: Vec<String> = Vec::new();
     #[cfg(unix)]
     {
         use std::fs;
         use std::io::BufRead;
-
         if let Ok(file) = fs::File::open("/etc/passwd") {
             let reader = std::io::BufReader::new(file);
             for line in reader.lines().filter_map(|l| l.ok()) {
@@ -935,17 +752,14 @@ pub fn check_account_security(username: &str) -> AccountSecurityResult {
                     let shell = parts[6].to_string();
                     let is_root = uid == 0;
                     let is_system = uid < 1000;
-
                     let mut user_issues = Vec::new();
                     if is_root {
-                        user_issues.push(
-                            "Root account detected - consider using sudo instead".to_string(),
-                        );
+                        user_issues.push("Root account detected - consider using sudo instead".to_string());
                     }
                     if is_system {
-                        user_issues
-                            .push("System account - ensure no login access is enabled".to_string());
+                        user_issues.push("System account - ensure no login access is enabled".to_string());
                     }
+                    info!("Account security checked for {}: uid={}, is_root={}, is_system={}", username, uid, is_root, is_system);
                     return AccountSecurityResult {
                         username: username.to_string(),
                         uid,
@@ -966,18 +780,13 @@ pub fn check_account_security(username: &str) -> AccountSecurityResult {
     #[cfg(windows)]
     {
         let cmd = std::process::Command::new("powershell")
-            .args(&[
-                "-Command",
-                &format!(
-                    "Get-LocalUser -Name '{}' | Select-Object Name, SID, Enabled, PasswordRequired",
-                    username
-                ),
-            ])
+            .args(&["-Command", &format!("Get-LocalUser -Name '{}' | Select-Object Name, SID, Enabled, PasswordRequired", username)])
             .output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             if !output_str.contains("Cannot find") {
                 let is_locked = !output_str.contains("True");
+                info!("Windows account security checked for {}: locked={}", username, is_locked);
                 return AccountSecurityResult {
                     username: username.to_string(),
                     uid: 0,
@@ -994,6 +803,7 @@ pub fn check_account_security(username: &str) -> AccountSecurityResult {
             }
         }
     }
+    info!("Account not found: {}", username);
     AccountSecurityResult {
         username: username.to_string(),
         uid: 0,
@@ -1008,10 +818,11 @@ pub fn check_account_security(username: &str) -> AccountSecurityResult {
         issues: vec!["User not found".to_string()],
     }
 }
-
+// ============ Baseline Check Functions ============
+/// Run security baseline check
 pub fn run_baseline_check() -> Vec<BaselineCheckResult> {
+    debug!("Running baseline check");
     let mut results = Vec::new();
-
     let policies = [
         ("Password Policy", "Minimum password length", "8", "8"),
         ("Password Policy", "Password complexity", "true", "true"),
@@ -1022,7 +833,6 @@ pub fn run_baseline_check() -> Vec<BaselineCheckResult> {
         ("Security Policy", "Audit logging", "true", "true"),
         ("Security Policy", "Root login disabled", "true", "true"),
     ];
-
     for (category, name, current, expected) in policies {
         let compliant = current == expected;
         let severity = if !compliant && (name.contains("MFA") || name.contains("root")) {
@@ -1032,7 +842,6 @@ pub fn run_baseline_check() -> Vec<BaselineCheckResult> {
         } else {
             "low"
         };
-
         results.push(BaselineCheckResult {
             category: category.to_string(),
             check_name: name.to_string(),
@@ -1040,24 +849,21 @@ pub fn run_baseline_check() -> Vec<BaselineCheckResult> {
             current_value: current.to_string(),
             expected_value: expected.to_string(),
             severity: severity.to_string(),
-            recommendation: if compliant {
-                "No action needed".to_string()
-            } else {
-                format!("Configure system to meet {} requirement", name)
-            },
+            recommendation: if compliant { "No action needed".to_string() } else { format!("Configure system to meet {} requirement", name) },
         });
     }
-
+    let compliant_count = results.iter().filter(|r| r.compliant).count();
+    info!("Baseline check complete: {} compliant, {} non-compliant", compliant_count, results.len() - compliant_count);
     results
 }
-
+// ============ Network Share Functions ============
+/// Check network shares for security issues
 pub fn check_network_shares() -> Vec<ShareInfo> {
+    debug!("Checking network shares");
     let mut shares = Vec::new();
-
     #[cfg(target_os = "windows")]
     {
         let cmd = std::process::Command::new("net").args(&["share"]).output();
-
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines().skip(4) {
@@ -1067,10 +873,7 @@ pub fn check_network_shares() -> Vec<ShareInfo> {
                     let path = parts[1].to_string();
                     let desc = parts.get(2).unwrap_or(&"").to_string();
                     let mut issues = Vec::new();
-                    if name.starts_with("ADMIN$")
-                        || name.starts_with("IPC$")
-                        || name.starts_with("C$")
-                    {
+                    if name.starts_with("ADMIN$") || name.starts_with("IPC$") || name.starts_with("C$") {
                         issues.push("Administrative share exposed".to_string());
                     }
                     shares.push(ShareInfo {
@@ -1084,15 +887,13 @@ pub fn check_network_shares() -> Vec<ShareInfo> {
                     });
                 }
             }
+            info!("Found {} network shares on Windows", shares.len());
         }
     }
-
     #[cfg(not(target_os = "windows"))]
     {
-        let cmd = std::process::Command::new("sh")
-            .args(&["-c", "test -f /etc/exports && cat /etc/exports"])
-            .output();
-
+        // Check NFS exports
+        let cmd = std::process::Command::new("sh").args(&["-c", "test -f /etc/exports && cat /etc/exports"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1116,14 +917,8 @@ pub fn check_network_shares() -> Vec<ShareInfo> {
                 }
             }
         }
-
-        let cmd = std::process::Command::new("sh")
-            .args(&[
-                "-c",
-                "test -f /etc/samba/smb.conf && grep -E '^\\[.*\\]$' /etc/samba/smb.conf",
-            ])
-            .output();
-
+        // Check Samba shares
+        let cmd = std::process::Command::new("sh").args(&["-c", "test -f /etc/samba/smb.conf && grep -E '^\\[.*\\]$' /etc/samba/smb.conf"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1140,46 +935,40 @@ pub fn check_network_shares() -> Vec<ShareInfo> {
                     });
                 }
             }
+            info!("Found {} Samba shares", shares.len());
         }
     }
-
     shares
 }
-
+// ============ System Log Functions ============
+/// Query system logs
 pub fn query_system_logs(filter: &str, max_entries: usize) -> LogQueryResult {
+    debug!("Querying system logs with filter: '{}', max: {}", filter, max_entries);
     let mut entries = Vec::new();
-
     #[cfg(not(target_os = "windows"))]
     {
-        let args = if filter.is_empty() {
-            vec!["-n", &max_entries.to_string()]
-        } else {
-            vec!["-n", &max_entries.to_string(), "|", "grep", filter]
-        };
-        let cmd = std::process::Command::new("journalctl")
-            .args(&["-n", &max_entries.to_string()])
-            .output();
-
+        let cmd = std::process::Command::new("journalctl").args(&["-n", &max_entries.to_string()]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 4 {
-                    entries.push(LogEntry {
-                        timestamp: parts.get(0).unwrap_or(&"").to_string(),
-                        host: parts.get(1).unwrap_or(&"").to_string(),
-                        program: parts.get(2).unwrap_or(&"").to_string(),
-                        pid: parts
-                            .get(3)
-                            .and_then(|s| s.trim_matches(':').parse::<u32>().ok()),
-                        message: parts.get(4..).unwrap_or(&[]).join(" "),
-                        severity: "info".to_string(),
-                    });
+                    let message = parts.get(4..).unwrap_or(&[]).join(" ");
+                    if filter.is_empty() || message.to_lowercase().contains(&filter.to_lowercase()) {
+                        entries.push(LogEntry {
+                            timestamp: parts.get(0).unwrap_or(&"").to_string(),
+                            host: parts.get(1).unwrap_or(&"").to_string(),
+                            program: parts.get(2).unwrap_or(&"").to_string(),
+                            pid: parts.get(3).and_then(|s| s.trim_matches(':').parse::<u32>().ok()),
+                            message,
+                            severity: "info".to_string(),
+                        });
+                    }
                 }
             }
+            info!("Retrieved {} log entries from journalctl", entries.len());
         }
     }
-
     #[cfg(target_os = "windows")]
     {
         let cmd = std::process::Command::new("powershell")
@@ -1191,63 +980,43 @@ pub fn query_system_logs(filter: &str, max_entries: usize) -> LogQueryResult {
                 ),
             ])
             .output();
-
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
-                entries.push(LogEntry {
-                    timestamp: "".to_string(),
-                    host: "localhost".to_string(),
-                    program: "Security".to_string(),
-                    pid: None,
-                    message: line.to_string(),
-                    severity: "info".to_string(),
-                });
+                if filter.is_empty() || line.to_lowercase().contains(&filter.to_lowercase()) {
+                    entries.push(LogEntry {
+                        timestamp: "".to_string(),
+                        host: "localhost".to_string(),
+                        program: "Security".to_string(),
+                        pid: None,
+                        message: line.to_string(),
+                        severity: "info".to_string(),
+                    });
+                }
             }
+            info!("Retrieved {} log entries from Windows Event Log", entries.len());
         }
     }
-
-    LogQueryResult {
-        total_entries: entries.len(),
-        entries,
-        query: filter.to_string(),
-    }
+    LogQueryResult { total_entries: entries.len(), entries, query: filter.to_string() }
 }
-
+/// Analyze security logs for threats
 pub fn analyze_security_logs(time_range_hours: u64) -> Vec<String> {
+    debug!("Analyzing security logs for last {} hours", time_range_hours);
     let mut findings = Vec::new();
-
     #[cfg(not(target_os = "windows"))]
     {
-        let cmd = std::process::Command::new("journalctl")
-            .args(&["--since", &format!("{} hours ago", time_range_hours)])
-            .output();
-
+        let cmd = std::process::Command::new("journalctl").args(&["--since", &format!("{} hours ago", time_range_hours)]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             let lines: Vec<&str> = output_str.lines().collect();
-
-            let failed_logins = lines
-                .iter()
-                .filter(|l| l.contains("Failed password") || l.contains("authentication failure"))
-                .count();
-
+            let failed_logins = lines.iter().filter(|l| l.contains("Failed password") || l.contains("authentication failure")).count();
             if failed_logins > 0 {
-                findings.push(format!(
-                    "Found {} failed login attempts in the last {} hours",
-                    failed_logins, time_range_hours
-                ));
+                findings.push(format!("Found {} failed login attempts in the last {} hours", failed_logins, time_range_hours));
             }
-
-            let sudo_events = lines
-                .iter()
-                .filter(|l| l.contains("sudo") && l.contains("COMMAND="))
-                .count();
-
+            let sudo_events = lines.iter().filter(|l| l.contains("sudo") && l.contains("COMMAND=")).count();
             if sudo_events > 0 {
                 findings.push(format!("Found {} sudo commands executed", sudo_events));
             }
-
             let suspicious = lines
                 .iter()
                 .filter(|l| {
@@ -1258,23 +1027,23 @@ pub fn analyze_security_logs(time_range_hours: u64) -> Vec<String> {
                         || l.contains("Permission denied")
                 })
                 .count();
-
             if suspicious > 0 {
                 findings.push(format!("Found {} suspicious log entries", suspicious));
             }
+            info!("Log analysis complete: {} findings", findings.len());
         }
     }
-
     if findings.is_empty() {
         findings.push("No security issues found in the log analysis".to_string());
+        info!("No security issues found in log analysis");
     }
-
     findings
 }
-
+// ============ Persistence Detection Functions ============
+/// Check persistence mechanisms
 pub fn check_persistence_mechanisms() -> Vec<PersistenceEntry> {
+    debug!("Checking persistence mechanisms");
     let mut entries = Vec::new();
-
     #[cfg(not(target_os = "windows"))]
     {
         let paths = [
@@ -1286,7 +1055,6 @@ pub fn check_persistence_mechanisms() -> Vec<PersistenceEntry> {
             ("/etc/systemd/system", "Systemd services"),
             ("~/.config/autostart", "Desktop autostart"),
         ];
-
         for (path, desc) in paths {
             let expanded_path = shellexpand::tilde(path).to_string();
             if Path::new(&expanded_path).exists() {
@@ -1298,19 +1066,11 @@ pub fn check_persistence_mechanisms() -> Vec<PersistenceEntry> {
                     enabled: true,
                     source: "File system".to_string(),
                     suspicious,
-                    reason: if suspicious {
-                        "Potential persistence mechanism".to_string()
-                    } else {
-                        "Legitimate persistence".to_string()
-                    },
+                    reason: if suspicious { "Potential persistence mechanism".to_string() } else { "Legitimate persistence".to_string() },
                 });
             }
         }
-
-        let cmd = std::process::Command::new("sh")
-            .args(&["-c", "crontab -l 2>/dev/null"])
-            .output();
-
+        let cmd = std::process::Command::new("sh").args(&["-c", "crontab -l 2>/dev/null"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1327,17 +1087,11 @@ pub fn check_persistence_mechanisms() -> Vec<PersistenceEntry> {
                 }
             }
         }
+        info!("Found {} persistence entries on Unix", entries.len());
     }
-
     #[cfg(target_os = "windows")]
     {
-        let cmd = std::process::Command::new("reg")
-            .args(&[
-                "query",
-                "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-            ])
-            .output();
-
+        let cmd = std::process::Command::new("reg").args(&["query", "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1353,15 +1107,16 @@ pub fn check_persistence_mechanisms() -> Vec<PersistenceEntry> {
                     });
                 }
             }
+            info!("Found {} persistence entries in Windows Registry", entries.len());
         }
     }
-
     entries
 }
-
+// ============ Privilege Escalation Functions ============
+/// Check privilege escalation vectors
 pub fn check_privilege_escalation() -> Vec<PrivilegeEscalationResult> {
+    debug!("Checking privilege escalation vectors");
     let mut results = Vec::new();
-
     #[cfg(not(target_os = "windows"))]
     {
         let checks = [
@@ -1371,14 +1126,11 @@ pub fn check_privilege_escalation() -> Vec<PrivilegeEscalationResult> {
             ("Writeable system files", "find /etc -writable 2>/dev/null"),
             ("Docker socket", "test -S /var/run/docker.sock"),
         ];
-
         for (name, cmd) in checks {
             let output = std::process::Command::new("sh").args(&["-c", cmd]).output();
-
             if let Ok(output) = output {
                 let output_str = String::from_utf8_lossy(&output.stdout);
                 let vulnerable = !output_str.is_empty() && !output_str.contains("not allowed");
-
                 results.push(PrivilegeEscalationResult {
                     check_name: name.to_string(),
                     vulnerable,
@@ -1392,23 +1144,16 @@ pub fn check_privilege_escalation() -> Vec<PrivilegeEscalationResult> {
                 });
             }
         }
+        info!("Privilege escalation check complete: {} results", results.len());
     }
-
     #[cfg(target_os = "windows")]
     {
         let checks = [
             ("Admin Group", "net localgroup administrators"),
-            (
-                "UAC Status",
-                "reg query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-            ),
+            ("UAC Status", "reg query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"),
         ];
-
         for (name, cmd) in checks {
-            let output = std::process::Command::new("cmd")
-                .args(&["/C", cmd])
-                .output();
-
+            let output = std::process::Command::new("cmd").args(&["/C", cmd]).output();
             if let Ok(output) = output {
                 let output_str = String::from_utf8_lossy(&output.stdout);
                 results.push(PrivilegeEscalationResult {
@@ -1416,61 +1161,55 @@ pub fn check_privilege_escalation() -> Vec<PrivilegeEscalationResult> {
                     vulnerable: name == "Admin Group" && output_str.contains("Administrator"),
                     description: format!("Checking for {}", name),
                     details: output_str.lines().take(5).collect::<Vec<_>>().join("\n"),
-                    severity: if name == "Admin Group" {
-                        "high"
-                    } else {
-                        "medium"
-                    }
-                    .to_string(),
+                    severity: if name == "Admin Group" { "high" } else { "medium" }.to_string(),
                 });
             }
         }
+        info!("Privilege escalation check complete on Windows: {} results", results.len());
     }
-
     results
 }
-
+// ============ Patch Detection Functions ============
+/// Check patch status
 pub fn check_patch_status() -> PatchScanResult {
+    debug!("Checking patch status");
     let mut patches = Vec::new();
-
     #[cfg(not(target_os = "windows"))]
     {
         let cmd = std::process::Command::new("sh")
             .args(&["-c", "apt list --upgradable 2>/dev/null || yum check-update 2>/dev/null || dnf check-update 2>/dev/null"])
             .output();
-
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
-                if !line.is_empty()
-                    && !line.starts_with("Loading")
-                    && !line.starts_with("Available")
-                {
+                if !line.is_empty() && !line.starts_with("Loading") && !line.starts_with("Available") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if let Some(name) = parts.first() {
+                        let version = parts.get(1).unwrap_or(&"").to_string();
+                        let severity = if name.contains("kernel") || name.contains("security") {
+                            "critical"
+                        } else if name.contains("openssl") || name.contains("ssh") {
+                            "high"
+                        } else {
+                            "medium"
+                        };
                         patches.push(PatchInfo {
                             name: name.to_string(),
                             installed: false,
-                            version: parts.get(1).unwrap_or(&"").to_string(),
+                            version,
                             release_date: None,
-                            severity: "medium".to_string(),
+                            severity: severity.to_string(),
                             description: "Security update available".to_string(),
                         });
                     }
                 }
             }
+            info!("Found {} missing patches on Linux", patches.len());
         }
     }
-
     #[cfg(target_os = "windows")]
     {
-        let cmd = std::process::Command::new("powershell")
-            .args(&[
-                "-Command",
-                "Get-WindowsUpdate -IsInstalled | Select-Object -First 20",
-            ])
-            .output();
-
+        let cmd = std::process::Command::new("powershell").args(&["-Command", "Get-WindowsUpdate -IsInstalled | Select-Object -First 20"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1485,41 +1224,32 @@ pub fn check_patch_status() -> PatchScanResult {
                     });
                 }
             }
+            info!("Found {} patches on Windows", patches.len());
         }
     }
-
     let total_checked = patches.len();
     let installed = patches.iter().filter(|p| p.installed).count();
     let missing = patches.iter().filter(|p| !p.installed).count();
-
-    PatchScanResult {
-        total_checked,
-        installed,
-        missing,
-        patches,
-    }
+    PatchScanResult { total_checked, installed, missing, patches }
 }
-
+// ============ Registry Monitor Functions (Windows) ============
+/// Monitor Windows registry key
 #[cfg(target_os = "windows")]
 pub fn monitor_registry_key(path: &str) -> RegistryKeyInfo {
-    let cmd = std::process::Command::new("reg")
-        .args(&["query", path])
-        .output();
-
+    debug!("Monitoring registry key: {}", path);
+    let cmd = std::process::Command::new("reg").args(&["query", path]).output();
     let mut issues = Vec::new();
     let name = path.split('\\').last().unwrap_or(path);
-
     if let Ok(output) = cmd {
         let output_str = String::from_utf8_lossy(&output.stdout);
         let value = output_str.lines().next().unwrap_or("No data").to_string();
-
         if path.contains("Run") {
             issues.push("Startup registry key - potential persistence".to_string());
         }
         if path.contains("Services") {
             issues.push("Service registry key - requires admin privileges".to_string());
         }
-
+        info!("Registry key monitored: {}", path);
         RegistryKeyInfo {
             path: path.to_string(),
             name: name.to_string(),
@@ -1529,6 +1259,7 @@ pub fn monitor_registry_key(path: &str) -> RegistryKeyInfo {
             security_issues: issues,
         }
     } else {
+        info!("Registry key not accessible: {}", path);
         RegistryKeyInfo {
             path: path.to_string(),
             name: name.to_string(),
@@ -1537,5 +1268,73 @@ pub fn monitor_registry_key(path: &str) -> RegistryKeyInfo {
             last_modified: "".to_string(),
             security_issues: vec!["Registry key not accessible".to_string()],
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_is_password_weak() {
+        let (weak, reason) = is_password_weak("password");
+        assert!(weak);
+        assert!(!reason.is_empty());
+        let (weak, _) = is_password_weak("MySecureP@ssw0rd123");
+        assert!(!weak);
+    }
+    #[test]
+    fn test_get_password_strength() {
+        let strength = get_password_strength("123456");
+        assert_eq!(strength, PasswordStrength::Weak);
+        let strength = get_password_strength("MySecureP@ssw0rd123");
+        assert_eq!(strength, PasswordStrength::Strong);
+    }
+    #[test]
+    fn test_query_cve() {
+        let cve = query_cve("CVE-2024-1234");
+        assert!(cve.is_some());
+        assert_eq!(cve.unwrap().id, "CVE-2024-1234");
+        let cve = query_cve("CVE-9999-9999");
+        assert!(cve.is_none());
+    }
+    #[test]
+    fn test_query_cves_by_keyword() {
+        let results = query_cves_by_keyword("sql");
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|c| c.id.contains("5678")));
+    }
+    #[test]
+    fn test_query_threat_intel() {
+        let result = query_threat_intel("8.8.8.8");
+        assert!(!result.malicious);
+        let result = query_threat_intel("185.130.5.253");
+        assert!(result.malicious);
+        assert!(result.confidence > 0.0);
+    }
+    #[test]
+    fn test_detect_phishing() {
+        let result = detect_phishing("https://secure-login.example.com");
+        assert!(result.is_phishing || !result.reasons.is_empty());
+        let result = detect_phishing("https://google.com");
+        assert!(!result.is_phishing);
+    }
+    #[test]
+    fn test_check_security_policies() {
+        let results = check_security_policies();
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|r| r.policy_name == "password_min_length"));
+    }
+    #[test]
+    fn test_check_file_permissions() {
+        let result = check_file_permissions("/tmp");
+        assert!(result.exists);
+        // The test may fail on some systems, but it's a reasonable check
+        assert!(result.readable);
+    }
+    #[test]
+    fn test_generate_password_dict() {
+        let dict = generate_password_dict("test", 10);
+        assert!(!dict.is_empty());
+        assert!(dict.len() <= 10);
+        assert!(dict.iter().any(|p| p.contains("test")));
     }
 }

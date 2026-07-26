@@ -1,8 +1,9 @@
 //! Shared utilities for disk operations
-
+//!
+//! This module provides common data structures for disk information,
+//! partitions, I/O statistics, SMART data, IOPS, and queue information.
 use serde::{Deserialize, Serialize};
-
-/// Disk information
+/// Disk information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskInfo {
     pub name: String,
@@ -14,8 +15,7 @@ pub struct DiskInfo {
     pub is_ssd: bool,
     pub is_removable: bool,
 }
-
-/// Disk partition information
+/// Disk partition information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskPartition {
     pub device: String,
@@ -27,8 +27,7 @@ pub struct DiskPartition {
     pub usage_percent: f32,
     pub is_encrypted: bool,
 }
-
-/// Disk I/O statistics
+/// Disk I/O statistics structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskIoStats {
     pub read_bytes_per_sec: u64,
@@ -38,8 +37,7 @@ pub struct DiskIoStats {
     pub avg_read_latency_ms: f32,
     pub avg_write_latency_ms: f32,
 }
-
-/// Disk SMART information
+/// Disk SMART information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskSmartInfo {
     pub health_percent: f32,
@@ -49,16 +47,14 @@ pub struct DiskSmartInfo {
     pub has_error: bool,
     pub error_message: Option<String>,
 }
-
-/// Disk IOPS information
+/// Disk IOPS information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskIopsInfo {
     pub read_iops: u64,
     pub write_iops: u64,
     pub total_iops: u64,
 }
-
-/// Disk queue information
+/// Disk queue information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskQueueInfo {
     pub queue_depth: u64,

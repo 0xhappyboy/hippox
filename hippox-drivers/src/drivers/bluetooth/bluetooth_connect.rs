@@ -1,35 +1,40 @@
 //! Bluetooth connect skill - connect to a paired device
-
+//!
+//! This driver provides functionality to establish a connection to a
+//! paired Bluetooth device.
 use super::common::connect_device;
 use crate::DriverCallback;
 use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCategory, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info, warn};
+/// Driver for connecting to paired Bluetooth devices
+///
+/// This driver establishes an RFCOMM channel connection to a paired
+/// Bluetooth device that is in range and powered on.
 #[derive(Debug)]
 pub struct BluetoothConnectDriver;
-
 #[async_trait::async_trait]
 impl Driver for BluetoothConnectDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "bluetooth_connect"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Connect to a paired Bluetooth device (establish RFCOMM channel)"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to connect to a device that is already paired. The device must be in range and powered on."
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "mac_address".to_string(),
             param_type: "string".to_string(),
             description: "MAC address of the device to connect to".to_string(),
@@ -37,41 +42,43 @@ impl Driver for BluetoothConnectDriver {
             default: None,
             example: Some(Value::String("AA:BB:CC:DD:EE:FF".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "bluetooth_connect",
             "parameters": {
                 "mac_address": "AA:BB:CC:DD:EE:FF"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
         "Connected to device: AA:BB:CC:DD:EE:FF".to_string()
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
         DriverCategory::Bluetooth
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let mac_address = parameters
-            .get("mac_address")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
-
-        connect_device(mac_address)?;
-
+    ) -> DriverResult<String> {
+        debug!("Executing bluetooth_connect driver");
+        let mac_address = parameters.get("mac_address").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'mac_address' parameter");
+            DriverError::missing_parameter("mac_address")
+        })?;
+        debug!("Attempting to connect to device: {}", mac_address);
+        connect_device(mac_address).map_err(|e| DriverError::execution(format!("Failed to connect to device: {}", e)))?;
+        // Wait for connection to establish
+        debug!("Waiting for connection to establish");
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
+        info!("Connected to device: {}", mac_address);
         Ok(format!("Connected to device: {}", mac_address))
     }
 }

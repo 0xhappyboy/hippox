@@ -1,16 +1,15 @@
-//! Directory scanning skill
-
-use crate::DriverCallback;
-use crate::DriverContext;
+//! Directory scanning driver
+//!
+//! This driver provides functionality to scan for common directories and files on a web server.
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Common directory names to scan
 const COMMON_DIRS: &[&str] = &[
     "admin",
     "api",
@@ -44,7 +43,7 @@ const COMMON_DIRS: &[&str] = &[
     ".htaccess",
     ".htpasswd",
 ];
-
+/// Common file names to scan
 const COMMON_FILES: &[&str] = &[
     "index",
     "index.html",
@@ -79,26 +78,26 @@ const COMMON_FILES: &[&str] = &[
     "requirements.txt",
     "Dockerfile",
 ];
-
+/// Driver for scanning directories on a web server
 #[derive(Debug)]
 pub struct DirScanDriver;
-
 #[async_trait::async_trait]
 impl Driver for DirScanDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "dir_scan"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Scan for common directories and files on a web server"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to discover hidden directories and files on a web server"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "target".to_string(),
                 param_type: "string".to_string(),
@@ -144,61 +143,57 @@ impl Driver for DirScanDriver {
                 example: Some(Value::String("html,php,json".to_string())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "dir_scan",
             "parameters": {
                 "target": "http://example.com"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Directory Scan Results:\n\nFound: http://example.com/admin/ (200)\nFound: http://example.com/.git/ (403)\nFound: http://example.com/robots.txt (200)".to_string()
+        return "Directory Scan Results:\n\nFound: http://example.com/admin/ (200)\nFound: http://example.com/.git/ (403)\nFound: http://example.com/robots.txt (200)".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing dir_scan driver");
         let target = get_param_string(parameters, "target")?;
         let timeout_secs = get_param_u64(parameters, "timeout", 5);
         let concurrency = get_param_u64(parameters, "concurrency", 10) as usize;
-        let file_exts: Vec<String> = parameters
-            .get("file_ext")
-            .and_then(|v| v.as_str())
-            .unwrap_or("html,php,txt")
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .collect();
-        let mut wordlist: Vec<String> = parameters
-            .get("wordlist")
-            .and_then(|v| v.as_str())
-            .map(|s| s.split(',').map(|w| w.trim().to_string()).collect())
-            .unwrap_or_else(|| {
+        let file_exts: Vec<String> =
+            parameters.get("file_ext").and_then(|v| v.as_str()).unwrap_or("html,php,txt").split(',').map(|s| s.trim().to_string()).collect();
+        let mut wordlist: Vec<String> =
+            parameters.get("wordlist").and_then(|v| v.as_str()).map(|s| s.split(',').map(|w| w.trim().to_string()).collect()).unwrap_or_else(|| {
                 let mut list: Vec<String> = COMMON_DIRS.iter().map(|s| s.to_string()).collect();
                 list.extend(COMMON_FILES.iter().map(|s| s.to_string()));
                 list
             });
         wordlist.sort();
         wordlist.dedup();
+        info!("Scanning target: {}, wordlist size: {}, concurrency: {}", target, wordlist.len(), concurrency);
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(timeout_secs))
-            .build()?;
+            .build()
+            .map_err(|e| DriverError::execution(format!("Failed to build HTTP client: {}", e)))?;
         let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
         let mut tasks = vec![];
         let target_clone = target.clone();
         for path in wordlist {
-            let permit = semaphore.clone().acquire_owned().await?;
+            let permit =
+                semaphore.clone().acquire_owned().await.map_err(|e| DriverError::execution(format!("Failed to acquire semaphore: {}", e)))?;
             let client_clone = client.clone();
             let target_clone = target_clone.clone();
             let ext_clone = file_exts.to_vec();
@@ -217,54 +212,46 @@ impl Driver for DirScanDriver {
                         _ => {}
                     }
                 }
-                let url = base_url;
-                match client_clone.get(&url).send().await {
+                match client_clone.get(&base_url).send().await {
                     Ok(resp) => {
                         let status = resp.status().as_u16();
                         if status < 400 {
-                            results.push((url.clone(), status));
+                            results.push((base_url.clone(), status));
                         }
                     }
                     _ => {}
                 }
-
                 drop(permit);
                 results
             }));
         }
-
         let mut found = Vec::new();
         for task in tasks {
             if let Ok(results) = task.await {
                 found.extend(results);
             }
         }
-
         found.sort_by(|a, b| a.0.cmp(&b.0));
         found.dedup();
-
+        info!("Found {} items during directory scan", found.len());
         let mut output = format!("Directory Scan Results for {}:\n", target);
         if found.is_empty() {
             output.push_str("\nNo directories or files found.");
+            info!("No directories or files found");
         } else {
             output.push_str(&format!("\nFound {} items:\n", found.len()));
             for (url, status) in found {
                 output.push_str(&format!("  {} (HTTP {})\n", url, status));
             }
         }
-
-        Ok(output)
+        return Ok(output);
     }
 }
-
-fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
-    params
-        .get(name)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("Missing parameter: {}", name))
+/// Gets a string parameter from the parameters map
+fn get_param_string(params: &HashMap<String, Value>, name: &str) -> DriverResult<String> {
+    params.get(name).and_then(|v| v.as_str()).map(|s| s.to_string()).ok_or_else(|| DriverError::missing_parameter(name))
 }
-
+/// Gets a u64 parameter from the parameters map with a default value
 fn get_param_u64(params: &HashMap<String, Value>, name: &str, default: u64) -> u64 {
     params.get(name).and_then(|v| v.as_u64()).unwrap_or(default)
 }

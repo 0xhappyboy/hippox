@@ -1,37 +1,47 @@
-//! Disk information driver
+//! Disk information driver module
+//!
+//! This module provides functionality to get detailed disk information
+//! including model, serial number, interface type, and size.
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::process::Command;
+use tracing::{debug, info};
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     drivers::operating_system_disk::common::DiskInfo,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
 /// Driver for getting disk information
 #[derive(Debug)]
 pub struct DiskInfoDriver;
 #[async_trait::async_trait]
 impl Driver for DiskInfoDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "disk_info"
+        return "disk_info";
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Get detailed disk information including model, serial, interface, and size"
+        return "Get detailed disk information including model, serial, interface, and size";
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to get disk specifications and hardware details"
+        return "Use this skill to get disk specifications and hardware details";
     }
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "disk_info",
             "parameters": {}
-        })
+        }));
     }
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        r#"Disk Information:
+        return r#"Disk Information:
 Name: /dev/sda
 Model: Samsung SSD 860 EVO 500GB
 Serial: S3Z9NB0M123456
@@ -40,19 +50,23 @@ Transfer Mode: SATA III (6 Gbps)
 Size: 500 GB
 Type: SSD
 Removable: No"#
-            .to_string()
+            .to_string();
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemDisk
+        return DriverCategory::OperatingSystemDisk;
     }
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing disk_info driver");
         let disks = get_disk_info()?;
         if disks.is_empty() {
+            info!("No disks detected");
             return Ok("No disks detected".to_string());
         }
         let mut output = String::from("Disk Information:\n");
@@ -66,19 +80,18 @@ Removable: No"#
             output.push_str(&format!("Interface: {}\n", disk.interface_type));
             output.push_str(&format!("Transfer Mode: {}\n", disk.transfer_mode));
             output.push_str(&format!("Size: {} GB\n", disk.size_gb));
-            output.push_str(&format!(
-                "Type: {}\n",
-                if disk.is_ssd { "SSD" } else { "HDD" }
-            ));
-            output.push_str(&format!(
-                "Removable: {}\n",
-                if disk.is_removable { "Yes" } else { "No" }
-            ));
+            output.push_str(&format!("Type: {}\n", if disk.is_ssd { "SSD" } else { "HDD" }));
+            output.push_str(&format!("Removable: {}\n", if disk.is_removable { "Yes" } else { "No" }));
         }
-        Ok(output)
+        info!("Disk information retrieved for {} disks", disks.len());
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        return Ok(());
     }
 }
-fn get_disk_info() -> Result<Vec<DiskInfo>> {
+fn get_disk_info() -> DriverResult<Vec<DiskInfo>> {
     let mut disks = Vec::new();
     #[cfg(target_os = "linux")]
     {
@@ -92,26 +105,16 @@ fn get_disk_info() -> Result<Vec<DiskInfo>> {
                     }
                     let device_path = format!("/dev/{}", name);
                     let model_path = format!("/sys/block/{}/device/model", name);
-                    let model = std::fs::read_to_string(&model_path)
-                        .map(|s| s.trim().to_string())
-                        .unwrap_or_else(|_| "Unknown".to_string());
+                    let model = std::fs::read_to_string(&model_path).map(|s| s.trim().to_string()).unwrap_or_else(|_| "Unknown".to_string());
                     let serial_path = format!("/sys/block/{}/device/serial", name);
-                    let serial = std::fs::read_to_string(&serial_path)
-                        .map(|s| s.trim().to_string())
-                        .unwrap_or_else(|_| "Unknown".to_string());
+                    let serial = std::fs::read_to_string(&serial_path).map(|s| s.trim().to_string()).unwrap_or_else(|_| "Unknown".to_string());
                     let size_path = format!("/sys/block/{}/size", name);
-                    let size_sectors = std::fs::read_to_string(&size_path)
-                        .map(|s| s.trim().parse::<u64>().unwrap_or(0))
-                        .unwrap_or(0);
+                    let size_sectors = std::fs::read_to_string(&size_path).map(|s| s.trim().parse::<u64>().unwrap_or(0)).unwrap_or(0);
                     let size_gb = (size_sectors * 512) / (1024 * 1024 * 1024);
                     let rotational_path = format!("/sys/block/{}/queue/rotational", name);
-                    let is_ssd = std::fs::read_to_string(&rotational_path)
-                        .map(|s| s.trim() == "0")
-                        .unwrap_or(false);
+                    let is_ssd = std::fs::read_to_string(&rotational_path).map(|s| s.trim() == "0").unwrap_or(false);
                     let removable_path = format!("/sys/block/{}/removable", name);
-                    let is_removable = std::fs::read_to_string(&removable_path)
-                        .map(|s| s.trim() == "1")
-                        .unwrap_or(false);
+                    let is_removable = std::fs::read_to_string(&removable_path).map(|s| s.trim() == "1").unwrap_or(false);
                     let interface = if name.starts_with("sd") {
                         "SATA".to_string()
                     } else if name.starts_with("nvme") {
@@ -122,10 +125,7 @@ fn get_disk_info() -> Result<Vec<DiskInfo>> {
                         "Unknown".to_string()
                     };
                     let transfer_mode = if interface == "SATA" {
-                        if let Ok(link_speed) = std::fs::read_to_string(format!(
-                            "/sys/block/{}/device/sata_link_speed",
-                            name
-                        )) {
+                        if let Ok(link_speed) = std::fs::read_to_string(format!("/sys/block/{}/device/sata_link_speed", name)) {
                             format!("SATA {}", link_speed.trim())
                         } else {
                             "SATA III (6 Gbps)".to_string()
@@ -155,22 +155,13 @@ fn get_disk_info() -> Result<Vec<DiskInfo>> {
     }
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = std::process::Command::new("system_profiler")
-            .args(&["SPStorageDataType", "-json"])
-            .output()
-        {
+        if let Ok(output) = Command::new("system_profiler").args(&["SPStorageDataType", "-json"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
-                        if let Some(storage) =
-                            json.get("SPStorageDataType").and_then(|v| v.as_array())
-                        {
+                        if let Some(storage) = json.get("SPStorageDataType").and_then(|v| v.as_array()) {
                             for device in storage {
-                                let name = device
-                                    .get("_name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Unknown")
-                                    .to_string();
+                                let name = device.get("_name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
                                 disks.push(DiskInfo {
                                     name,
                                     model: "Unknown".to_string(),
@@ -201,19 +192,13 @@ fn get_disk_info() -> Result<Vec<DiskInfo>> {
             is_removable: false,
         });
     }
-    Ok(disks)
+    return Ok(disks);
 }
 #[cfg(target_os = "windows")]
-fn get_windows_disks() -> Result<Vec<DiskInfo>> {
+fn get_windows_disks() -> DriverResult<Vec<DiskInfo>> {
     use std::process::Command;
     let mut disks = Vec::new();
-    let output = Command::new("wmic")
-        .args(&[
-            "diskdrive",
-            "get",
-            "Name,Model,SerialNumber,InterfaceType,MediaType,Size",
-        ])
-        .output();
+    let output = Command::new("wmic").args(&["diskdrive", "get", "Name,Model,SerialNumber,InterfaceType,MediaType,Size"]).output();
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -237,26 +222,10 @@ fn get_windows_disks() -> Result<Vec<DiskInfo>> {
                             || interface.to_lowercase().contains("nvme");
                         let interface_lower = interface.to_lowercase();
                         disks.push(DiskInfo {
-                            name: if name.is_empty() {
-                                "Unknown".to_string()
-                            } else {
-                                name
-                            },
-                            model: if model.is_empty() {
-                                "Unknown".to_string()
-                            } else {
-                                model
-                            },
-                            serial_number: if serial.is_empty() {
-                                "Unknown".to_string()
-                            } else {
-                                serial
-                            },
-                            interface_type: if interface.is_empty() {
-                                "Unknown".to_string()
-                            } else {
-                                interface
-                            },
+                            name: if name.is_empty() { "Unknown".to_string() } else { name },
+                            model: if model.is_empty() { "Unknown".to_string() } else { model },
+                            serial_number: if serial.is_empty() { "Unknown".to_string() } else { serial },
+                            interface_type: if interface.is_empty() { "Unknown".to_string() } else { interface },
                             transfer_mode: if interface_lower.to_lowercase().contains("sata") {
                                 "SATA III (6 Gbps)".to_string()
                             } else if interface_lower.to_lowercase().contains("nvme") {
@@ -275,10 +244,7 @@ fn get_windows_disks() -> Result<Vec<DiskInfo>> {
     }
     if disks.is_empty() {
         let output = Command::new("powershell")
-            .args(&[
-                "-Command",
-                "Get-PhysicalDisk | Select-Object FriendlyName, SerialNumber, MediaType, Size, BusType"
-            ])
+            .args(&["-Command", "Get-PhysicalDisk | Select-Object FriendlyName, SerialNumber, MediaType, Size, BusType"])
             .output();
         if let Ok(output) = output {
             if output.status.success() {
@@ -294,18 +260,12 @@ fn get_windows_disks() -> Result<Vec<DiskInfo>> {
                         if parts.len() >= 2 {
                             let name = parts.first().unwrap_or(&"").to_string();
                             let size_str = parts.get(3).unwrap_or(&"0").to_string();
-                            let size_gb =
-                                size_str.parse::<u64>().unwrap_or(0) / (1024 * 1024 * 1024);
+                            let size_gb = size_str.parse::<u64>().unwrap_or(0) / (1024 * 1024 * 1024);
                             let media_type = parts.get(2).unwrap_or(&"").to_string();
-                            let is_ssd = media_type.to_lowercase().contains("ssd")
-                                || media_type.to_lowercase().contains("nvme");
+                            let is_ssd = media_type.to_lowercase().contains("ssd") || media_type.to_lowercase().contains("nvme");
                             disks.push(DiskInfo {
                                 name: format!("PhysicalDisk ({})", name),
-                                model: if name.is_empty() {
-                                    "Unknown".to_string()
-                                } else {
-                                    name
-                                },
+                                model: if name.is_empty() { "Unknown".to_string() } else { name },
                                 serial_number: parts.get(1).unwrap_or(&"Unknown").to_string(),
                                 interface_type: parts.get(4).unwrap_or(&"Unknown").to_string(),
                                 transfer_mode: "Unknown".to_string(),
@@ -331,7 +291,7 @@ fn get_windows_disks() -> Result<Vec<DiskInfo>> {
             is_removable: false,
         });
     }
-    Ok(disks)
+    return Ok(disks);
 }
 #[cfg(test)]
 mod tests {

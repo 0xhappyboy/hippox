@@ -1,34 +1,28 @@
-//! Service disable Driver
-
+//! Service disable Driver - disable service auto-start
 use super::common::disable_service;
-use crate::{DriverCallback, DriverContext};
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for disabling service auto-start
 #[derive(Debug)]
 pub struct ServiceDisableDriver;
-
 #[async_trait::async_trait]
 impl Driver for ServiceDisableDriver {
     fn name(&self) -> &str {
-        "service_disable"
+        return "service_disable";
     }
-
     fn description(&self) -> &str {
-        "Disable a service from starting automatically on boot"
+        return "Disable a service from starting automatically on boot";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to prevent a service from starting automatically at system boot."
+        return "Use this skill to prevent a service from starting automatically at system boot.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "service_name".to_string(),
             param_type: "string".to_string(),
             description: "Name of the service to disable".to_string(),
@@ -36,37 +30,38 @@ impl Driver for ServiceDisableDriver {
             default: None,
             example: Some(Value::String("nginx".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "service_disable",
             "parameters": {
                 "service_name": "nginx"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Service nginx disabled for auto-start".to_string()
+        return "Service nginx disabled for auto-start".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemServices
+        return DriverCategory::OperatingSystemServices;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let service_name = parameters
-            .get("service_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
-        disable_service(service_name)?;
-        Ok(format!("Service {} disabled for auto-start", service_name))
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing service_disable driver");
+        let service_name = parameters.get("service_name").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'service_name' parameter");
+            return DriverError::missing_parameter("service_name");
+        })?;
+        disable_service(service_name).map_err(|e| {
+            debug!("Failed to disable service {}: {}", service_name, e);
+            return DriverError::execution(format!("Failed to disable service: {}", e));
+        })?;
+        info!("Service {} disabled for auto-start", service_name);
+        return Ok(format!("Service {} disabled for auto-start", service_name));
     }
 }

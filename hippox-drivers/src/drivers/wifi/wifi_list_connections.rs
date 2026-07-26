@@ -1,81 +1,66 @@
+// wifi_list_connections.rs
 //! WiFi list connections skill - list saved/connected WiFi networks
-
 use super::common::{get_wifi_status, list_saved_networks};
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for listing saved WiFi connections
 #[derive(Debug)]
 pub struct WifiListConnectionsDriver;
-
 #[async_trait::async_trait]
 impl Driver for WifiListConnectionsDriver {
     fn name(&self) -> &str {
-        "wifi_list_connections"
+        return "wifi_list_connections";
     }
-
     fn description(&self) -> &str {
-        "List all saved WiFi networks and show which one is currently connected"
+        return "List all saved WiFi networks and show which one is currently connected";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to see what WiFi networks have been saved on this device and which one is currently active."
+        return "Use this skill to see what WiFi networks have been saved on this device and which one is currently active.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "wifi_list_connections"
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Saved networks (3):\n1. MyWiFi [Connected]\n2. GuestWiFi\n3. OfficeNet".to_string()
+        return "Saved networks (3):\n1. MyWiFi [Connected]\n2. GuestWiFi\n3. OfficeNet".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::Wifi
+        return DriverCategory::Wifi;
     }
-
     async fn execute(
         &self,
-        parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let status = get_wifi_status()?;
+        _parameters: &HashMap<String, Value>,
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing wifi_list_connections driver");
+        let status = get_wifi_status().map_err(|e| {
+            debug!("Failed to get WiFi status: {}", e);
+            return DriverError::execution(format!("Failed to get WiFi status: {}", e));
+        })?;
         let current_ssid = status.ssid.clone();
-
-        let saved_networks = list_saved_networks()?;
-
+        let saved_networks = list_saved_networks().map_err(|e| {
+            debug!("Failed to list saved networks: {}", e);
+            return DriverError::execution(format!("Failed to list saved networks: {}", e));
+        })?;
         if saved_networks.is_empty() {
+            info!("No saved WiFi networks found");
             return Ok("No saved WiFi networks found".to_string());
         }
-
         let mut result = format!("Saved networks ({}):\n", saved_networks.len());
         for (i, network) in saved_networks.iter().enumerate() {
-            let connected_marker = if Some(&network.ssid) == current_ssid.as_ref() {
-                " [CONNECTED]"
-            } else {
-                ""
-            };
-            result.push_str(&format!(
-                "{}. {}{}\n",
-                i + 1,
-                network.ssid,
-                connected_marker
-            ));
+            let connected_marker = if Some(&network.ssid) == current_ssid.as_ref() { " [CONNECTED]" } else { "" };
+            result.push_str(&format!("{}. {}{}\n", i + 1, network.ssid, connected_marker));
         }
-
         if let Some(ssid) = current_ssid {
             result.push_str(&format!("\nCurrently connected to: {}", ssid));
             if let Some(ip) = status.ip_address {
@@ -87,7 +72,7 @@ impl Driver for WifiListConnectionsDriver {
         } else {
             result.push_str("\nNot currently connected to any WiFi network");
         }
-
-        Ok(result)
+        info!("Listed {} saved networks", saved_networks.len());
+        return Ok(result);
     }
 }

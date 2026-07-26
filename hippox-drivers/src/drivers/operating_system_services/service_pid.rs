@@ -1,35 +1,28 @@
-//! Service PID Driver
-
-use super::common::get_service_pid;
-use crate::DriverCallback;
-use crate::DriverContext;
-use crate::{
-    DriverCategory,
-    types::{Driver, DriverParameter},
-};
-use anyhow::Result;
-use serde_json::{Value, json};
+//! Service PID Driver - get service process ID
 use std::collections::HashMap;
-
+use serde_json::{json, Value};
+use tracing::{debug, info};
+use super::common::get_service_pid;
+use crate::{
+    types::{Driver, DriverParameter},
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+};
+/// Driver for getting service PID
 #[derive(Debug)]
 pub struct ServicePidDriver;
-
 #[async_trait::async_trait]
 impl Driver for ServicePidDriver {
     fn name(&self) -> &str {
-        "service_pid"
+        return "service_pid";
     }
-
     fn description(&self) -> &str {
-        "Get the PID (Process ID) of a service"
+        return "Get the PID (Process ID) of a service";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to get the main process ID of a service."
+        return "Use this skill to get the main process ID of a service.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "service_name".to_string(),
             param_type: "string".to_string(),
             description: "Name of the service".to_string(),
@@ -37,44 +30,49 @@ impl Driver for ServicePidDriver {
             default: None,
             example: Some(Value::String("nginx".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "service_pid",
             "parameters": {
                 "service_name": "nginx"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Service nginx PID: 1234".to_string()
+        return "Service nginx PID: 1234".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemServices
+        return DriverCategory::OperatingSystemServices;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing service_pid driver");
         let service_name = parameters
             .get("service_name")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
-        let pid = get_service_pid(service_name)?;
+            .ok_or_else(|| {
+                debug!("Missing 'service_name' parameter");
+                return DriverError::missing_parameter("service_name");
+            })?;
+        let pid = get_service_pid(service_name).map_err(|e| {
+            debug!("Failed to get PID for {}: {}", service_name, e);
+            return DriverError::execution(format!("Failed to get PID: {}", e));
+        })?;
         if let Some(pid) = pid {
-            Ok(format!("Service {} PID: {}", service_name, pid))
+            info!("Service {} PID: {}", service_name, pid);
+            return Ok(format!("Service {} PID: {}", service_name, pid));
         } else {
-            Ok(format!(
+            info!("Service {} is not running or no PID available", service_name);
+            return Ok(format!(
                 "Service {} is not running or no PID available",
                 service_name
-            ))
+            ));
         }
     }
 }

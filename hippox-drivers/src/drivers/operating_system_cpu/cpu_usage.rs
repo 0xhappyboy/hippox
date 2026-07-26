@@ -1,34 +1,37 @@
-//! CPU usage driver
-
+//! CPU usage driver module
+//!
+//! This module provides functionality to get current CPU usage percentage
+//! for overall and per-core usage.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::thread;
+use std::time::Duration;
 use sysinfo::System;
-
+use tracing::{debug, info};
 /// Driver for getting CPU usage
 #[derive(Debug)]
 pub struct CpuUsageDriver;
-
 #[async_trait::async_trait]
 impl Driver for CpuUsageDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "cpu_usage"
+        return "cpu_usage";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Get current CPU usage percentage for overall and per-core usage"
+        return "Get current CPU usage percentage for overall and per-core usage";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to monitor CPU load and identify performance bottlenecks"
+        return "Use this skill to monitor CPU load and identify performance bottlenecks";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "interval_ms".to_string(),
                 param_type: "integer".to_string(),
@@ -47,52 +50,46 @@ impl Driver for CpuUsageDriver {
                 example: Some(Value::Bool(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "cpu_usage",
             "parameters": {
                 "interval_ms": 500,
                 "per_core": true
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        r#"Overall CPU Usage: 45.2%
-
+        return r#"Overall CPU Usage: 45.2%
 Per-Core Usage:
 Core 0: 32.1%
 Core 1: 67.4%
 Core 2: 12.8%
 Core 3: 89.2%"#
-            .to_string()
+            .to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemCpu
+        return DriverCategory::OperatingSystemCpu;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let interval = parameters
-            .get("interval_ms")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(500) as u64;
-        let per_core = parameters
-            .get("per_core")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
-        // First refresh to get baseline
+    ) -> DriverResult<String> {
+        debug!("Executing cpu_usage driver");
+        let interval = parameters.get("interval_ms").and_then(|v| v.as_u64()).unwrap_or(500) as u64;
+        let per_core = parameters.get("per_core").and_then(|v| v.as_bool()).unwrap_or(true);
+        debug!("Measuring CPU usage with interval {}ms, per_core: {}", interval, per_core);
         let mut system = System::new_all();
         system.refresh_cpu_usage();
-        std::thread::sleep(std::time::Duration::from_millis(interval));
+        thread::sleep(Duration::from_millis(interval));
         system.refresh_cpu_usage();
         let overall = system.global_cpu_usage();
         let mut output = format!("Overall CPU Usage: {:.1}%\n\n", overall);
@@ -103,14 +100,17 @@ Core 3: 89.2%"#
                 output.push_str(&format!("Core {}: {:.1}%\n", i, cpu.cpu_usage()));
             }
         }
-        Ok(output)
+        info!("CPU usage retrieved: {:.1}% overall", overall);
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        return Ok(());
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_cpu_usage_metadata() {
         let driver = CpuUsageDriver;

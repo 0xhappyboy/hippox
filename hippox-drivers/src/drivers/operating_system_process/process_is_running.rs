@@ -1,35 +1,34 @@
-//! Process running check skill
-
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+//! Process running check driver
+//!
+//! This driver provides functionality to check if a process with the given name is running.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     operating_system_process::common::is_process_running,
     types::{Driver, DriverParameter},
 };
-
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
 /// Driver for checking if a process is running
 #[derive(Debug)]
 pub struct ProcessIsRunningDriver;
-
 #[async_trait::async_trait]
 impl Driver for ProcessIsRunningDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "process_is_running"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Check if a process with the given name is running"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to verify if a service or application is currently running"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "name".to_string(),
                 param_type: "string".to_string(),
@@ -48,55 +47,49 @@ impl Driver for ProcessIsRunningDriver {
                 example: Some(json!(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "process_is_running",
             "parameters": {
                 "name": "docker"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Process 'docker' is running".to_string()
+        return "Process 'docker' is running".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemProcess
+        return DriverCategory::OperatingSystemProcess;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let name = parameters
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: name"))?;
-
-        let exact_match = parameters
-            .get("exact_match")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing process_is_running driver");
+        let name = parameters.get("name").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("name"))?;
+        let exact_match = parameters.get("exact_match").and_then(|v| v.as_bool()).unwrap_or(false);
+        info!("Checking if process '{}' is running (exact: {})", name, exact_match);
         let running = is_process_running(name, exact_match);
         if running {
-            Ok(format!("Process '{}' is running", name))
+            info!("Process '{}' is running", name);
+            return Ok(format!("Process '{}' is running", name));
         } else {
-            Ok(format!("Process '{}' is not running", name))
+            info!("Process '{}' is not running", name);
+            return Ok(format!("Process '{}' is not running", name));
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[tokio::test]
     async fn test_process_is_running_skill() {
         let skill = ProcessIsRunningDriver;

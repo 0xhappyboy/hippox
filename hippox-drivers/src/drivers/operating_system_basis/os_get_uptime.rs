@@ -1,27 +1,34 @@
 //! OS get uptime driver
+//!
+//! This driver provides functionality to get system uptime information.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use sysinfo::System;
+use tracing::{debug, info};
+/// Driver for getting uptime information
 #[derive(Debug)]
 pub struct OsGetUptimeDriver;
 #[async_trait::async_trait]
 impl Driver for OsGetUptimeDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "os_get_uptime"
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Get system uptime information"
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to check how long the system has been running"
     }
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "human_readable".to_string(),
             param_type: "boolean".to_string(),
             description: "Return human-readable format (default: true)".to_string(),
@@ -29,33 +36,37 @@ impl Driver for OsGetUptimeDriver {
             default: Some(json!(true)),
             example: Some(json!(false)),
             enum_values: None,
-        }]
+        }];
     }
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "os_get_uptime"
-        })
+        }));
     }
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "System uptime: 5 days, 3 hours, 22 minutes".to_string()
+        return "System uptime: 5 days, 3 hours, 22 minutes".to_string();
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemBasis
+        return DriverCategory::OperatingSystemBasis;
     }
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let human_readable = parameters
-            .get("human_readable")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
+    ) -> DriverResult<String> {
+        debug!("Executing os_get_uptime driver");
+        let human_readable = parameters.get("human_readable").and_then(|v| v.as_bool()).unwrap_or(true);
         let mut system = System::new();
         system.refresh_all();
         let uptime_secs = System::uptime();
+        info!("Uptime retrieved: {} seconds", uptime_secs);
         if human_readable {
+            debug!("Formatting uptime in human-readable format");
             let days = uptime_secs / 86400;
             let hours = (uptime_secs % 86400) / 3600;
             let minutes = (uptime_secs % 3600) / 60;
@@ -73,9 +84,13 @@ impl Driver for OsGetUptimeDriver {
             if seconds > 0 && days == 0 && hours == 0 {
                 parts.push(format!("{} seconds", seconds));
             }
-            Ok(format!("System uptime: {}", parts.join(", ")))
+            let result = format!("System uptime: {}", parts.join(", "));
+            info!("Human-readable uptime: {}", result);
+            return Ok(result);
         } else {
-            Ok(format!("System uptime: {} seconds", uptime_secs))
+            let result = format!("System uptime: {} seconds", uptime_secs);
+            info!("Raw uptime: {}", result);
+            return Ok(result);
         }
     }
 }

@@ -1,29 +1,35 @@
+//! HTTP download driver
+//!
+//! This driver provides functionality to download a file from an HTTP URL
+//! and save it to local disk.
 use crate::common::http::{DownloadConfig, http_download};
-use crate::types::{Driver, DriverParameter};
-use crate::{DriverCallback, DriverCategory, DriverContext};
-use anyhow::Result;
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for downloading files via HTTP
 #[derive(Debug)]
 pub struct HttpDownloadDriver;
-
 #[async_trait::async_trait]
 impl Driver for HttpDownloadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "http_download"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Download a file from an HTTP URL and save it to local disk"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill when you need to download a file from a URL to the local filesystem"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "url".to_string(),
                 param_type: "string".to_string(),
@@ -60,131 +66,50 @@ impl Driver for HttpDownloadDriver {
                 example: Some(Value::Number(60.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "http_download",
             "parameters": {
                 "url": "https://example.com/file.zip",
                 "output_path": "/tmp/file.zip"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Downloaded 1048576 bytes to /tmp/file.zip".to_string()
+        return "Downloaded 1048576 bytes to /tmp/file.zip".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
-        let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-
-        if let Some(cb) = cb {
-            cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Starting HTTP download".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(5), None);
-        }
-
-        let url = parameters
-            .get("url")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'url' parameter"))?;
-
-        let output_path = parameters
-            .get("output_path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'output_path' parameter"))?;
-
-        let timeout = parameters
-            .get("timeout")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(300);
-
-        let headers = parameters
-            .get("headers")
-            .and_then(|v| v.as_object())
-            .map(|obj| {
-                let mut map = HashMap::new();
-                for (k, v) in obj {
-                    if let Some(s) = v.as_str() {
-                        map.insert(k.clone(), s.to_string());
-                    }
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing http_download driver");
+        let url = parameters.get("url").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("url"))?;
+        let output_path = parameters.get("output_path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("output_path"))?;
+        let timeout = parameters.get("timeout").and_then(|v| v.as_u64()).unwrap_or(300);
+        let headers = parameters.get("headers").and_then(|v| v.as_object()).map(|obj| {
+            let mut map = HashMap::new();
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    map.insert(k.clone(), s.to_string());
                 }
-                map
-            });
-
-        if let Some(cb) = cb {
-            cb.on_log(task_id.clone(), driver_index, Some(format!("URL: {}", url)));
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Output: {}", output_path)),
-            );
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Timeout: {}s", timeout)),
-            );
-            if let Some(h) = &headers {
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some(format!("Headers: {:?}", h)),
-                );
             }
-            cb.on_progress(task_id.clone(), driver_index, Some(20), None);
-        }
-
-        let config = DownloadConfig {
-            url: url.to_string(),
-            output_path: output_path.to_string(),
-            headers,
-            timeout_secs: Some(timeout),
-        };
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Downloading...".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(40), None);
-        }
-        let result = http_download(&config).await?;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Download completed".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("http_download".to_string()),
-                Some(result.clone()),
-            );
-        }
-        Ok(result)
+            map
+        });
+        info!("HTTP download: url={}, output={}, timeout={}s", url, output_path, timeout);
+        let config = DownloadConfig { url: url.to_string(), output_path: output_path.to_string(), headers, timeout_secs: Some(timeout) };
+        let result = http_download(&config).await.map_err(|e| DriverError::execution(format!("Download failed: {}", e)))?;
+        info!("HTTP download completed: {}", result);
+        return Ok(result);
     }
 }

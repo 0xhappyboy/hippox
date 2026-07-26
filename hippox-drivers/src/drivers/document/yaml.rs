@@ -1,33 +1,38 @@
+//! YAML file driver module
+//!
+//! This module provides drivers for YAML file operations including
+//! reading YAML files, parsing YAML data, writing YAML files,
+//! and validating YAML syntax.
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
 use crate::DriverCallback;
 use crate::DriverContext;
 use crate::{
     DriverCategory,
     types::{Driver, DriverParameter},
 };
-use crate::{ensure_dir, file_exists, read_file_content, validate_path, write_file_content};
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+use crate::{DriverError, DriverResult, ensure_dir, file_exists, read_file_content, validate_path, write_file_content};
+/// Driver for reading YAML files
 #[derive(Debug)]
 pub struct YamlReadDriver;
-
 #[async_trait::async_trait]
 impl Driver for YamlReadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "yaml_read"
+        return "yaml_read";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Read and parse YAML file content"
+        return "Read and parse YAML file content";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to read a YAML file, parse configuration data, or extract content from .yml/.yaml files"
+        return "Use this skill when the user wants to read a YAML file, parse configuration data, or extract content from .yml/.yaml files";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "path".to_string(),
                 param_type: "string".to_string(),
@@ -46,85 +51,82 @@ impl Driver for YamlReadDriver {
                 example: Some(Value::Bool(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "yaml_read",
             "parameters": {
                 "path": "config.yml"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "name: example\nversion: 1.0".to_string()
+        return "name: example\nversion: 1.0".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let path = parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-        let to_json = parameters
-            .get("to_json")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        let validated_path = validate_path(path, None)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing yaml_read driver");
+        // Extract required parameters
+        let path = parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        let to_json = parameters.get("to_json").and_then(|v| v.as_bool()).unwrap_or(false);
+        debug!("Reading YAML file: {}, to_json: {}", path, to_json);
+        let validated_path = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid path: {}", e)))?;
         if !file_exists(&validated_path.to_string_lossy()) {
-            anyhow::bail!("YAML file not found: {}", path);
+            return Err(DriverError::execution(format!("YAML file not found: {}", path)));
         }
-
-        let content = read_file_content(&validated_path.to_string_lossy())?;
-        let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)?;
-
+        let content =
+            read_file_content(&validated_path.to_string_lossy()).map_err(|e| DriverError::execution(format!("Failed to read file: {}", e)))?;
+        let yaml_value: serde_yaml::Value =
+            serde_yaml::from_str(&content).map_err(|e| DriverError::execution(format!("Failed to parse YAML: {}", e)))?;
         if to_json {
-            let json_value = serde_json::to_value(&yaml_value)?;
-            Ok(serde_json::to_string_pretty(&json_value)?)
+            let json_value =
+                serde_json::to_value(&yaml_value).map_err(|e| DriverError::execution(format!("Failed to convert YAML to JSON: {}", e)))?;
+            let result = serde_json::to_string_pretty(&json_value).map_err(|e| DriverError::execution(format!("Failed to serialize JSON: {}", e)))?;
+            info!("YAML read completed and converted to JSON: {}", path);
+            return Ok(result);
         } else {
-            Ok(content)
+            info!("YAML read completed: {}", path);
+            return Ok(content);
         }
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        return Ok(());
     }
 }
-
+/// Driver for writing YAML files
 #[derive(Debug)]
 pub struct YamlWriteDriver;
-
 #[async_trait::async_trait]
 impl Driver for YamlWriteDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "yaml_write"
+        return "yaml_write";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Write data to YAML file"
+        return "Write data to YAML file";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to create, save, or update a YAML file with structured data"
+        return "Use this skill when the user wants to create, save, or update a YAML file with structured data";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "path".to_string(),
                 param_type: "string".to_string(),
@@ -137,8 +139,7 @@ impl Driver for YamlWriteDriver {
             DriverParameter {
                 name: "data".to_string(),
                 param_type: "object".to_string(),
-                description: "Data to write (can be provided as YAML string or JSON object)"
-                    .to_string(),
+                description: "Data to write (can be provided as YAML string or JSON object)".to_string(),
                 required: true,
                 default: None,
                 example: Some(json!({"name": "example", "value": 42})),
@@ -153,94 +154,87 @@ impl Driver for YamlWriteDriver {
                 example: Some(Value::String("yaml".to_string())),
                 enum_values: Some(vec!["json".to_string(), "yaml".to_string()]),
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "yaml_write",
             "parameters": {
                 "path": "output.yml",
                 "data": {"name": "example", "version": "1.0"}
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "YAML written to: output.yml".to_string()
+        return "YAML written to: output.yml".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let path = parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-        let data = parameters
-            .get("data")
-            .ok_or_else(|| anyhow::anyhow!("Missing 'data' parameter"))?;
-        let data_format = parameters
-            .get("data_format")
-            .and_then(|v| v.as_str())
-            .unwrap_or("json");
-        let validated_path = validate_path(path, None)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing yaml_write driver");
+        // Extract required parameters
+        let path = parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        let data = parameters.get("data").ok_or_else(|| DriverError::missing_parameter("data"))?;
+        let data_format = parameters.get("data_format").and_then(|v| v.as_str()).unwrap_or("json");
+        debug!("Writing YAML file: {}, data_format: {}", path, data_format);
+        let validated_path = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid path: {}", e)))?;
         if let Some(parent) = validated_path.parent() {
-            ensure_dir(&parent.to_string_lossy())?;
+            ensure_dir(&parent.to_string_lossy()).map_err(|e| DriverError::execution(format!("Failed to create directory: {}", e)))?;
         }
         let yaml_content = if data_format == "yaml" {
             if let Some(yaml_str) = data.as_str() {
-                serde_yaml::from_str::<serde_yaml::Value>(yaml_str)?;
+                // Validate YAML syntax
+                serde_yaml::from_str::<serde_yaml::Value>(yaml_str).map_err(|e| DriverError::execution(format!("Invalid YAML: {}", e)))?;
                 yaml_str.to_string()
             } else {
-                anyhow::bail!("Data must be a string when format is 'yaml'");
+                return Err(DriverError::execution("Data must be a string when format is 'yaml'".to_string()));
             }
         } else {
-            let json_value = serde_json::to_value(data)?;
-            serde_yaml::to_string(&json_value)?
+            let json_value = serde_json::to_value(data).map_err(|e| DriverError::execution(format!("Failed to serialize data: {}", e)))?;
+            serde_yaml::to_string(&json_value).map_err(|e| DriverError::execution(format!("Failed to convert to YAML: {}", e)))?
         };
-        write_file_content(&validated_path.to_string_lossy(), &yaml_content, false)?;
-        Ok(format!("YAML written to: {}", path))
+        write_file_content(&validated_path.to_string_lossy(), &yaml_content, false)
+            .map_err(|e| DriverError::execution(format!("Failed to write file: {}", e)))?;
+        info!("YAML written to: {}", path);
+        return Ok(format!("YAML written to: {}", path));
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
-        parameters
-            .get("data")
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: data"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        parameters.get("data").ok_or_else(|| DriverError::missing_parameter("data"))?;
+        return Ok(());
     }
 }
-
+/// Driver for validating YAML syntax
 #[derive(Debug)]
 pub struct YamlValidateDriver;
-
 #[async_trait::async_trait]
 impl Driver for YamlValidateDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "yaml_validate"
+        return "yaml_validate";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Validate YAML file syntax"
+        return "Validate YAML file syntax";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to check if a YAML file has valid syntax"
+        return "Use this skill when the user wants to check if a YAML file has valid syntax";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "path".to_string(),
             param_type: "string".to_string(),
             description: "Path to the YAML file to validate".to_string(),
@@ -248,42 +242,42 @@ impl Driver for YamlValidateDriver {
             default: None,
             example: Some(Value::String("config.yml".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "yaml_validate",
             "parameters": {
                 "path": "config.yml"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "YAML is valid".to_string()
+        return "YAML is valid".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let path = parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-
-        let validated_path = validate_path(path, None)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing yaml_validate driver");
+        // Extract required parameters
+        let path = parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        debug!("Validating YAML file: {}", path);
+        let validated_path = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid path: {}", e)))?;
         if !file_exists(&validated_path.to_string_lossy()) {
-            anyhow::bail!("YAML file not found: {}", path);
+            return Err(DriverError::execution(format!("YAML file not found: {}", path)));
         }
-        let content = read_file_content(&validated_path.to_string_lossy())?;
+        let content =
+            read_file_content(&validated_path.to_string_lossy()).map_err(|e| DriverError::execution(format!("Failed to read file: {}", e)))?;
         match serde_yaml::from_str::<serde_yaml::Value>(&content) {
             Ok(yaml_value) => {
                 let type_name = match yaml_value {
@@ -295,17 +289,17 @@ impl Driver for YamlValidateDriver {
                     serde_yaml::Value::Mapping(_) => "mapping/object",
                     serde_yaml::Value::Tagged(_) => "tagged",
                 };
-                Ok(format!("YAML is valid\n  Root type: {}", type_name))
+                info!("YAML is valid: {} (type: {})", path, type_name);
+                return Ok(format!("YAML is valid\n  Root type: {}", type_name));
             }
-            Err(e) => anyhow::bail!("Invalid YAML: {}", e),
+            Err(e) => {
+                return Err(DriverError::execution(format!("Invalid YAML: {}", e)));
+            }
         }
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        return Ok(());
     }
 }

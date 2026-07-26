@@ -1,35 +1,34 @@
-//! Window kill skill (force close)
-
+//! Window kill driver (force close)
+//!
+//! This driver provides functionality to force kill a window's process.
 use super::common::{find_window, kill_window};
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for killing a window process
 #[derive(Debug)]
 pub struct WindowControlKillDriver;
-
 #[async_trait::async_trait]
 impl Driver for WindowControlKillDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "window_control_kill"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Force kill a window's process"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to force close a window that won't respond"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "title".to_string(),
                 param_type: "string".to_string(),
@@ -48,38 +47,39 @@ impl Driver for WindowControlKillDriver {
                 example: Some(Value::String("notepad.exe".to_string())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "window_control_kill",
             "parameters": {
                 "title": "无响应"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Window process killed".to_string()
+        return "Window process killed".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Window
+        return DriverCategory::Window;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing window_control_kill driver");
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-
+        info!("Killing window: title={:?}, process={:?}", title, process);
         let window_id = find_window(title, process)?;
         kill_window(window_id)?;
-
-        Ok("Window process killed".to_string())
+        info!("Window process killed: ID={}", window_id);
+        return Ok("Window process killed".to_string());
     }
 }

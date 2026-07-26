@@ -1,34 +1,28 @@
-//! Service import Driver
-
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+//! Service import Driver - import service configuration from file
 use super::common::import_service_config;
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
+/// Driver for importing service configuration
 #[derive(Debug)]
 pub struct ServiceImportDriver;
-
 #[async_trait::async_trait]
 impl Driver for ServiceImportDriver {
     fn name(&self) -> &str {
-        "service_import"
+        return "service_import";
     }
-
     fn description(&self) -> &str {
-        "Import service configuration from file"
+        return "Import service configuration from file";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to restore a service's configuration from a backup."
+        return "Use this skill to restore a service's configuration from a backup.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "service_name".to_string(),
                 param_type: "string".to_string(),
@@ -47,45 +41,43 @@ impl Driver for ServiceImportDriver {
                 example: Some(Value::String("/tmp/nginx.service.backup".to_string())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "service_import",
             "parameters": {
                 "service_name": "nginx",
                 "input_path": "/tmp/nginx.service.backup"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Service nginx configuration imported from /tmp/nginx.service.backup".to_string()
+        return "Service nginx configuration imported from /tmp/nginx.service.backup".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemServices
+        return DriverCategory::OperatingSystemServices;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let service_name = parameters
-            .get("service_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
-        let input_path = parameters
-            .get("input_path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'input_path' parameter"))?;
-        import_service_config(service_name, input_path)?;
-        Ok(format!(
-            "Service {} configuration imported from {}",
-            service_name, input_path
-        ))
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing service_import driver");
+        let service_name = parameters.get("service_name").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'service_name' parameter");
+            return DriverError::missing_parameter("service_name");
+        })?;
+        let input_path = parameters.get("input_path").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'input_path' parameter");
+            return DriverError::missing_parameter("input_path");
+        })?;
+        import_service_config(service_name, input_path).map_err(|e| {
+            debug!("Failed to import service {} from {}: {}", service_name, input_path, e);
+            return DriverError::execution(format!("Failed to import service: {}", e));
+        })?;
+        info!("Service {} configuration imported from {}", service_name, input_path);
+        return Ok(format!("Service {} configuration imported from {}", service_name, input_path));
     }
 }

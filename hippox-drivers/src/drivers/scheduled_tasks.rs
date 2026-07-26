@@ -1,63 +1,60 @@
-/// Task scheduling drivers module
-///
-/// This module provides drivers for scheduling, managing, and listing scheduled tasks.
-/// It supports three types of schedules: cron expressions, fixed intervals, and one-time
-/// execution at a specific time.
-///
-/// # Schedule Types
-///
-/// - **cron**: Recurring tasks using cron expressions (e.g., "0 9 * * *" for daily at 9am)
-/// - **interval**: Recurring tasks with a fixed interval in seconds
-/// - **at**: One-time tasks executed at a specific ISO 8601 timestamp
-///
-/// # Task Management
-///
-/// Each scheduled task has a unique ID that can be used to cancel it. Tasks run in the
-/// background as Tokio async tasks and execute shell commands.
-///
-/// # Examples
-///
-/// Schedule a daily backup:
-/// ```json
-/// {
-///     "action": "schedule_task",
-///     "parameters": {
-///         "task_id": "daily_backup",
-///         "command": "backup.sh",
-///         "schedule_type": "cron",
-///         "cron_expr": "0 9 * * *"
-///     }
-/// }
-/// ```
-///
-/// Cancel a scheduled task:
-/// ```json
-/// {
-///     "action": "unschedule_task",
-///     "parameters": { "task_id": "daily_backup" }
-/// }
-/// ```
-use anyhow::Result;
+//! Task scheduling drivers module
+//!
+//! This module provides drivers for scheduling, managing, and listing scheduled tasks.
+//! It supports three types of schedules: cron expressions, fixed intervals, and one-time
+//! execution at a specific time.
+//!
+//! # Schedule Types
+//!
+//! - **cron**: Recurring tasks using cron expressions (e.g., "0 9 * * *" for daily at 9am)
+//! - **interval**: Recurring tasks with a fixed interval in seconds
+//! - **at**: One-time tasks executed at a specific ISO 8601 timestamp
+//!
+//! # Task Management
+//!
+//! Each scheduled task has a unique ID that can be used to cancel it. Tasks run in the
+//! background as Tokio async tasks and execute shell commands.
+//!
+//! # Examples
+//!
+//! Schedule a daily backup:
+//! ```json
+//! {
+//!     "action": "schedule_task",
+//!     "parameters": {
+//!         "task_id": "daily_backup",
+//!         "command": "backup.sh",
+//!         "schedule_type": "cron",
+//!         "cron_expr": "0 9 * * *"
+//!     }
+//! }
+//! ```
+//!
+//! Cancel a scheduled task:
+//! ```json
+//! {
+//!     "action": "unschedule_task",
+//!     "parameters": { "task_id": "daily_backup" }
+//! }
+//! ```
 use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time;
-
-use crate::{DriverCallback, DriverCategory, DriverContext};
-use crate::types::{Driver, DriverParameter};
-
+use tracing::{debug, info};
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
 /// Type alias for a thread-safe map storing scheduled task handles
 type SchedulerMap = Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>;
-
 /// Global static storage for all active scheduled tasks
 ///
 /// This lazy static variable holds references to all currently running scheduled tasks.
 /// It is protected by a mutex for thread-safe access across multiple async tasks.
-static SCHEDULER_TASKS: once_cell::sync::Lazy<SchedulerMap> =
-    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
-
+static SCHEDULER_TASKS: once_cell::sync::Lazy<SchedulerMap> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 /// Driver for scheduling tasks to run at specified times or intervals
 ///
 /// This driver creates and manages scheduled tasks that execute shell commands
@@ -89,27 +86,23 @@ static SCHEDULER_TASKS: once_cell::sync::Lazy<SchedulerMap> =
 /// - Target time is in the past (for "at" schedule)
 #[derive(Debug)]
 pub struct ScheduleTaskDriver;
-
 #[async_trait::async_trait]
 impl Driver for ScheduleTaskDriver {
     /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "schedule_task"
+        return "schedule_task";
     }
-
     /// Returns a human-readable description of what this driver does
     fn description(&self) -> &str {
-        "Schedule a command to run at specified time or interval"
+        return "Schedule a command to run at specified time or interval";
     }
-
     /// Returns a hint about when to use this driver
     fn usage_hint(&self) -> &str {
-        "Use this driver when the user wants to schedule a task, set up a reminder, or run a command periodically"
+        return "Use this driver when the user wants to schedule a task, set up a reminder, or run a command periodically";
     }
-
     /// Returns the list of parameters accepted by this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "task_id".to_string(),
                 param_type: "string".to_string(),
@@ -135,11 +128,7 @@ impl Driver for ScheduleTaskDriver {
                 required: true,
                 default: None,
                 example: Some(Value::String("cron".to_string())),
-                enum_values: Some(vec![
-                    "cron".to_string(),
-                    "interval".to_string(),
-                    "at".to_string(),
-                ]),
+                enum_values: Some(vec!["cron".to_string(), "interval".to_string(), "at".to_string()]),
             },
             DriverParameter {
                 name: "cron_expr".to_string(),
@@ -168,12 +157,11 @@ impl Driver for ScheduleTaskDriver {
                 example: Some(Value::String("2024-12-31T23:59:00".to_string())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
     /// Returns an example JSON call for this driver
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "schedule_task",
             "parameters": {
                 "task_id": "daily_report",
@@ -181,19 +169,16 @@ impl Driver for ScheduleTaskDriver {
                 "schedule_type": "cron",
                 "cron_expr": "0 9 * * *"
             }
-        })
+        }));
     }
-
     /// Returns an example output string for this driver
     fn example_output(&self) -> String {
-        "Task 'daily_report' scheduled successfully".to_string()
+        return "Task 'daily_report' scheduled successfully".to_string();
     }
-
     /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::ScheduledTasks
+        return DriverCategory::ScheduledTasks;
     }
-
     /// Executes the task scheduling operation
     ///
     /// This method creates a new background task that will execute the specified
@@ -205,46 +190,33 @@ impl Driver for ScheduleTaskDriver {
     ///
     /// # Returns
     ///
-    /// * `Result<String>` - Success message or error
+    /// * `DriverResult<String>` - Success message or error
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let task_id = parameters
-            .get("task_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: task_id"))?;
-        let command = parameters
-            .get("command")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: command"))?;
-        let schedule_type = parameters
-            .get("schedule_type")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: schedule_type"))?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing schedule_task driver");
+        let task_id = parameters.get("task_id").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("task_id"))?;
+        let command = parameters.get("command").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("command"))?;
+        let schedule_type =
+            parameters.get("schedule_type").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("schedule_type"))?;
+        // Check if task already exists
         {
-            let tasks = SCHEDULER_TASKS.lock().unwrap();
+            let tasks = SCHEDULER_TASKS.lock().map_err(|e| DriverError::execution(format!("Failed to acquire lock: {}", e)))?;
             if tasks.contains_key(task_id) {
-                anyhow::bail!(
-                    "Task '{}' already exists. Use unschedule_task first or use different task_id",
-                    task_id
-                );
+                return Err(DriverError::execution(format!("Task '{}' already exists. Use unschedule_task first or use different task_id", task_id)));
             }
         }
         let task_id_owned = task_id.to_string();
         let command_owned = command.to_string();
         let schedule_type_owned = schedule_type.to_string();
-        let cron_expr = parameters
-            .get("cron_expr")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let cron_expr = parameters.get("cron_expr").and_then(|v| v.as_str()).map(String::from);
         let interval_secs = parameters.get("interval_secs").and_then(|v| v.as_u64());
-        let at_time_str = parameters
-            .get("at_time")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let at_time_str = parameters.get("at_time").and_then(|v| v.as_str()).map(String::from);
+        debug!("Scheduling task: id={}, type={}", task_id, schedule_type);
+        // Spawn the background task
         let handle = tokio::spawn(async move {
             let schedule_duration = match schedule_type_owned.as_str() {
                 "cron" => {
@@ -315,13 +287,15 @@ impl Driver for ScheduleTaskDriver {
                 }
             }
         });
+        // Store the task handle
         {
-            let mut tasks = SCHEDULER_TASKS.lock().unwrap();
+            let mut tasks = SCHEDULER_TASKS.lock().map_err(|e| DriverError::execution(format!("Failed to acquire lock: {}", e)))?;
             tasks.insert(task_id_owned, handle);
         }
-        Ok(format!("Task '{}' scheduled successfully", task_id))
+        let result = format!("Task '{}' scheduled successfully", task_id);
+        info!("{}", result);
+        return Ok(result);
     }
-
     /// Validates the parameters for the schedule task operation
     ///
     /// # Arguments
@@ -330,47 +304,27 @@ impl Driver for ScheduleTaskDriver {
     ///
     /// # Returns
     ///
-    /// * `Result<()>` - Ok if parameters are valid, otherwise an error
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("task_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: task_id"))?;
-        parameters
-            .get("command")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: command"))?;
-        let schedule_type = parameters
-            .get("schedule_type")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: schedule_type"))?;
+    /// * `DriverResult<()>` - Ok if parameters are valid, otherwise an error
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("task_id").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("task_id"))?;
+        parameters.get("command").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("command"))?;
+        let schedule_type =
+            parameters.get("schedule_type").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("schedule_type"))?;
         match schedule_type {
             "cron" => {
-                parameters
-                    .get("cron_expr")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| anyhow::anyhow!("Missing cron_expr for cron schedule"))?;
+                parameters.get("cron_expr").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("cron_expr"))?;
             }
             "interval" => {
-                parameters
-                    .get("interval_secs")
-                    .and_then(|v| v.as_u64())
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("Missing interval_secs for interval schedule")
-                    })?;
+                parameters.get("interval_secs").and_then(|v| v.as_u64()).ok_or_else(|| DriverError::missing_parameter("interval_secs"))?;
             }
             "at" => {
-                parameters
-                    .get("at_time")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| anyhow::anyhow!("Missing at_time for at schedule"))?;
+                parameters.get("at_time").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("at_time"))?;
             }
-            _ => anyhow::bail!("Unknown schedule_type: {}", schedule_type),
+            _ => return Err(DriverError::validation("schedule_type", format!("Unknown schedule_type: {}", schedule_type))),
         }
-        Ok(())
+        return Ok(());
     }
 }
-
 /// Driver for removing a previously scheduled task
 ///
 /// This driver cancels and removes a scheduled task by its unique ID.
@@ -391,27 +345,23 @@ impl Driver for ScheduleTaskDriver {
 /// Returns an error if the task ID does not exist.
 #[derive(Debug)]
 pub struct UnscheduleTaskDriver;
-
 #[async_trait::async_trait]
 impl Driver for UnscheduleTaskDriver {
     /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "unschedule_task"
+        return "unschedule_task";
     }
-
     /// Returns a human-readable description of what this driver does
     fn description(&self) -> &str {
-        "Remove a scheduled task"
+        return "Remove a scheduled task";
     }
-
     /// Returns a hint about when to use this driver
     fn usage_hint(&self) -> &str {
-        "Use this driver when the user wants to cancel a previously scheduled task"
+        return "Use this driver when the user wants to cancel a previously scheduled task";
     }
-
     /// Returns the list of parameters accepted by this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "task_id".to_string(),
             param_type: "string".to_string(),
             description: "Unique identifier of the task to remove".to_string(),
@@ -419,29 +369,25 @@ impl Driver for UnscheduleTaskDriver {
             default: None,
             example: Some(Value::String("daily_backup".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
     /// Returns an example JSON call for this driver
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "unschedule_task",
             "parameters": {
                 "task_id": "daily_backup"
             }
-        })
+        }));
     }
-
     /// Returns an example output string for this driver
     fn example_output(&self) -> String {
-        "Task 'daily_backup' removed successfully".to_string()
+        return "Task 'daily_backup' removed successfully".to_string();
     }
-
     /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::ScheduledTasks
+        return DriverCategory::ScheduledTasks;
     }
-
     /// Executes the task unscheduling operation
     ///
     /// This method finds and cancels a scheduled task by its ID.
@@ -452,26 +398,26 @@ impl Driver for UnscheduleTaskDriver {
     ///
     /// # Returns
     ///
-    /// * `Result<String>` - Success message or error
+    /// * `DriverResult<String>` - Success message or error
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let task_id = parameters
-            .get("task_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: task_id"))?;
-        let mut tasks = SCHEDULER_TASKS.lock().unwrap();
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing unschedule_task driver");
+        let task_id = parameters.get("task_id").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("task_id"))?;
+        debug!("Unscheduling task: {}", task_id);
+        let mut tasks = SCHEDULER_TASKS.lock().map_err(|e| DriverError::execution(format!("Failed to acquire lock: {}", e)))?;
         if let Some(handle) = tasks.remove(task_id) {
             handle.abort();
-            Ok(format!("Task '{}' removed successfully", task_id))
+            let result = format!("Task '{}' removed successfully", task_id);
+            info!("{}", result);
+            return Ok(result);
         } else {
-            anyhow::bail!("Task '{}' not found", task_id)
+            return Err(DriverError::execution(format!("Task '{}' not found", task_id)));
         }
     }
-
     /// Validates the parameters for the unschedule task operation
     ///
     /// # Arguments
@@ -480,16 +426,12 @@ impl Driver for UnscheduleTaskDriver {
     ///
     /// # Returns
     ///
-    /// * `Result<()>` - Ok if parameters are valid, otherwise an error
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("task_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: task_id"))?;
-        Ok(())
+    /// * `DriverResult<()>` - Ok if parameters are valid, otherwise an error
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("task_id").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("task_id"))?;
+        return Ok(());
     }
 }
-
 /// Driver for listing all active scheduled tasks
 ///
 /// This driver retrieves and displays all currently scheduled tasks.
@@ -505,47 +447,39 @@ impl Driver for UnscheduleTaskDriver {
 /// or a message indicating no tasks are scheduled.
 #[derive(Debug)]
 pub struct ListScheduledTasksDriver;
-
 #[async_trait::async_trait]
 impl Driver for ListScheduledTasksDriver {
     /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "list_scheduled_tasks"
+        return "list_scheduled_tasks";
     }
-
     /// Returns a human-readable description of what this driver does
     fn description(&self) -> &str {
-        "List all scheduled tasks"
+        return "List all scheduled tasks";
     }
-
     /// Returns a hint about when to use this driver
     fn usage_hint(&self) -> &str {
-        "Use this driver when the user wants to see all active scheduled tasks"
+        return "Use this driver when the user wants to see all active scheduled tasks";
     }
-
     /// Returns the list of parameters accepted by this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
     /// Returns an example JSON call for this driver
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "list_scheduled_tasks",
             "parameters": {}
-        })
+        }));
     }
-
     /// Returns an example output string for this driver
     fn example_output(&self) -> String {
-        "Scheduled tasks:\n- daily_backup\n- hourly_cleanup".to_string()
+        return "Scheduled tasks:\n- daily_backup\n- hourly_cleanup".to_string();
     }
-
     /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::ScheduledTasks
+        return DriverCategory::ScheduledTasks;
     }
-
     /// Executes the task listing operation
     ///
     /// This method retrieves all active task IDs from the global registry.
@@ -556,23 +490,29 @@ impl Driver for ListScheduledTasksDriver {
     ///
     /// # Returns
     ///
-    /// * `Result<String>` - Formatted list of scheduled tasks
+    /// * `DriverResult<String>` - Formatted list of scheduled tasks
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let tasks = SCHEDULER_TASKS.lock().unwrap();
-        if tasks.is_empty() {
-            Ok("No scheduled tasks".to_string())
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing list_scheduled_tasks driver");
+        let tasks = SCHEDULER_TASKS.lock().map_err(|e| DriverError::execution(format!("Failed to acquire lock: {}", e)))?;
+        let result = if tasks.is_empty() {
+            "No scheduled tasks".to_string()
         } else {
             let task_list: Vec<String> = tasks.keys().cloned().collect();
-            Ok(format!("Scheduled tasks:\n- {}", task_list.join("\n- ")))
-        }
+            format!("Scheduled tasks:\n- {}", task_list.join("\n- "))
+        };
+        info!("Listed {} scheduled tasks", tasks.len());
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        return Ok(());
     }
 }
-
 /// Executes a shell command and logs its output
 ///
 /// This helper function runs a command through the system shell (`sh -c`)
@@ -587,16 +527,10 @@ async fn execute_command(command: &str) {
     match output {
         Ok(out) => {
             if !out.stdout.is_empty() {
-                eprintln!(
-                    "[Scheduler] stdout: {}",
-                    String::from_utf8_lossy(&out.stdout)
-                );
+                eprintln!("[Scheduler] stdout: {}", String::from_utf8_lossy(&out.stdout));
             }
             if !out.stderr.is_empty() {
-                eprintln!(
-                    "[Scheduler] stderr: {}",
-                    String::from_utf8_lossy(&out.stderr)
-                );
+                eprintln!("[Scheduler] stderr: {}", String::from_utf8_lossy(&out.stderr));
             }
         }
         Err(e) => {
@@ -604,7 +538,6 @@ async fn execute_command(command: &str) {
         }
     }
 }
-
 /// Parses a cron expression into a Duration until the next execution
 ///
 /// This function parses a simple cron expression (minute hour) and calculates
@@ -617,153 +550,90 @@ async fn execute_command(command: &str) {
 ///
 /// # Returns
 ///
-/// * `Result<Duration>` - Duration until the next scheduled time
+/// * `DriverResult<Duration>` - Duration until the next scheduled time
 ///
 /// # Notes
 ///
 /// Currently supports only minute and hour fields. Day, month, and day-of-week
 /// fields are parsed but ignored. The function calculates the next occurrence
 /// today or tomorrow based on the current time.
-fn parse_cron_to_duration(cron_expr: &str) -> Result<Duration> {
+fn parse_cron_to_duration(cron_expr: &str) -> DriverResult<Duration> {
     let parts: Vec<&str> = cron_expr.split_whitespace().collect();
     if parts.len() < 5 {
-        anyhow::bail!("Invalid cron expression: need at least 5 fields");
+        return Err(DriverError::execution("Invalid cron expression: need at least 5 fields".to_string()));
     }
     let minute = parts[0].parse::<u32>().unwrap_or(0);
     let hour = parts[1].parse::<u32>().unwrap_or(0);
     let now = Local::now();
-    let next = Local
-        .with_ymd_and_hms(now.year(), now.month(), now.day(), hour, minute, 0)
-        .single()
-        .unwrap_or(now);
+    let next = Local.with_ymd_and_hms(now.year(), now.month(), now.day(), hour, minute, 0).single().unwrap_or(now);
     let duration = if next > now {
         next - now
     } else {
-        let next_day = Local
-            .with_ymd_and_hms(now.year(), now.month(), now.day() + 1, hour, minute, 0)
-            .single()
-            .unwrap_or(now + ChronoDuration::days(1));
+        let next_day =
+            Local.with_ymd_and_hms(now.year(), now.month(), now.day() + 1, hour, minute, 0).single().unwrap_or(now + ChronoDuration::days(1));
         next_day - now
     };
-    Ok(duration.to_std().unwrap_or(Duration::from_secs(60)))
+    return Ok(duration.to_std().unwrap_or(Duration::from_secs(60)));
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-
     /// Test parameter validation for ScheduleTaskDriver
     #[test]
     fn test_schedule_task_validation() {
         let driver = ScheduleTaskDriver;
         let mut valid_cron = HashMap::new();
         valid_cron.insert("task_id".to_string(), Value::String("test1".to_string()));
-        valid_cron.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
-        valid_cron.insert(
-            "schedule_type".to_string(),
-            Value::String("cron".to_string()),
-        );
-        valid_cron.insert(
-            "cron_expr".to_string(),
-            Value::String("0 9 * * *".to_string()),
-        );
+        valid_cron.insert("command".to_string(), Value::String("echo test".to_string()));
+        valid_cron.insert("schedule_type".to_string(), Value::String("cron".to_string()));
+        valid_cron.insert("cron_expr".to_string(), Value::String("0 9 * * *".to_string()));
         assert!(driver.validate(&valid_cron).is_ok());
         let mut valid_interval = HashMap::new();
         valid_interval.insert("task_id".to_string(), Value::String("test2".to_string()));
-        valid_interval.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
-        valid_interval.insert(
-            "schedule_type".to_string(),
-            Value::String("interval".to_string()),
-        );
+        valid_interval.insert("command".to_string(), Value::String("echo test".to_string()));
+        valid_interval.insert("schedule_type".to_string(), Value::String("interval".to_string()));
         valid_interval.insert("interval_secs".to_string(), Value::Number(3600.into()));
         assert!(driver.validate(&valid_interval).is_ok());
         let mut valid_at = HashMap::new();
         valid_at.insert("task_id".to_string(), Value::String("test3".to_string()));
-        valid_at.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
+        valid_at.insert("command".to_string(), Value::String("echo test".to_string()));
         valid_at.insert("schedule_type".to_string(), Value::String("at".to_string()));
-        valid_at.insert(
-            "at_time".to_string(),
-            Value::String("2025-12-31T23:59:00+00:00".to_string()),
-        );
+        valid_at.insert("at_time".to_string(), Value::String("2025-12-31T23:59:00+00:00".to_string()));
         assert!(driver.validate(&valid_at).is_ok());
         let mut missing_task_id = HashMap::new();
-        missing_task_id.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
-        missing_task_id.insert(
-            "schedule_type".to_string(),
-            Value::String("cron".to_string()),
-        );
+        missing_task_id.insert("command".to_string(), Value::String("echo test".to_string()));
+        missing_task_id.insert("schedule_type".to_string(), Value::String("cron".to_string()));
         assert!(driver.validate(&missing_task_id).is_err());
         let mut missing_command = HashMap::new();
         missing_command.insert("task_id".to_string(), Value::String("test".to_string()));
-        missing_command.insert(
-            "schedule_type".to_string(),
-            Value::String("cron".to_string()),
-        );
+        missing_command.insert("schedule_type".to_string(), Value::String("cron".to_string()));
         assert!(driver.validate(&missing_command).is_err());
         let mut missing_type = HashMap::new();
         missing_type.insert("task_id".to_string(), Value::String("test".to_string()));
-        missing_type.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
+        missing_type.insert("command".to_string(), Value::String("echo test".to_string()));
         assert!(driver.validate(&missing_type).is_err());
         let mut missing_cron_expr = HashMap::new();
         missing_cron_expr.insert("task_id".to_string(), Value::String("test".to_string()));
-        missing_cron_expr.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
-        missing_cron_expr.insert(
-            "schedule_type".to_string(),
-            Value::String("cron".to_string()),
-        );
+        missing_cron_expr.insert("command".to_string(), Value::String("echo test".to_string()));
+        missing_cron_expr.insert("schedule_type".to_string(), Value::String("cron".to_string()));
         assert!(driver.validate(&missing_cron_expr).is_err());
         let mut missing_interval = HashMap::new();
         missing_interval.insert("task_id".to_string(), Value::String("test".to_string()));
-        missing_interval.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
-        missing_interval.insert(
-            "schedule_type".to_string(),
-            Value::String("interval".to_string()),
-        );
+        missing_interval.insert("command".to_string(), Value::String("echo test".to_string()));
+        missing_interval.insert("schedule_type".to_string(), Value::String("interval".to_string()));
         assert!(driver.validate(&missing_interval).is_err());
         let mut unknown_type = HashMap::new();
         unknown_type.insert("task_id".to_string(), Value::String("test".to_string()));
-        unknown_type.insert(
-            "command".to_string(),
-            Value::String("echo test".to_string()),
-        );
-        unknown_type.insert(
-            "schedule_type".to_string(),
-            Value::String("unknown".to_string()),
-        );
+        unknown_type.insert("command".to_string(), Value::String("echo test".to_string()));
+        unknown_type.insert("schedule_type".to_string(), Value::String("unknown".to_string()));
         assert!(driver.validate(&unknown_type).is_err());
     }
-
     /// Test UnscheduleTaskDriver parameter validation
     #[test]
     fn test_unschedule_task_validation() {
         let driver = UnscheduleTaskDriver;
         let mut valid_params = HashMap::new();
-        valid_params.insert(
-            "task_id".to_string(),
-            Value::String("daily_backup".to_string()),
-        );
+        valid_params.insert("task_id".to_string(), Value::String("daily_backup".to_string()));
         assert!(driver.validate(&valid_params).is_ok());
         let empty_params = HashMap::new();
         assert!(driver.validate(&empty_params).is_err());
@@ -771,7 +641,6 @@ mod tests {
         wrong_type.insert("task_id".to_string(), Value::Number(123.into()));
         assert!(driver.validate(&wrong_type).is_err());
     }
-
     /// Test driver metadata (names, categories, descriptions)
     #[test]
     fn test_driver_metadata() {
@@ -791,7 +660,6 @@ mod tests {
         assert!(!unschedule_driver.usage_hint().is_empty());
         assert!(!list_driver.usage_hint().is_empty());
     }
-
     /// Test parameter definitions for each driver
     #[test]
     fn test_driver_parameters() {
@@ -804,10 +672,7 @@ mod tests {
         assert!(param_names.contains(&"task_id"));
         assert!(param_names.contains(&"command"));
         assert!(param_names.contains(&"schedule_type"));
-        let task_id_param = schedule_params
-            .iter()
-            .find(|p| p.name == "task_id")
-            .unwrap();
+        let task_id_param = schedule_params.iter().find(|p| p.name == "task_id").unwrap();
         assert!(task_id_param.required);
         let unschedule_params = unschedule_driver.parameters();
         assert_eq!(unschedule_params.len(), 1);
@@ -815,7 +680,6 @@ mod tests {
         assert!(unschedule_params[0].required);
         assert_eq!(list_driver.parameters().len(), 0);
     }
-
     /// Test cron expression parsing
     #[test]
     fn test_parse_cron_to_duration() {

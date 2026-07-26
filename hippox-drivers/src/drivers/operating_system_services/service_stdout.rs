@@ -1,34 +1,28 @@
-//! Service stdout/stderr Driver
-
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+//! Service stdout/stderr Driver - view service standard output
 use super::common::get_service_logs;
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
+/// Driver for viewing service stdout/stderr
 #[derive(Debug)]
 pub struct ServiceStdoutDriver;
-
 #[async_trait::async_trait]
 impl Driver for ServiceStdoutDriver {
     fn name(&self) -> &str {
-        "service_stdout"
+        return "service_stdout";
     }
-
     fn description(&self) -> &str {
-        "View service standard output/error"
+        return "View service standard output/error";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to view stdout/stderr output from a service."
+        return "Use this skill to view stdout/stderr output from a service.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "service_name".to_string(),
                 param_type: "string".to_string(),
@@ -47,52 +41,49 @@ impl Driver for ServiceStdoutDriver {
                 example: Some(Value::Number(100.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "service_stdout",
             "parameters": {
                 "service_name": "nginx",
                 "lines": 50
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Service nginx stdout/stderr:\n[2024-01-01 00:00:00] Started service\n[2024-01-01 00:00:01] Listening on port 80".to_string()
+        return "Service nginx stdout/stderr:\n[2024-01-01 00:00:00] Started service\n[2024-01-01 00:00:01] Listening on port 80".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemServices
+        return DriverCategory::OperatingSystemServices;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let service_name = parameters
-            .get("service_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
-        let lines = parameters
-            .get("lines")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(50) as usize;
-        let logs = get_service_logs(service_name, lines)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing service_stdout driver");
+        let service_name = parameters.get("service_name").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'service_name' parameter");
+            return DriverError::missing_parameter("service_name");
+        })?;
+        let lines = parameters.get("lines").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+        let logs = get_service_logs(service_name, lines).map_err(|e| {
+            debug!("Failed to get stdout for {}: {}", service_name, e);
+            return DriverError::execution(format!("Failed to get stdout: {}", e));
+        })?;
         if logs.is_empty() {
-            return Ok(format!(
-                "No stdout/stderr output found for service {}",
-                service_name
-            ));
+            info!("No stdout/stderr output found for service {}", service_name);
+            return Ok(format!("No stdout/stderr output found for service {}", service_name));
         }
         let mut result = format!("Service {} stdout/stderr:\n", service_name);
+        let logs_size = logs.len();
         for entry in logs {
             result.push_str(&format!("[{}] {}\n", entry.timestamp, entry.message));
         }
-        Ok(result)
+        info!("Retrieved {} stdout lines for service {}", logs_size, service_name);
+        return Ok(result);
     }
 }

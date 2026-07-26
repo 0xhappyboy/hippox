@@ -1,54 +1,77 @@
 //! Shared utilities for media processing
-
-use anyhow::Result;
-use image::ImageFormat;
+//!
+//! This module provides common utility functions used across media processing
+//! drivers including format detection, file size calculation, and value clamping.
 use std::path::Path;
-
-/// Get image format from file extension
-pub fn get_format_from_extension(path: &str) -> Option<ImageFormat> {
-    let ext = Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|s| s.to_lowercase())?;
-
-    match ext.as_str() {
-        "jpg" | "jpeg" => Some(ImageFormat::Jpeg),
-        "png" => Some(ImageFormat::Png),
-        "webp" => Some(ImageFormat::WebP),
-        "bmp" => Some(ImageFormat::Bmp),
-        "gif" => Some(ImageFormat::Gif),
-        "ico" => Some(ImageFormat::Ico),
-        "tif" | "tiff" => Some(ImageFormat::Tiff),
-        "avif" => Some(ImageFormat::Avif),
+use tracing::debug;
+use crate::DriverResult;
+/// Gets image format from file extension
+///
+/// # Arguments
+/// * `path` - File path
+///
+/// # Returns
+/// * `Option<image::ImageFormat>` - Image format if recognized
+pub fn get_format_from_extension(path: &str) -> Option<image::ImageFormat> {
+    let ext = Path::new(path).extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase())?;
+    let format = match ext.as_str() {
+        "jpg" | "jpeg" => Some(image::ImageFormat::Jpeg),
+        "png" => Some(image::ImageFormat::Png),
+        "webp" => Some(image::ImageFormat::WebP),
+        "bmp" => Some(image::ImageFormat::Bmp),
+        "gif" => Some(image::ImageFormat::Gif),
+        "ico" => Some(image::ImageFormat::Ico),
+        "tif" | "tiff" => Some(image::ImageFormat::Tiff),
+        "avif" => Some(image::ImageFormat::Avif),
         _ => None,
-    }
+    };
+    debug!("Detected format for {}: {:?}", path, format);
+    return format;
 }
-
-/// Get file size in bytes
-pub fn get_file_size(path: &str) -> Result<u64> {
-    Ok(std::fs::metadata(path)?.len())
+/// Gets file size in bytes
+///
+/// # Arguments
+/// * `path` - File path
+///
+/// # Returns
+/// * `DriverResult<u64>` - File size in bytes
+pub fn get_file_size(path: &str) -> DriverResult<u64> {
+    let size = std::fs::metadata(path).map_err(|e| crate::DriverError::execution(format!("Failed to get file size: {}", e)))?.len();
+    return Ok(size);
 }
-
-/// Format file size for display
+/// Formats file size for display
+///
+/// # Arguments
+/// * `bytes` - File size in bytes
+///
+/// # Returns
+/// * `String` - Human-readable file size
 pub fn format_file_size(bytes: u64) -> String {
     if bytes < 1024 {
-        format!("{} B", bytes)
+        return format!("{} B", bytes);
     } else if bytes < 1024 * 1024 {
-        format!("{:.1} KB", bytes as f64 / 1024.0)
+        return format!("{:.1} KB", bytes as f64 / 1024.0);
     } else if bytes < 1024 * 1024 * 1024 {
-        format!("{:.2} MB", bytes as f64 / (1024.0 * 1024.0))
+        return format!("{:.2} MB", bytes as f64 / (1024.0 * 1024.0));
     } else {
-        format!("{:.2} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+        return format!("{:.2} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0));
     }
 }
-
-/// Clamp a value between min and max
+/// Clamps a value between min and max
+///
+/// # Arguments
+/// * `value` - Value to clamp
+/// * `min` - Minimum allowed value
+/// * `max` - Maximum allowed value
+///
+/// # Returns
+/// * `T` - Clamped value
 pub fn clamp<T: PartialOrd>(value: T, min: T, max: T) -> T {
     if value < min {
-        min
+        return min;
     } else if value > max {
-        max
+        return max;
     } else {
-        value
+        return value;
     }
 }

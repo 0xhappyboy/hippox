@@ -1,34 +1,37 @@
+//! OpenDocument file driver module
+//!
+//! This module provides drivers for OpenDocument file operations including
+//! reading ODS (OpenDocument Spreadsheet) files and ODT (OpenDocument Text) files.
 use crate::DriverCallback;
 use crate::DriverContext;
 use crate::{
     DriverCategory,
     types::{Driver, DriverParameter},
 };
-use crate::{file_exists, validate_path};
-use anyhow::Result;
-use quick_xml::{Reader, events::Event};
+use crate::{DriverError, DriverResult, file_exists, validate_path};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for reading ODS (OpenDocument Spreadsheet) files
 #[derive(Debug)]
 pub struct OdsReadDriver;
-
 #[async_trait::async_trait]
 impl Driver for OdsReadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "ods_read"
+        return "ods_read";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Read and extract data from OpenDocument Spreadsheet (.ods) files"
+        return "Read and extract data from OpenDocument Spreadsheet (.ods) files";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to read OpenDocument spreadsheets (LibreOffice/OpenOffice Calc)"
+        return "Use this skill when the user wants to read OpenDocument spreadsheets (LibreOffice/OpenOffice Calc)";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "path".to_string(),
                 param_type: "string".to_string(),
@@ -56,88 +59,72 @@ impl Driver for OdsReadDriver {
                 example: Some(Value::Number(50.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "ods_read",
             "parameters": {
                 "path": "spreadsheet.ods"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Sheet: Sheet1\nRow 1: [Value1, Value2]\nRow 2: [Value3, Value4]".to_string()
+        return "Sheet: Sheet1\nRow 1: [Value1, Value2]\nRow 2: [Value3, Value4]".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let path = parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-        let sheet_param = parameters
-            .get("sheet")
-            .and_then(|v| v.as_str())
-            .unwrap_or("0");
-        let limit = parameters
-            .get("limit")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(100) as usize;
-
-        let validated_path = validate_path(path, None)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing ods_read driver");
+        // Extract required parameters
+        let path = parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        let sheet_param = parameters.get("sheet").and_then(|v| v.as_str()).unwrap_or("0");
+        let limit = parameters.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+        debug!("Reading ODS file: {}, sheet: {}, limit: {}", path, sheet_param, limit);
+        let validated_path = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid path: {}", e)))?;
         if !file_exists(&validated_path.to_string_lossy()) {
-            anyhow::bail!("ODS file not found: {}", path);
+            return Err(DriverError::execution(format!("ODS file not found: {}", path)));
         }
-
         use std::fs::File;
         use zip::ZipArchive;
-        let file = File::open(&validated_path)?;
-        let mut archive = ZipArchive::new(file)?;
+        let file = File::open(&validated_path).map_err(|e| DriverError::execution(format!("Failed to open file: {}", e)))?;
+        let mut archive = ZipArchive::new(file).map_err(|e| DriverError::execution(format!("Failed to open ODS archive: {}", e)))?;
         let mut content_xml = None;
         for i in 0..archive.len() {
-            let entry = archive.by_index(i)?;
+            let entry = archive.by_index(i).map_err(|e| DriverError::execution(format!("Failed to read archive entry: {}", e)))?;
             if entry.name() == "content.xml" {
                 let mut content = String::new();
                 let mut reader = std::io::BufReader::new(entry);
-                std::io::Read::read_to_string(&mut reader, &mut content)?;
+                std::io::Read::read_to_string(&mut reader, &mut content)
+                    .map_err(|e| DriverError::execution(format!("Failed to read content.xml: {}", e)))?;
                 content_xml = Some(content);
                 break;
             }
         }
-        let content =
-            content_xml.ok_or_else(|| anyhow::anyhow!("No content.xml found in ODS file"))?;
+        let content = content_xml.ok_or_else(|| DriverError::execution("No content.xml found in ODS file".to_string()))?;
         let (sheets, sheet_names) = parse_ods_content(&content, limit)?;
         let sheet_data = if let Ok(idx) = sheet_param.parse::<usize>() {
             if idx < sheets.len() {
                 &sheets[idx]
             } else {
-                anyhow::bail!(
-                    "Sheet index {} out of range (max: {})",
-                    idx,
-                    sheets.len() - 1
-                )
+                return Err(DriverError::execution(format!("Sheet index {} out of range (max: {})", idx, sheets.len() - 1)));
             }
         } else {
             let sheet_name = sheet_param;
             if let Some(pos) = sheet_names.iter().position(|name| name == sheet_name) {
                 &sheets[pos]
             } else {
-                anyhow::bail!(
-                    "Sheet '{}' not found. Available sheets: {:?}",
-                    sheet_name,
-                    sheet_names
-                )
+                return Err(DriverError::execution(format!("Sheet '{}' not found. Available sheets: {:?}", sheet_name, sheet_names)));
             }
         };
         let mut output = String::new();
@@ -145,37 +132,35 @@ impl Driver for OdsReadDriver {
             output.push_str(&format!("Row {}: {:?}\n", row_idx + 1, row));
         }
         output.push_str(&format!("Total rows: {}", sheet_data.len()));
-        Ok(output)
+        info!("ODS read completed: {} ({} rows)", path, sheet_data.len());
+        return Ok(output);
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        return Ok(());
     }
 }
-
+/// Driver for reading ODT (OpenDocument Text) files
 #[derive(Debug)]
 pub struct OdtReadDriver;
-
 #[async_trait::async_trait]
 impl Driver for OdtReadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "odt_read"
+        return "odt_read";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Read and extract text content from OpenDocument Text (.odt) files"
+        return "Read and extract text content from OpenDocument Text (.odt) files";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to read OpenDocument text documents (LibreOffice/OpenOffice Writer)"
+        return "Use this skill when the user wants to read OpenDocument text documents (LibreOffice/OpenOffice Writer)";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "path".to_string(),
             param_type: "string".to_string(),
             description: "Path to the ODT file".to_string(),
@@ -183,71 +168,77 @@ impl Driver for OdtReadDriver {
             default: None,
             example: Some(Value::String("document.odt".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "odt_read",
             "parameters": {
                 "path": "document.odt"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Document content extracted from OpenDocument text file...".to_string()
+        return "Document content extracted from OpenDocument text file...".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let path = parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-        let validated_path = validate_path(path, None)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing odt_read driver");
+        // Extract required parameters
+        let path = parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        debug!("Reading ODT file: {}", path);
+        let validated_path = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid path: {}", e)))?;
         if !file_exists(&validated_path.to_string_lossy()) {
-            anyhow::bail!("ODT file not found: {}", path);
+            return Err(DriverError::execution(format!("ODT file not found: {}", path)));
         }
         use std::fs::File;
         use zip::ZipArchive;
-        let file = File::open(&validated_path)?;
-        let mut archive = ZipArchive::new(file)?;
+        let file = File::open(&validated_path).map_err(|e| DriverError::execution(format!("Failed to open file: {}", e)))?;
+        let mut archive = ZipArchive::new(file).map_err(|e| DriverError::execution(format!("Failed to open ODT archive: {}", e)))?;
         let mut content_xml = None;
         for i in 0..archive.len() {
-            let entry = archive.by_index(i)?;
+            let entry = archive.by_index(i).map_err(|e| DriverError::execution(format!("Failed to read archive entry: {}", e)))?;
             if entry.name() == "content.xml" {
                 let mut content = String::new();
                 let mut reader = std::io::BufReader::new(entry);
-                std::io::Read::read_to_string(&mut reader, &mut content)?;
+                std::io::Read::read_to_string(&mut reader, &mut content)
+                    .map_err(|e| DriverError::execution(format!("Failed to read content.xml: {}", e)))?;
                 content_xml = Some(content);
                 break;
             }
         }
-        let content =
-            content_xml.ok_or_else(|| anyhow::anyhow!("No content.xml found in ODT file"))?;
+        let content = content_xml.ok_or_else(|| DriverError::execution("No content.xml found in ODT file".to_string()))?;
         let text = extract_text_from_odt_xml(&content);
-        Ok(text)
+        info!("ODT read completed: {} ({} characters)", path, text.len());
+        return Ok(text);
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        return Ok(());
     }
 }
-
-fn parse_ods_content(xml: &str, limit: usize) -> Result<(Vec<Vec<Vec<String>>>, Vec<String>)> {
+/// Parses ODS content XML and extracts sheet data
+///
+/// # Arguments
+/// * `xml` - ODS content XML
+/// * `limit` - Maximum number of rows to read per sheet
+///
+/// # Returns
+/// * `DriverResult<(Vec<Vec<Vec<String>>>, Vec<String>)>` - Sheets data and sheet names
+fn parse_ods_content(xml: &str, limit: usize) -> DriverResult<(Vec<Vec<Vec<String>>>, Vec<String>)> {
+    use quick_xml::{Reader, events::Event};
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(true);
     let mut sheets = Vec::new();
@@ -315,21 +306,27 @@ fn parse_ods_content(xml: &str, limit: usize) -> Result<(Vec<Vec<Vec<String>>>, 
             },
             Ok(Event::Eof) => break,
             Err(e) => {
-                eprintln!("Error parsing XML: {}", e);
+                debug!("Error parsing XML: {}", e);
                 break;
             }
             _ => {}
         }
         buf.clear();
     }
-    Ok((sheets, sheet_names))
+    return Ok((sheets, sheet_names));
 }
-
+/// Extracts text content from ODT XML
+///
+/// # Arguments
+/// * `xml` - ODT content XML
+///
+/// # Returns
+/// * `String` - Extracted text content
 fn extract_text_from_odt_xml(xml: &str) -> String {
+    use quick_xml::{Reader, events::Event};
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(true);
     let mut text_parts = Vec::new();
-    let mut in_text = false;
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
@@ -348,12 +345,12 @@ fn extract_text_from_odt_xml(xml: &str) -> String {
             }
             Ok(Event::Eof) => break,
             Err(e) => {
-                eprintln!("Error parsing XML: {}", e);
+                debug!("Error parsing XML: {}", e);
                 break;
             }
             _ => {}
         }
         buf.clear();
     }
-    text_parts.join(" ")
+    return text_parts.join(" ");
 }

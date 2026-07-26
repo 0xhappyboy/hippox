@@ -1,9 +1,7 @@
 //! Driver category enumeration
-
 use serde::{Deserialize, Serialize};
-
 /// Driver category enumeration with metadata
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DriverCategory {
     /// Basic example drivers for demonstration and testing
     Basic,
@@ -73,8 +71,10 @@ pub enum DriverCategory {
     /// Disk information, usage, partitions, I/O, SMART, encryption
     OperatingSystemDisk,
     Finance,
+    /// Custom category for external plugins and extensions
+    /// The String parameter is the category name (e.g., "my_plugin", "custom_extension")
+    Custom(String),
 }
-
 impl DriverCategory {
     /// Convert string to DriverCategory enum
     ///
@@ -132,10 +132,10 @@ impl DriverCategory {
             "os_service_ops" => Some(DriverCategory::OperatingSystemServices),
             "os_security_ops" => Some(DriverCategory::OperatingSystemSecurity),
             "finance_ops" => Some(DriverCategory::Finance),
-            _ => None,
+            // Custom category: any name not matching above
+            custom => Some(DriverCategory::Custom(custom.to_string())),
         }
     }
-
     /// Get the string representation of the category
     /// Returns the LLM-readable name identifier for this category.
     ///
@@ -157,7 +157,7 @@ impl DriverCategory {
     /// let category = DriverCategory::File;
     /// assert_eq!(category.name(), "file_ops");
     /// ```
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> &str {
         match self {
             DriverCategory::Basic => "basic",
             DriverCategory::File => "file_ops",
@@ -194,11 +194,11 @@ impl DriverCategory {
             DriverCategory::OperatingSystemServices => "os_service_ops",
             DriverCategory::OperatingSystemSecurity => "os_security_ops",
             DriverCategory::Finance => "finance_ops",
+            DriverCategory::Custom(name) => name.as_str(),
         }
     }
-
     /// Get the display name of the category
-    pub fn display_name(&self) -> &'static str {
+    pub fn display_name(&self) -> &str {
         match self {
             DriverCategory::Basic => "Basic Skills",
             DriverCategory::File => "File System",
@@ -235,31 +235,23 @@ impl DriverCategory {
             DriverCategory::OperatingSystemServices => "Operating System Services Operations",
             DriverCategory::OperatingSystemSecurity => "Operating System Security Operations",
             DriverCategory::Finance => "Financial Data",
+            DriverCategory::Custom(name) => name,
         }
     }
-
     /// Get the description of the category
-    pub fn description(&self) -> &'static str {
+    pub fn description(&self) -> &str {
         match self {
             DriverCategory::Basic => "Basic example skills for demonstration and testing",
-            DriverCategory::File => {
-                "File read/write, directory operations, archive compression/extraction"
-            }
-            DriverCategory::Math => {
-                "Mathematical calculations, statistics, unit conversion, random generation, hashing"
-            }
+            DriverCategory::File => "File read/write, directory operations, archive compression/extraction",
+            DriverCategory::Math => "Mathematical calculations, statistics, unit conversion, random generation, hashing",
             DriverCategory::Network => {
                 "HTTP/HTTPS requests, DNS lookup, Ping/TCP/UDP, FTP, port scanning, HTML parsing, SSH execution, webhook notifications, network diagnostics"
             }
             DriverCategory::OperatingSystemBasis => {
                 "Core OS operations: clipboard (get/set/clear), system info, power control (reboot/shutdown/sleep/hibernate), screen lock/logout, uptime, hostname, user info, memory stats, battery status, desktop notifications, time/date, timezone, environment variables, locale, wallpaper, screen control, default browser, domain info"
             }
-            DriverCategory::OperatingSystemProcess => {
-                "Process listing, starting, terminating, and monitoring"
-            }
-            DriverCategory::OperatingSystemMemory => {
-                "Low-level process memory access for debugging, reverse engineering, and security analysis"
-            }
+            DriverCategory::OperatingSystemProcess => "Process listing, starting, terminating, and monitoring",
+            DriverCategory::OperatingSystemMemory => "Low-level process memory access for debugging, reverse engineering, and security analysis",
             DriverCategory::OperatingSystemCpu => {
                 "CPU information, usage monitoring, load averages, cache info, frequency, features, temperature, and affinity control"
             }
@@ -269,68 +261,38 @@ impl DriverCategory {
             DriverCategory::OperatingSystemDisk => {
                 "Disk information, usage, partitions, I/O statistics, SMART health, encryption status, and TRIM support"
             }
-            DriverCategory::Document => {
-                "Markdown, CSV, XML, Excel, PDF, JSON, YAML, TOML document processing"
-            }
-            DriverCategory::SocialPlatform => {
-                "Send notifications via DingTalk, Feishu, WeChat Work, Telegram"
-            }
+            DriverCategory::Document => "Markdown, CSV, XML, Excel, PDF, JSON, YAML, TOML document processing",
+            DriverCategory::SocialPlatform => "Send notifications via DingTalk, Feishu, WeChat Work, Telegram",
             DriverCategory::Database => "Database operations for PostgreSQL, MySQL, Redis, SQLite",
-            DriverCategory::Text => {
-                "Text comparison, sorting, deduplication, filtering, regex operations"
-            }
+            DriverCategory::Text => "Text comparison, sorting, deduplication, filtering, regex operations",
             DriverCategory::Devops => "Kubernetes, Docker, and GitHub operations",
             DriverCategory::Media => "Image processing: resize, convert, crop, rotate, compress",
             DriverCategory::Blockchain => "Bitcoin, EVM, and Solana wallet operations",
-            DriverCategory::HaveHeadBrowser => {
-                "Have Head Browser automation: navigation, clicking, form filling, screenshot, JS execution"
-            }
-            DriverCategory::Window => {
-                "Window management: minimize, maximize, move, close, pin to top"
-            }
-            DriverCategory::Keyboard => {
-                "Keyboard input simulation: key presses, shortcuts, text typing"
-            }
+            DriverCategory::HaveHeadBrowser => "Have Head Browser automation: navigation, clicking, form filling, screenshot, JS execution",
+            DriverCategory::Window => "Window management: minimize, maximize, move, close, pin to top",
+            DriverCategory::Keyboard => "Keyboard input simulation: key presses, shortcuts, text typing",
             DriverCategory::Mouse => "Mouse control: movement, clicking, dragging, scrolling",
-            DriverCategory::Audio => {
-                "Audio control: volume adjustment, device switching, recording, playback"
-            }
-            DriverCategory::Application => {
-                "Application lifecycle: launch, close, install, uninstall"
-            }
-            DriverCategory::Display => {
-                "Display settings: monitor info, resolution, brightness, orientation, refresh rate"
-            }
-            DriverCategory::Wifi => {
-                "WiFi management: scan, connect, hotspot creation, DNS/proxy configuration"
-            }
-            DriverCategory::Bluetooth => {
-                "Bluetooth management: scan, pair, connect, file transfer, BLE operations"
-            }
+            DriverCategory::Audio => "Audio control: volume adjustment, device switching, recording, playback",
+            DriverCategory::Application => "Application lifecycle: launch, close, install, uninstall",
+            DriverCategory::Display => "Display settings: monitor info, resolution, brightness, orientation, refresh rate",
+            DriverCategory::Wifi => "WiFi management: scan, connect, hotspot creation, DNS/proxy configuration",
+            DriverCategory::Bluetooth => "Bluetooth management: scan, pair, connect, file transfer, BLE operations",
             DriverCategory::Terminal => "Execute system commands and scripts",
             DriverCategory::Email => "Send and manage emails via SMTP/IMAP",
             DriverCategory::ScheduledTasks => "Schedule and manage cron jobs or scheduled tasks",
-            DriverCategory::Time => {
-                "Get current time, date, timezone conversion, system time management"
-            }
-            DriverCategory::Cryptography => {
-                "Cryptographic operations: hashing (MD5, SHA256, SHA512), Base64 encoding/decoding"
-            }
+            DriverCategory::Time => "Get current time, date, timezone conversion, system time management",
+            DriverCategory::Cryptography => "Cryptographic operations: hashing (MD5, SHA256, SHA512), Base64 encoding/decoding",
             DriverCategory::SpeechSpeak => "Used to convert text into spoken audio",
-            DriverCategory::OperatingSystemServices => {
-                "Service management: list, start, stop, restart, enable, disable, and manage system services"
-            }
+            DriverCategory::OperatingSystemServices => "Service management: list, start, stop, restart, enable, disable, and manage system services",
             DriverCategory::OperatingSystemSecurity => {
                 "Security operations: weak password detection, security policy assessment, CVE query, threat intelligence, phishing detection"
             }
-            DriverCategory::Finance => {
-                "Financial data generation and analysis: OHLCV market data, technical indicators, scenario simulation"
-            }
+            DriverCategory::Finance => "Financial data generation and analysis: OHLCV market data, technical indicators, scenario simulation",
+            DriverCategory::Custom(_) => "Custom plugin or extension driver",
         }
     }
-
     /// Get the icon/emoji for the category
-    pub fn icon(&self) -> &'static str {
+    pub fn icon(&self) -> &str {
         match self {
             DriverCategory::Basic => "🧪",
             DriverCategory::File => "📁",
@@ -367,9 +329,9 @@ impl DriverCategory {
             DriverCategory::OperatingSystemServices => "🔧",
             DriverCategory::OperatingSystemSecurity => "🛡️",
             DriverCategory::Finance => "📈",
+            DriverCategory::Custom(_) => "🔌",
         }
     }
-
     /// Get the display priority (lower number = higher priority)
     pub fn priority(&self) -> u8 {
         match self {
@@ -408,24 +370,23 @@ impl DriverCategory {
             DriverCategory::OperatingSystemServices => 35,
             DriverCategory::OperatingSystemSecurity => 36,
             DriverCategory::Finance => 15,
+            DriverCategory::Custom(_) => 200,
         }
     }
-
     /// Get complete metadata for the category
     pub fn metadata(&self) -> CategoryMetadata {
-        CategoryMetadata {
-            name: self.name(),
-            display_name: self.display_name(),
-            description: self.description(),
-            icon: self.icon(),
+        return CategoryMetadata {
+            name: self.name().to_string(),
+            display_name: self.display_name().to_string(),
+            description: self.description().to_string(),
+            icon: self.icon().to_string(),
             priority: self.priority(),
-        }
+        };
     }
-
     /// Get all categories with their metadata
     pub fn all_categories() -> Vec<CategoryMetadata> {
         use DriverCategory::*;
-        vec![
+        return vec![
             Basic.metadata(),
             File.metadata(),
             Math.metadata(),
@@ -461,21 +422,20 @@ impl DriverCategory {
             OperatingSystemServices.metadata(),
             OperatingSystemSecurity.metadata(),
             Finance.metadata(),
-        ]
+        ];
     }
 }
-
 /// Category metadata structure
 #[derive(Debug, Clone, Serialize)]
 pub struct CategoryMetadata {
     /// Category name (machine-readable)
-    pub name: &'static str,
+    pub name: String,
     /// Human-readable display name
-    pub display_name: &'static str,
+    pub display_name: String,
     /// Category description
-    pub description: &'static str,
+    pub description: String,
     /// Icon/emoji representation
-    pub icon: &'static str,
+    pub icon: String,
     /// Priority order for display (lower = higher priority)
     pub priority: u8,
 }

@@ -1,47 +1,49 @@
-use crate::DriverCallback;
-use crate::DriverContext;
-use crate::{Driver, DriverCategory, DriverParameter};
-use anyhow::Result;
+//! FTP operations driver
+//!
+//! This module provides drivers for FTP operations including upload, download, list, and delete.
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 use std::net::ToSocketAddrs;
 use std::path::Path;
 use suppaftp::types::{FileType, FormatControl};
-
-fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
-    params
-        .get(name)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("Missing parameter: {}", name))
+use tracing::{debug, info};
+/// Gets a string parameter from the parameters map
+fn get_param_string(params: &HashMap<String, Value>, name: &str) -> DriverResult<String> {
+    params.get(name).and_then(|v| v.as_str()).map(|s| s.to_string()).ok_or_else(|| DriverError::missing_parameter(name))
 }
-
+/// Gets a u64 parameter from the parameters map with a default value
 fn get_param_u64(params: &HashMap<String, Value>, name: &str, default: u64) -> u64 {
     params.get(name).and_then(|v| v.as_u64()).unwrap_or(default)
 }
-
 /// FTP Upload Driver
 #[derive(Debug)]
 pub struct FtpUploadDriver;
-
 #[async_trait::async_trait]
 impl Driver for FtpUploadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "ftp_upload"
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Upload a file to FTP server"
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to upload files to an FTP server"
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "host".to_string(),
                 param_type: "string".to_string(),
@@ -114,26 +116,34 @@ impl Driver for FtpUploadDriver {
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({ "action": "ftp_upload", "parameters": { "host": "ftp.example.com", "username": "user", "password": "pass", "local_path": "/tmp/file.txt", "remote_path": "/uploads/file.txt" } })
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
+            "action": "ftp_upload",
+            "parameters": {
+                "host": "ftp.example.com",
+                "username": "user",
+                "password": "pass",
+                "local_path": "/tmp/file.txt",
+                "remote_path": "/uploads/file.txt"
+            }
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Successfully uploaded /tmp/file.txt to ftp.example.com:/uploads/file.txt (1024 bytes)"
-            .to_string()
+        return "Successfully uploaded /tmp/file.txt to ftp.example.com:/uploads/file.txt (1024 bytes)".to_string();
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing ftp_upload driver");
         use suppaftp::FtpStream;
-
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 21) as u16;
         let username = get_param_string(parameters, "username")?;
@@ -141,69 +151,65 @@ impl Driver for FtpUploadDriver {
         let local_path = get_param_string(parameters, "local_path")?;
         let remote_path = get_param_string(parameters, "remote_path")?;
         let timeout = get_param_u64(parameters, "timeout", 30);
-        let mode = parameters
-            .get("mode")
-            .and_then(|v| v.as_str())
-            .unwrap_or("binary");
-
+        let mode = parameters.get("mode").and_then(|v| v.as_str()).unwrap_or("binary");
+        info!("FTP upload: host={}, port={}, username={}, local={}, remote={}", host, port, username, local_path, remote_path);
         if !Path::new(&local_path).exists() {
-            anyhow::bail!("Local file not found: {}", local_path);
+            debug!("Local file not found: {}", local_path);
+            return Err(DriverError::execution(format!("Local file not found: {}", local_path)));
         }
-        let file_size = fs::metadata(&local_path)?.len();
-
+        let file_size = fs::metadata(&local_path).map_err(|e| DriverError::execution(format!("Failed to get file metadata: {}", e)))?.len();
         let addr_str = format!("{}:{}", host, port);
         let addr = addr_str
-            .to_socket_addrs()?
+            .to_socket_addrs()
+            .map_err(|e| DriverError::execution(format!("Invalid address: {}", e)))?
             .next()
-            .ok_or_else(|| anyhow::anyhow!("Invalid address: {}", addr_str))?;
-        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))?;
-        ftp.login(&username, &password)?;
-
+            .ok_or_else(|| DriverError::execution(format!("Invalid address: {}", addr_str)))?;
+        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))
+            .map_err(|e| DriverError::execution(format!("Failed to connect to FTP server: {}", e)))?;
+        ftp.login(&username, &password).map_err(|e| DriverError::execution(format!("FTP login failed: {}", e)))?;
         if mode == "binary" {
-            ftp.transfer_type(FileType::Binary)?;
+            ftp.transfer_type(FileType::Binary).map_err(|e| DriverError::execution(format!("Failed to set binary mode: {}", e)))?;
         } else {
-            ftp.transfer_type(FileType::Ascii(FormatControl::NonPrint))?;
+            ftp.transfer_type(FileType::Ascii(FormatControl::NonPrint))
+                .map_err(|e| DriverError::execution(format!("Failed to set ascii mode: {}", e)))?;
         }
-
         if let Some(parent) = Path::new(&remote_path).parent() {
             let parent_str = parent.to_string_lossy();
             if !parent_str.is_empty() && parent_str != "/" {
                 let _ = ftp.mkdir(&parent_str);
             }
         }
-
-        let mut file = fs::File::open(&local_path)?;
-        ftp.put_file(&remote_path, &mut file)?;
-        ftp.quit()?;
-
-        Ok(format!(
-            "Successfully uploaded {} to {}:{}{} ({} bytes)",
-            local_path, host, port, remote_path, file_size
-        ))
+        let mut file = fs::File::open(&local_path).map_err(|e| DriverError::execution(format!("Failed to open local file: {}", e)))?;
+        ftp.put_file(&remote_path, &mut file).map_err(|e| DriverError::execution(format!("Failed to upload file: {}", e)))?;
+        ftp.quit().map_err(|e| DriverError::execution(format!("Failed to quit FTP session: {}", e)))?;
+        info!("FTP upload successful: {} bytes", file_size);
+        return Ok(format!("Successfully uploaded {} to {}:{}{} ({} bytes)", local_path, host, port, remote_path, file_size));
     }
 }
-
 /// FTP Download Driver
 #[derive(Debug)]
 pub struct FtpDownloadDriver;
-
 #[async_trait::async_trait]
 impl Driver for FtpDownloadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "ftp_download"
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Download a file from FTP server"
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to download files from an FTP server"
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "host".to_string(),
                 param_type: "string".to_string(),
@@ -276,26 +282,34 @@ impl Driver for FtpDownloadDriver {
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({ "action": "ftp_download", "parameters": { "host": "ftp.example.com", "username": "user", "password": "pass", "remote_path": "/uploads/file.txt", "local_path": "/tmp/file.txt" } })
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
+            "action": "ftp_download",
+            "parameters": {
+                "host": "ftp.example.com",
+                "username": "user",
+                "password": "pass",
+                "remote_path": "/uploads/file.txt",
+                "local_path": "/tmp/file.txt"
+            }
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Successfully downloaded ftp.example.com:/uploads/file.txt to /tmp/file.txt (1024 bytes)"
-            .to_string()
+        return "Successfully downloaded ftp.example.com:/uploads/file.txt to /tmp/file.txt (1024 bytes)".to_string();
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing ftp_download driver");
         use suppaftp::FtpStream;
-
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 21) as u16;
         let username = get_param_string(parameters, "username")?;
@@ -303,56 +317,55 @@ impl Driver for FtpDownloadDriver {
         let remote_path = get_param_string(parameters, "remote_path")?;
         let local_path = get_param_string(parameters, "local_path")?;
         let timeout = get_param_u64(parameters, "timeout", 30);
-
+        info!("FTP download: host={}, port={}, username={}, remote={}, local={}", host, port, username, remote_path, local_path);
         let addr_str = format!("{}:{}", host, port);
         let addr = addr_str
-            .to_socket_addrs()?
+            .to_socket_addrs()
+            .map_err(|e| DriverError::execution(format!("Invalid address: {}", e)))?
             .next()
-            .ok_or_else(|| anyhow::anyhow!("Invalid address: {}", addr_str))?;
-        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))?;
-        ftp.login(&username, &password)?;
-
+            .ok_or_else(|| DriverError::execution(format!("Invalid address: {}", addr_str)))?;
+        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))
+            .map_err(|e| DriverError::execution(format!("Failed to connect to FTP server: {}", e)))?;
+        ftp.login(&username, &password).map_err(|e| DriverError::execution(format!("FTP login failed: {}", e)))?;
         if let Some(parent) = Path::new(&local_path).parent() {
             if !parent.exists() {
-                fs::create_dir_all(parent)?;
+                fs::create_dir_all(parent).map_err(|e| DriverError::execution(format!("Failed to create directory: {}", e)))?;
             }
         }
-
-        let mut stream = ftp.retr_as_stream(&remote_path)?;
+        let mut stream = ftp.retr_as_stream(&remote_path).map_err(|e| DriverError::execution(format!("Failed to start download: {}", e)))?;
         let mut content = Vec::new();
-        std::io::copy(&mut stream, &mut content)?;
-        fs::write(&local_path, content)?;
-        let file_size = fs::metadata(&local_path)?.len();
-        ftp.quit()?;
-
-        Ok(format!(
-            "Successfully downloaded {}:{}{} to {} ({} bytes)",
-            host, port, remote_path, local_path, file_size
-        ))
+        std::io::copy(&mut stream, &mut content).map_err(|e| DriverError::execution(format!("Failed to download file: {}", e)))?;
+        fs::write(&local_path, content).map_err(|e| DriverError::execution(format!("Failed to write file: {}", e)))?;
+        let file_size = fs::metadata(&local_path).map_err(|e| DriverError::execution(format!("Failed to get file metadata: {}", e)))?.len();
+        ftp.quit().map_err(|e| DriverError::execution(format!("Failed to quit FTP session: {}", e)))?;
+        info!("FTP download successful: {} bytes", file_size);
+        return Ok(format!("Successfully downloaded {}:{}{} to {} ({} bytes)", host, port, remote_path, local_path, file_size));
     }
 }
-
 /// FTP List Driver
 #[derive(Debug)]
 pub struct FtpListDriver;
-
 #[async_trait::async_trait]
 impl Driver for FtpListDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "ftp_list"
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "List directory contents on FTP server"
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to see what files are in an FTP directory"
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "host".to_string(),
                 param_type: "string".to_string(),
@@ -407,46 +420,52 @@ impl Driver for FtpListDriver {
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({ "action": "ftp_list", "parameters": { "host": "ftp.example.com", "username": "user", "password": "pass", "directory": "/uploads" } })
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
+            "action": "ftp_list",
+            "parameters": {
+                "host": "ftp.example.com",
+                "username": "user",
+                "password": "pass",
+                "directory": "/uploads"
+            }
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Directory listing for /uploads:\nfile1.txt (1024 bytes)\nfile2.pdf (51200 bytes)\nfolder/"
-            .to_string()
+        return "Directory listing for /uploads:\nfile1.txt (1024 bytes)\nfile2.pdf (51200 bytes)\nfolder/".to_string();
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing ftp_list driver");
         use suppaftp::FtpStream;
-
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 21) as u16;
         let username = get_param_string(parameters, "username")?;
         let password = get_param_string(parameters, "password")?;
-        let directory = parameters
-            .get("directory")
-            .and_then(|v| v.as_str())
-            .unwrap_or("/");
+        let directory = parameters.get("directory").and_then(|v| v.as_str()).unwrap_or("/");
         let timeout = get_param_u64(parameters, "timeout", 30);
-
+        info!("FTP list: host={}, port={}, username={}, directory={}", host, port, username, directory);
         let addr_str = format!("{}:{}", host, port);
         let addr = addr_str
-            .to_socket_addrs()?
+            .to_socket_addrs()
+            .map_err(|e| DriverError::execution(format!("Invalid address: {}", e)))?
             .next()
-            .ok_or_else(|| anyhow::anyhow!("Invalid address: {}", addr_str))?;
-        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))?;
-        ftp.login(&username, &password)?;
-
-        let listing = ftp.list(Some(directory))?;
+            .ok_or_else(|| DriverError::execution(format!("Invalid address: {}", addr_str)))?;
+        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))
+            .map_err(|e| DriverError::execution(format!("Failed to connect to FTP server: {}", e)))?;
+        ftp.login(&username, &password).map_err(|e| DriverError::execution(format!("FTP login failed: {}", e)))?;
+        let listing = ftp.list(Some(directory)).map_err(|e| DriverError::execution(format!("Failed to list directory: {}", e)))?;
         let mut result = format!("Directory listing for {}:\n", directory);
+        let listing_size = listing.len();
         for line in listing {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 9 {
@@ -461,32 +480,35 @@ impl Driver for FtpListDriver {
                 result.push_str(&format!("{}\n", line));
             }
         }
-        ftp.quit()?;
-        Ok(result.trim_end().to_string())
+        ftp.quit().map_err(|e| DriverError::execution(format!("Failed to quit FTP session: {}", e)))?;
+        info!("FTP list completed: {} entries found", listing_size);
+        return Ok(result.trim_end().to_string());
     }
 }
-
 /// FTP Delete Driver
 #[derive(Debug)]
 pub struct FtpDeleteDriver;
-
 #[async_trait::async_trait]
 impl Driver for FtpDeleteDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "ftp_delete"
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Delete a file from FTP server"
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill when the user needs to delete files on an FTP server"
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "host".to_string(),
                 param_type: "string".to_string(),
@@ -541,45 +563,52 @@ impl Driver for FtpDeleteDriver {
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({ "action": "ftp_delete", "parameters": { "host": "ftp.example.com", "username": "user", "password": "pass", "remote_path": "/uploads/old_file.txt" } })
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
+            "action": "ftp_delete",
+            "parameters": {
+                "host": "ftp.example.com",
+                "username": "user",
+                "password": "pass",
+                "remote_path": "/uploads/old_file.txt"
+            }
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Successfully deleted /uploads/old_file.txt from ftp.example.com".to_string()
+        return "Successfully deleted /uploads/old_file.txt from ftp.example.com".to_string();
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing ftp_delete driver");
         use suppaftp::FtpStream;
-
         let host = get_param_string(parameters, "host")?;
         let port = get_param_u64(parameters, "port", 21) as u16;
         let username = get_param_string(parameters, "username")?;
         let password = get_param_string(parameters, "password")?;
         let remote_path = get_param_string(parameters, "remote_path")?;
         let timeout = get_param_u64(parameters, "timeout", 30);
-
+        info!("FTP delete: host={}, port={}, username={}, remote_path={}", host, port, username, remote_path);
         let addr_str = format!("{}:{}", host, port);
         let addr = addr_str
-            .to_socket_addrs()?
+            .to_socket_addrs()
+            .map_err(|e| DriverError::execution(format!("Invalid address: {}", e)))?
             .next()
-            .ok_or_else(|| anyhow::anyhow!("Invalid address: {}", addr_str))?;
-        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))?;
-        ftp.login(&username, &password)?;
-        ftp.rm(&remote_path)?;
-        ftp.quit()?;
-
-        Ok(format!(
-            "Successfully deleted {} from {}:{}",
-            remote_path, host, port
-        ))
+            .ok_or_else(|| DriverError::execution(format!("Invalid address: {}", addr_str)))?;
+        let mut ftp = FtpStream::connect_timeout(addr, std::time::Duration::from_secs(timeout))
+            .map_err(|e| DriverError::execution(format!("Failed to connect to FTP server: {}", e)))?;
+        ftp.login(&username, &password).map_err(|e| DriverError::execution(format!("FTP login failed: {}", e)))?;
+        ftp.rm(&remote_path).map_err(|e| DriverError::execution(format!("Failed to delete file: {}", e)))?;
+        ftp.quit().map_err(|e| DriverError::execution(format!("Failed to quit FTP session: {}", e)))?;
+        info!("FTP delete successful: {}", remote_path);
+        return Ok(format!("Successfully deleted {} from {}:{}", remote_path, host, port));
     }
 }

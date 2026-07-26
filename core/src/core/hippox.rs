@@ -300,7 +300,8 @@ impl Hippox {
         }
         let mut result = String::new();
         for driver in drivers {
-            let emoji = driver.category().icon();
+            let category = driver.category();
+            let emoji = category.icon();
             result.push_str(&format!("   {} - **{}**: {}\n", emoji, driver.name(), driver.description()));
         }
         HippoxResult::ok(result)

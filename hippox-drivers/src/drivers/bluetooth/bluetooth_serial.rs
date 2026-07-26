@@ -1,34 +1,41 @@
 //! Bluetooth serial skill - read/write data via Bluetooth SPP
-
+//!
+//! This driver provides functionality to communicate with Bluetooth
+//! Serial Port Profile (SPP) devices.
 use crate::DriverCallback;
 use crate::DriverCategory;
 use crate::DriverContext;
 use crate::types::{Driver, DriverParameter};
-use anyhow::Result;
+use crate::{DriverError, DriverResult};
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
-use std::net::TcpStream;
-
+use std::process::Command;
+use tracing::{debug, info, warn};
+/// Driver for Bluetooth serial communication
+///
+/// This driver enables read/write communication with Bluetooth Serial
+/// Port Profile (SPP) devices like Arduino, GPS modules, and serial adapters.
 #[derive(Debug)]
 pub struct BluetoothSerialDriver;
-
 #[async_trait::async_trait]
 impl Driver for BluetoothSerialDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "bluetooth_serial"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Read and write data via Bluetooth Serial Port Profile (SPP)"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to communicate with Bluetooth serial devices like Arduino, GPS modules, or serial adapters."
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "mac_address".to_string(),
                 param_type: "string".to_string(),
@@ -56,79 +63,88 @@ impl Driver for BluetoothSerialDriver {
                 example: Some(Value::Number(3000.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        Ok(json!({
             "action": "bluetooth_serial",
             "parameters": {
                 "mac_address": "AA:BB:CC:DD:EE:FF",
                 "command": "AT\r\n",
                 "read_timeout_ms": 5000
             }
-        })
+        }))
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
         "Response: OK".to_string()
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
         DriverCategory::Bluetooth
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let mac_address = parameters
-            .get("mac_address")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'mac_address' parameter"))?;
+    ) -> DriverResult<String> {
+        debug!("Executing bluetooth_serial driver");
+        let mac_address = parameters.get("mac_address").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'mac_address' parameter");
+            DriverError::missing_parameter("mac_address")
+        })?;
         let command = parameters.get("command").and_then(|v| v.as_str());
-        let read_timeout = parameters
-            .get("read_timeout_ms")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(5000);
-        // Convert MAC address to RFCOMM channel
-        let rfcomm_port = format!("00:{}", mac_address.replace(":", ""));
-        // For Linux, use rfcomm or direct serial
+        let read_timeout = parameters.get("read_timeout_ms").and_then(|v| v.as_u64()).unwrap_or(5000);
+        debug!("Serial communication with: {}, timeout: {}ms", mac_address, read_timeout);
         #[cfg(target_os = "linux")]
         {
-            use std::fs::OpenOptions;
-            let device_path = format!("/dev/rfcomm0");
+            let device_path = "/dev/rfcomm0";
+            debug!("Binding RFCOMM to {}", device_path);
             // Bind RFCOMM if not already bound
-            let _ = Command::new("rfcomm")
-                .args(["bind", "0", mac_address])
-                .output();
+            let bind_output = Command::new("rfcomm").args(["bind", "0", mac_address]).output();
+            if let Ok(output) = bind_output {
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    warn!("rfcomm bind warning: {}", stderr);
+                }
+            }
+            debug!("Opening serial device: {}", device_path);
             let mut serial = OpenOptions::new()
                 .read(true)
                 .write(true)
-                .open(&device_path)?;
+                .open(device_path)
+                .map_err(|e| DriverError::execution(format!("Failed to open serial device: {}", e)))?;
             if let Some(cmd) = command {
-                serial.write_all(cmd.as_bytes())?;
-                serial.flush()?;
+                debug!("Writing command: {}", cmd);
+                serial.write_all(cmd.as_bytes()).map_err(|e| DriverError::execution(format!("Failed to write to serial: {}", e)))?;
+                serial.flush().map_err(|e| DriverError::execution(format!("Failed to flush serial: {}", e)))?;
             }
             // Read response
+            debug!("Reading response (timeout: {}ms)", read_timeout);
             let mut buffer = vec![0u8; 1024];
             let mut response = String::new();
             let start = std::time::Instant::now();
             while start.elapsed() < std::time::Duration::from_millis(read_timeout) {
                 if let Ok(n) = serial.read(&mut buffer) {
                     if n > 0 {
-                        response.push_str(&String::from_utf8_lossy(&buffer[..n]));
-                        if response.contains('\n') {
+                        let chunk = String::from_utf8_lossy(&buffer[..n]);
+                        response.push_str(&chunk);
+                        debug!("Received: {}", chunk.trim());
+                        if response.contains('\n') || response.contains('\r') {
                             break;
                         }
                     }
                 }
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
-            return Ok(format!("Response: {}", response.trim()));
+            let result = format!("Response: {}", response.trim());
+            info!("Serial communication completed: {}", result);
+            return Ok(result);
         }
+        info!("Serial communication with {}", mac_address);
         Ok(format!("Serial communication with {}", mac_address))
     }
 }

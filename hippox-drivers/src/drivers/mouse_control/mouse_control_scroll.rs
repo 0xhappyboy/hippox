@@ -1,79 +1,78 @@
-// mouse_control/mouse_control_scroll.rs
-//! Mouse scroll skill
-
-use super::common::mouse_scroll;
-use crate::DriverCallback;
-use crate::DriverContext;
-use crate::{
-    DriverCategory,
-    types::{Driver, DriverParameter},
-};
-use anyhow::Result;
+//! Mouse scroll driver module
+//!
+//! This module provides functionality to scroll the mouse wheel.
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+use super::common::mouse_scroll;
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
+/// Driver for scrolling the mouse wheel
 #[derive(Debug)]
 pub struct MouseControlScrollDriver;
-
 #[async_trait::async_trait]
 impl Driver for MouseControlScrollDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "mouse_control_scroll"
+        return "mouse_control_scroll";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Scroll the mouse wheel"
+        return "Scroll the mouse wheel";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to scroll up or down. Positive delta scrolls up, negative scrolls down."
+        return "Use this skill to scroll up or down. Positive delta scrolls up, negative scrolls down.";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "delta".to_string(),
             param_type: "integer".to_string(),
-            description:
-                "Scroll amount (positive=up, negative=down). 120 is typical for one click."
-                    .to_string(),
+            description: "Scroll amount (positive=up, negative=down). 120 is typical for one click.".to_string(),
             required: true,
             default: None,
             example: Some(Value::Number(120.into())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "mouse_control_scroll",
             "parameters": {
                 "delta": 120
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Scrolled by 120".to_string()
+        return "Scrolled by 120".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Mouse
+        return DriverCategory::Mouse;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let delta = parameters
-            .get("delta")
-            .and_then(|v| v.as_i64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'delta' parameter"))?
-            as i32;
-
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing mouse_control_scroll driver");
+        let delta = parameters.get("delta").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("delta"))? as i32;
+        debug!("Scrolling by {}", delta);
         mouse_scroll(delta)?;
-
-        Ok(format!("Scrolled by {}", delta))
+        let result = format!("Scrolled by {}", delta);
+        info!("{}", result);
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("delta").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("delta"))?;
+        return Ok(());
     }
 }

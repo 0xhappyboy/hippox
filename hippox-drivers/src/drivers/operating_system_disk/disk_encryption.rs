@@ -1,54 +1,67 @@
-//! Disk encryption driver
-
+//! Disk encryption driver module
+//!
+//! This module provides functionality to check if disk partitions are
+//! encrypted with BitLocker (Windows), LUKS (Linux), or FileVault (macOS).
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::process::Command;
+use tracing::{debug, info};
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     drivers::operating_system_disk::common::DiskPartition,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
 /// Driver for checking disk encryption status
 #[derive(Debug)]
 pub struct DiskEncryptionDriver;
 #[async_trait::async_trait]
 impl Driver for DiskEncryptionDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "disk_encryption"
+        return "disk_encryption";
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Check if disk partitions are encrypted (BitLocker, LUKS, FileVault)"
+        return "Check if disk partitions are encrypted (BitLocker, LUKS, FileVault)";
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to verify disk encryption for security compliance"
+        return "Use this skill to verify disk encryption for security compliance";
     }
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "disk_encryption",
             "parameters": {}
-        })
+        }));
     }
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        r#"Disk Encryption Status:
+        return r#"Disk Encryption Status:
 Partition: /dev/sda1 | Mount: /boot | Encrypted: No
 Partition: /dev/sda2 | Mount: / | Encrypted: Yes (LUKS)
 Partition: /dev/sda3 | Mount: /home | Encrypted: Yes (LUKS)"#
-            .to_string()
+            .to_string();
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemDisk
+        return DriverCategory::OperatingSystemDisk;
     }
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing disk_encryption driver");
         let partitions = check_encryption()?;
         if partitions.is_empty() {
+            info!("No partitions found");
             return Ok("No partitions found".to_string());
         }
         let mut output = String::from("Disk Encryption Status:\n");
@@ -57,17 +70,18 @@ Partition: /dev/sda3 | Mount: /home | Encrypted: Yes (LUKS)"#
                 "Partition: {} | Mount: {} | Encrypted: {}\n",
                 part.device,
                 part.mount_point,
-                if part.is_encrypted {
-                    format!("Yes ({})", part.file_system)
-                } else {
-                    "No".to_string()
-                }
+                if part.is_encrypted { format!("Yes ({})", part.file_system) } else { "No".to_string() }
             ));
         }
-        Ok(output)
+        info!("Disk encryption status checked");
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        return Ok(());
     }
 }
-fn check_encryption() -> Result<Vec<DiskPartition>> {
+fn check_encryption() -> DriverResult<Vec<DiskPartition>> {
     let mut partitions = Vec::new();
     #[cfg(target_os = "linux")]
     {
@@ -78,18 +92,9 @@ fn check_encryption() -> Result<Vec<DiskPartition>> {
                     let device = parts[0];
                     let mount_point = parts[1];
                     let fs = parts[2];
-                    let is_encrypted = device.contains("crypt")
-                        || device.contains("luks")
-                        || fs.contains("crypto")
-                        || fs.contains("luks");
-                    let is_luks = if let Ok(output) = std::process::Command::new("cryptsetup")
-                        .args(&["isLuks", device])
-                        .output()
-                    {
-                        output.status.success()
-                    } else {
-                        false
-                    };
+                    let is_encrypted = device.contains("crypt") || device.contains("luks") || fs.contains("crypto") || fs.contains("luks");
+                    let is_luks =
+                        if let Ok(output) = Command::new("cryptsetup").args(&["isLuks", device]).output() { output.status.success() } else { false };
                     partitions.push(DiskPartition {
                         device: device.to_string(),
                         mount_point: mount_point.to_string(),
@@ -110,10 +115,7 @@ fn check_encryption() -> Result<Vec<DiskPartition>> {
     }
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = std::process::Command::new("fdesetup")
-            .args(&["status"])
-            .output()
-        {
+        if let Ok(output) = Command::new("fdesetup").args(&["status"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     let is_encrypted = output_str.contains("FileVault is On");
@@ -140,10 +142,10 @@ fn check_encryption() -> Result<Vec<DiskPartition>> {
             }
         }
     }
-    Ok(partitions)
+    return Ok(partitions);
 }
 #[cfg(target_os = "windows")]
-fn get_windows_encryption_status() -> Result<Vec<DiskPartition>> {
+fn get_windows_encryption_status() -> DriverResult<Vec<DiskPartition>> {
     use std::process::Command;
     let mut partitions = Vec::new();
     let output = Command::new("manage-bde").args(&["-status"]).output();
@@ -199,12 +201,8 @@ fn get_windows_encryption_status() -> Result<Vec<DiskPartition>> {
         }
     }
     if partitions.is_empty() {
-        let output = Command::new("powershell")
-            .args(&[
-                "-Command",
-                "Get-BitLockerVolume | Select-Object MountPoint, ProtectionStatus, VolumeType",
-            ])
-            .output();
+        let output =
+            Command::new("powershell").args(&["-Command", "Get-BitLockerVolume | Select-Object MountPoint, ProtectionStatus, VolumeType"]).output();
         if let Ok(output) = output {
             if output.status.success() {
                 let output_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -235,61 +233,7 @@ fn get_windows_encryption_status() -> Result<Vec<DiskPartition>> {
             }
         }
     }
-    if partitions.is_empty() {
-        let output = Command::new("powershell")
-            .args(&[
-                "-Command",
-                "Get-CimInstance -Namespace root/cimv2 -ClassName Win32_LogicalDisk | Where-Object {$_.DriveType -eq 3} | Select-Object DeviceID, VolumeName, FileSystem"
-            ])
-            .output();
-        if let Ok(output) = output {
-            if output.status.success() {
-                let output_str = String::from_utf8_lossy(&output.stdout).to_string();
-                let lines: Vec<&str> = output_str.lines().collect();
-                if lines.len() > 1 {
-                    for line in &lines[1..] {
-                        let trimmed = line.trim();
-                        if trimmed.is_empty() {
-                            continue;
-                        }
-                        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                        if parts.len() >= 1 {
-                            let device = parts[0].to_string();
-                            let check_output = Command::new("powershell")
-                                .args(&[
-                                    "-Command",
-                                    &format!("Get-CimInstance -Namespace root/cimv2 -ClassName Win32_EncryptableVolume | Where-Object {{$_.DriveLetter -eq '{}'}} | Select-Object ProtectionStatus", device)
-                                ])
-                                .output();
-                            let mut is_encrypted = false;
-                            if let Ok(check) = check_output {
-                                if check.status.success() {
-                                    let check_str =
-                                        String::from_utf8_lossy(&check.stdout).to_string();
-                                    if check_str.contains("ProtectionStatus")
-                                        && check_str.contains("1")
-                                    {
-                                        is_encrypted = true;
-                                    }
-                                }
-                            }
-                            partitions.push(DiskPartition {
-                                device: device.clone(),
-                                mount_point: device,
-                                file_system: parts.get(2).unwrap_or(&"NTFS").to_string(),
-                                total_size_gb: 0,
-                                used_size_gb: 0,
-                                free_size_gb: 0,
-                                usage_percent: 0.0,
-                                is_encrypted,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(partitions)
+    return Ok(partitions);
 }
 #[cfg(test)]
 mod tests {

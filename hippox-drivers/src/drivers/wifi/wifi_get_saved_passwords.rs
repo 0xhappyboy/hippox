@@ -1,36 +1,29 @@
 //! WiFi get saved passwords skill - retrieve saved WiFi passwords
-
 use super::common::list_saved_networks;
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
-
+use tracing::{debug, info};
+/// Driver for retrieving saved WiFi passwords
 #[derive(Debug)]
 pub struct WifiGetSavedPasswordsDriver;
-
 #[async_trait::async_trait]
 impl Driver for WifiGetSavedPasswordsDriver {
     fn name(&self) -> &str {
-        "wifi_get_saved_passwords"
+        return "wifi_get_saved_passwords";
     }
-
     fn description(&self) -> &str {
-        "Get saved WiFi passwords for networks the device has connected to"
+        return "Get saved WiFi passwords for networks the device has connected to";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to retrieve saved WiFi passwords. May require administrator privileges."
+        return "Use this skill to retrieve saved WiFi passwords. May require administrator privileges.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "ssid".to_string(),
             param_type: "string".to_string(),
             description: "Specific SSID to get password for (omit for all networks)".to_string(),
@@ -38,44 +31,39 @@ impl Driver for WifiGetSavedPasswordsDriver {
             default: None,
             example: Some(Value::String("MyWiFi".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "wifi_get_saved_passwords",
             "parameters": {
                 "ssid": "MyWiFi"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Password for MyWiFi: password123".to_string()
+        return "Password for MyWiFi: password123".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::Wifi
+        return DriverCategory::Wifi;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing wifi_get_saved_passwords driver");
         let specific_ssid = parameters.get("ssid").and_then(|v| v.as_str());
-
         let mut result = String::new();
-
         #[cfg(target_os = "windows")]
         {
             if let Some(ssid) = specific_ssid {
-                let output = Command::new("netsh")
-                    .args(["wlan", "show", "profile", "name=", ssid, "key=clear"])
-                    .output()?;
+                let output = Command::new("netsh").args(["wlan", "show", "profile", "name=", ssid, "key=clear"]).output().map_err(|e| {
+                    debug!("Failed to get password for {}: {}", ssid, e);
+                    return DriverError::execution(format!("Failed to get password: {}", e));
+                })?;
                 let stdout = String::from_utf8_lossy(&output.stdout);
-
                 for line in stdout.lines() {
                     if line.contains("Key Content") || line.contains("关键内容") {
                         if let Some(pwd) = line.split(':').nth(1) {
@@ -88,20 +76,17 @@ impl Driver for WifiGetSavedPasswordsDriver {
                     result = format!("No password found for {}", ssid);
                 }
             } else {
-                let networks = list_saved_networks()?;
+                let networks = list_saved_networks().map_err(|e| {
+                    debug!("Failed to list saved networks: {}", e);
+                    return DriverError::execution(format!("Failed to list saved networks: {}", e));
+                })?;
                 for network in networks {
-                    let output = Command::new("netsh")
-                        .args([
-                            "wlan",
-                            "show",
-                            "profile",
-                            "name=",
-                            &network.ssid,
-                            "key=clear",
-                        ])
-                        .output()?;
+                    let output =
+                        Command::new("netsh").args(["wlan", "show", "profile", "name=", &network.ssid, "key=clear"]).output().map_err(|e| {
+                            debug!("Failed to get password for {}: {}", network.ssid, e);
+                            return DriverError::execution(format!("Failed to get password: {}", e));
+                        })?;
                     let stdout = String::from_utf8_lossy(&output.stdout);
-
                     for line in stdout.lines() {
                         if line.contains("Key Content") || line.contains("关键内容") {
                             if let Some(pwd) = line.split(':').nth(1) {
@@ -113,16 +98,14 @@ impl Driver for WifiGetSavedPasswordsDriver {
                 }
             }
         }
-
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
             result = "Password retrieval on this platform requires root privileges. Please run with sudo.".to_string();
         }
-
         if result.is_empty() {
             result = "No saved passwords found".to_string();
         }
-
-        Ok(result)
+        info!("Retrieved saved passwords");
+        return Ok(result);
     }
 }

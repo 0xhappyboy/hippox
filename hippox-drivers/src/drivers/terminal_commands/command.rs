@@ -1,31 +1,36 @@
-use anyhow::Result;
+//! Command execution driver module
+//!
+//! This module provides functionality to execute system commands and
+//! capture their output. Supports both string-based commands and
+//! argument arrays, with configurable timeout, working directory,
+//! and environment variables.
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
 use crate::{
-    ExecOptions, DriverCallback, DriverCategory, DriverContext, exec_async, types::{Driver, DriverParameter}
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult, ExecOptions, exec_async,
+    types::{Driver, DriverParameter},
 };
-
 /// A skill for executing system commands and capturing their output.
 #[derive(Debug)]
 pub struct ExecCommandDriver;
-
 #[async_trait::async_trait]
 impl Driver for ExecCommandDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "exec_command"
+        return "exec_command";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Execute a system command and return its output"
+        return "Execute a system command and return its output";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to run a shell command, execute a script, install software, or perform system operations"
+        return "Use this skill when the user wants to run a shell command, execute a script, install software, or perform system operations";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "command".to_string(),
                 param_type: "string".to_string(),
@@ -38,8 +43,7 @@ impl Driver for ExecCommandDriver {
             DriverParameter {
                 name: "args".to_string(),
                 param_type: "array".to_string(),
-                description: "Command arguments as an array (alternative to command string)"
-                    .to_string(),
+                description: "Command arguments as an array (alternative to command string)".to_string(),
                 required: false,
                 default: None,
                 example: Some(json!(["ls", "-la", "/home/user"])),
@@ -72,41 +76,39 @@ impl Driver for ExecCommandDriver {
                 example: Some(json!({"PATH": "/usr/local/bin", "DEBUG": "1"})),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "exec_command",
             "parameters": {
                 "command": "echo 'Hello World'"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Hello World".to_string()
+        return "Hello World".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Terminal
+        return DriverCategory::Terminal;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let timeout_secs = parameters
-            .get("timeout")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(30);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing exec_command driver");
+        // Extract required parameters
+        let timeout_secs = parameters.get("timeout").and_then(|v| v.as_u64()).unwrap_or(30);
         let working_dir = parameters.get("working_dir").and_then(|v| v.as_str());
-        let mut opts = ExecOptions::new()
-            .with_timeout(timeout_secs)
-            .with_stdout(true)
-            .with_stderr(true);
+        debug!("Command timeout: {}s, working_dir: {:?}", timeout_secs, working_dir);
+        // Build execution options
+        let mut opts = ExecOptions::new().with_timeout(timeout_secs).with_stdout(true).with_stderr(true);
         if let Some(dir) = working_dir {
             opts = opts.with_cwd(dir);
         }
@@ -114,58 +116,59 @@ impl Driver for ExecCommandDriver {
             for (key, value) in env_obj {
                 if let Some(val_str) = value.as_str() {
                     opts = opts.with_env(key, val_str);
+                    debug!("Set env: {}={}", key, val_str);
                 }
             }
         }
+        // Determine execution method (args array or command string)
         let result = if let Some(args_array) = parameters.get("args").and_then(|v| v.as_array()) {
             if args_array.is_empty() {
-                anyhow::bail!("Args array is empty");
+                return Err(DriverError::execution("Args array is empty".to_string()));
             }
-            let program = args_array[0]
-                .as_str()
-                .ok_or_else(|| anyhow::anyhow!("First arg must be a string"))?;
+            let program = args_array[0].as_str().ok_or_else(|| DriverError::execution("First arg must be a string".to_string()))?;
             let args: Vec<&str> = args_array[1..].iter().filter_map(|v| v.as_str()).collect();
-            exec_async(program, &args, Some(opts)).await?
+            debug!("Executing program: {}, args: {:?}", program, args);
+            exec_async(program, &args, Some(opts)).await.map_err(|e| DriverError::execution(format!("Failed to execute command: {}", e)))?
         } else if let Some(cmd_str) = parameters.get("command").and_then(|v| v.as_str()) {
             #[cfg(target_family = "unix")]
             let (program, args) = ("/bin/sh", vec!["-c", cmd_str]);
             #[cfg(target_family = "windows")]
             let (program, args) = ("cmd.exe", vec!["/c", cmd_str]);
-            exec_async(program, &args, Some(opts)).await?
+            debug!("Executing shell command: {}", cmd_str);
+            exec_async(program, &args, Some(opts)).await.map_err(|e| DriverError::execution(format!("Failed to execute command: {}", e)))?
         } else {
-            anyhow::bail!("Missing required parameter: either 'command' or 'args'");
+            return Err(DriverError::missing_parameter("command or args"));
         };
-        if result.success {
+        // Build output
+        let output = if result.success {
             if result.stdout.is_empty() && !result.stderr.is_empty() {
-                Ok(format!(
-                    "Command executed successfully (stderr):\n{}",
-                    result.stderr
-                ))
+                format!("Command executed successfully (stderr):\n{}", result.stderr)
             } else {
-                Ok(result.stdout)
+                result.stdout
             }
         } else {
-            Ok(format!(
-                "Command failed with exit code {}:\nstdout: {}\nstderr: {}",
-                result.exit_code, result.stdout, result.stderr
-            ))
+            format!("Command failed with exit code {}:\nstdout: {}\nstderr: {}", result.exit_code, result.stdout, result.stderr)
+        };
+        if result.success {
+            info!("Command executed successfully");
+        } else {
+            info!("Command failed with exit code: {}", result.exit_code);
         }
+        return Ok(output);
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
         let has_command = parameters.contains_key("command");
         let has_args = parameters.contains_key("args");
         if !has_command && !has_args {
-            anyhow::bail!("Missing required parameter: either 'command' or 'args'");
+            return Err(DriverError::missing_parameter("command or args"));
         }
-        Ok(())
+        return Ok(());
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_validate_parameters() {
         let skill = ExecCommandDriver;
@@ -178,7 +181,6 @@ mod tests {
         let params = HashMap::new();
         assert!(skill.validate(&params).is_err());
     }
-
     #[tokio::test]
     async fn test_execute_simple_command() {
         let skill = ExecCommandDriver;
@@ -189,7 +191,6 @@ mod tests {
         let output = result.unwrap();
         assert!(output.contains("Hello World"));
     }
-
     #[tokio::test]
     async fn test_execute_with_args_array() {
         let skill = ExecCommandDriver;

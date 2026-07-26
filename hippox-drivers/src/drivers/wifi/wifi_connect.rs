@@ -1,33 +1,28 @@
 //! WiFi connect skill - connect to a WiFi network
-
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
 use super::common::connect_wifi;
 use crate::{
-    DriverCallback, DriverCategory, DriverContext, types::{Driver, DriverParameter}
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
 };
-
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
+/// Driver for connecting to a WiFi network
 #[derive(Debug)]
 pub struct WifiConnectDriver;
-
 #[async_trait::async_trait]
 impl Driver for WifiConnectDriver {
     fn name(&self) -> &str {
-        "wifi_connect"
+        return "wifi_connect";
     }
-
     fn description(&self) -> &str {
-        "Connect to a WiFi network using SSID and password"
+        return "Connect to a WiFi network using SSID and password";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to connect to a WiFi network. Provide the network SSID and password. If the network is open (no password), omit the password parameter."
+        return "Use this skill to connect to a WiFi network. Provide the network SSID and password. If the network is open (no password), omit the password parameter.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "ssid".to_string(),
                 param_type: "string".to_string(),
@@ -46,41 +41,43 @@ impl Driver for WifiConnectDriver {
                 example: Some(Value::String("password123".to_string())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "wifi_connect",
             "parameters": {
                 "ssid": "MyWiFi",
                 "password": "password123"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Connected to WiFi network: MyWiFi".to_string()
+        return "Connected to WiFi network: MyWiFi".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::Wifi
+        return DriverCategory::Wifi;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let ssid = parameters
-            .get("ssid")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'ssid' parameter"))?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing wifi_connect driver");
+        let ssid = parameters.get("ssid").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'ssid' parameter");
+            return DriverError::missing_parameter("ssid");
+        })?;
         let password = parameters.get("password").and_then(|v| v.as_str());
-        connect_wifi(ssid, password)?;
+        debug!("Connecting to WiFi network: {}", ssid);
+        connect_wifi(ssid, password).map_err(|e| {
+            debug!("Failed to connect to {}: {}", ssid, e);
+            return DriverError::execution(format!("Failed to connect to WiFi: {}", e));
+        })?;
         // Wait for connection to establish
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        Ok(format!("Connected to WiFi network: {}", ssid))
+        info!("Connected to WiFi network: {}", ssid);
+        return Ok(format!("Connected to WiFi network: {}", ssid));
     }
 }

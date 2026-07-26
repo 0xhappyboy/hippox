@@ -1,36 +1,35 @@
-// mouse_control/mouse_control_drag.rs
-//! Mouse drag skill
-
+//! Mouse drag driver module
+//!
+//! This module provides functionality to drag from one position to another
+//! using mouse press, move, and release.
 use super::common::{MouseButton, mouse_press, mouse_release, set_mouse_position};
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for dragging the mouse
 #[derive(Debug)]
 pub struct MouseControlDragDriver;
-
 #[async_trait::async_trait]
 impl Driver for MouseControlDragDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "mouse_control_drag"
+        return "mouse_control_drag";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Drag from one position to another"
+        return "Drag from one position to another";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to drag and drop. Press at start coordinates, move to end coordinates, then release."
+        return "Use this skill to drag and drop. Press at start coordinates, move to end coordinates, then release.";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "start_x".to_string(),
                 param_type: "integer".to_string(),
@@ -74,17 +73,13 @@ impl Driver for MouseControlDragDriver {
                 required: false,
                 default: Some(Value::String("left".to_string())),
                 example: Some(Value::String("left".to_string())),
-                enum_values: Some(vec![
-                    "left".to_string(),
-                    "right".to_string(),
-                    "middle".to_string(),
-                ]),
+                enum_values: Some(vec!["left".to_string(), "right".to_string(), "middle".to_string()]),
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "mouse_control_drag",
             "parameters": {
                 "start_x": 100,
@@ -93,58 +88,36 @@ impl Driver for MouseControlDragDriver {
                 "end_y": 300,
                 "button": "left"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Dragged from (100, 100) to (300, 300)".to_string()
+        return "Dragged from (100, 100) to (300, 300)".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Mouse
+        return DriverCategory::Mouse;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let start_x = parameters
-            .get("start_x")
-            .and_then(|v| v.as_i64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'start_x' parameter"))?
-            as i32;
-
-        let start_y = parameters
-            .get("start_y")
-            .and_then(|v| v.as_i64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'start_y' parameter"))?
-            as i32;
-
-        let end_x = parameters
-            .get("end_x")
-            .and_then(|v| v.as_i64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'end_x' parameter"))?
-            as i32;
-
-        let end_y = parameters
-            .get("end_y")
-            .and_then(|v| v.as_i64())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'end_y' parameter"))?
-            as i32;
-
-        let button_str = parameters
-            .get("button")
-            .and_then(|v| v.as_str())
-            .unwrap_or("left");
-
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing mouse_control_drag driver");
+        let start_x = parameters.get("start_x").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("start_x"))? as i32;
+        let start_y = parameters.get("start_y").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("start_y"))? as i32;
+        let end_x = parameters.get("end_x").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("end_x"))? as i32;
+        let end_y = parameters.get("end_y").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("end_y"))? as i32;
+        let button_str = parameters.get("button").and_then(|v| v.as_str()).unwrap_or("left");
         let button = match button_str {
             "left" => MouseButton::Left,
             "right" => MouseButton::Right,
             "middle" => MouseButton::Middle,
             _ => MouseButton::Left,
         };
+        debug!("Dragging from ({}, {}) to ({}, {}) with {} button", start_x, start_y, end_x, end_y, button_str);
         // Press at start
         mouse_press(button.clone(), start_x, start_y)?;
         // Move to end with small steps
@@ -158,9 +131,16 @@ impl Driver for MouseControlDragDriver {
         }
         // Release at end
         mouse_release(button, end_x, end_y)?;
-        Ok(format!(
-            "Dragged from ({}, {}) to ({}, {})",
-            start_x, start_y, end_x, end_y
-        ))
+        let result = format!("Dragged from ({}, {}) to ({}, {})", start_x, start_y, end_x, end_y);
+        info!("{}", result);
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("start_x").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("start_x"))?;
+        parameters.get("start_y").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("start_y"))?;
+        parameters.get("end_x").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("end_x"))?;
+        parameters.get("end_y").and_then(|v| v.as_i64()).ok_or_else(|| DriverError::missing_parameter("end_y"))?;
+        return Ok(());
     }
 }

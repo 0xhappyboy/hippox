@@ -1,20 +1,21 @@
 // keyboard_control/shared.rs
 //! Shared utilities for keyboard control across platforms
-
-use anyhow::Result;
+//!
+//! This module provides cross-platform keyboard control functionality
+//! using system APIs and command-line tools.
+use crate::DriverError;
+use crate::result::DriverResult;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
-
+use tracing::{debug, info, warn};
 #[cfg(target_os = "windows")]
 use winapi::um::winuser::{KEYEVENTF_KEYUP, keybd_event};
-
 /// Keyboard key representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyCode {
     pub name: String,
     pub virtual_key: u16,
 }
-
 /// Common key mappings for Windows using virtual key codes
 #[cfg(target_os = "windows")]
 pub fn get_key_code(key_name: &str) -> Option<u16> {
@@ -106,7 +107,6 @@ pub fn get_key_code(key_name: &str) -> Option<u16> {
         _ => None,
     }
 }
-
 #[cfg(not(target_os = "windows"))]
 pub fn get_key_code(key_name: &str) -> Option<u16> {
     // Linux key codes (X11)
@@ -151,38 +151,41 @@ pub fn get_key_code(key_name: &str) -> Option<u16> {
         _ => None,
     }
 }
-
 /// Send a key press using Windows keybd_event (winapi)
 #[cfg(target_os = "windows")]
-pub fn send_key_press(key_code: u16) -> Result<()> {
+pub fn send_key_press(key_code: u16) -> DriverResult<()> {
+    debug!("Sending key press: 0x{:X}", key_code);
     unsafe {
         keybd_event(key_code as u8, 0, 0, 0);
         keybd_event(key_code as u8, 0, KEYEVENTF_KEYUP, 0);
     }
-    Ok(())
+    info!("Key press sent: 0x{:X}", key_code);
+    return Ok(());
 }
-
 /// Send key down event
 #[cfg(target_os = "windows")]
-pub fn send_key_down(key_code: u16) -> Result<()> {
+pub fn send_key_down(key_code: u16) -> DriverResult<()> {
+    debug!("Sending key down: 0x{:X}", key_code);
     unsafe {
         keybd_event(key_code as u8, 0, 0, 0);
     }
-    Ok(())
+    info!("Key down sent: 0x{:X}", key_code);
+    return Ok(());
 }
-
 /// Send key up event
 #[cfg(target_os = "windows")]
-pub fn send_key_up(key_code: u16) -> Result<()> {
+pub fn send_key_up(key_code: u16) -> DriverResult<()> {
+    debug!("Sending key up: 0x{:X}", key_code);
     unsafe {
         keybd_event(key_code as u8, 0, KEYEVENTF_KEYUP, 0);
     }
-    Ok(())
+    info!("Key up sent: 0x{:X}", key_code);
+    return Ok(());
 }
-
 /// Linux implementation using xdotool
 #[cfg(target_os = "linux")]
-pub fn send_key_press(key_code: u16) -> Result<()> {
+pub fn send_key_press(key_code: u16) -> DriverResult<()> {
+    debug!("Sending key press: 0x{:X}", key_code);
     let key_name = match key_code {
         38 => "a",
         56 => "b",
@@ -214,42 +217,66 @@ pub fn send_key_press(key_code: u16) -> Result<()> {
         65 => "space",
         23 => "Tab",
         9 => "Escape",
-        _ => return Ok(()),
+        _ => {
+            warn!("Unknown key code: 0x{:X}", key_code);
+            return Ok(());
+        }
     };
-
-    Command::new("xdotool").args(["key", key_name]).output()?;
-    Ok(())
+    let output = Command::new("xdotool").args(["key", key_name]).output();
+    if let Err(e) = output {
+        let err_msg = format!("Failed to send key press: {}", e);
+        warn!("{}", err_msg);
+        return Err(DriverError::execution(err_msg));
+    }
+    info!("Key press sent: {}", key_name);
+    return Ok(());
 }
-
 #[cfg(target_os = "linux")]
-pub fn send_key_down(key_code: u16) -> Result<()> {
+pub fn send_key_down(key_code: u16) -> DriverResult<()> {
+    debug!("Sending key down: 0x{:X}", key_code);
     let key_name = match key_code {
         37 => "ctrl",
         64 => "alt",
         50 => "shift",
-        _ => return Ok(()),
+        _ => {
+            warn!("Unknown modifier key: 0x{:X}", key_code);
+            return Ok(());
+        }
     };
-    Command::new("xdotool")
-        .args(["keydown", key_name])
-        .output()?;
-    Ok(())
+    let output = Command::new("xdotool").args(["keydown", key_name]).output();
+    if let Err(e) = output {
+        let err_msg = format!("Failed to send key down: {}", e);
+        warn!("{}", err_msg);
+        return Err(DriverError::execution(err_msg));
+    }
+    info!("Key down sent: {}", key_name);
+    return Ok(());
 }
-
 #[cfg(target_os = "linux")]
-pub fn send_key_up(key_code: u16) -> Result<()> {
+pub fn send_key_up(key_code: u16) -> DriverResult<()> {
+    debug!("Sending key up: 0x{:X}", key_code);
     let key_name = match key_code {
         37 => "ctrl",
         64 => "alt",
         50 => "shift",
-        _ => return Ok(()),
+        _ => {
+            warn!("Unknown modifier key: 0x{:X}", key_code);
+            return Ok(());
+        }
     };
-    Command::new("xdotool").args(["keyup", key_name]).output()?;
-    Ok(())
+    let output = Command::new("xdotool").args(["keyup", key_name]).output();
+    if let Err(e) = output {
+        let err_msg = format!("Failed to send key up: {}", e);
+        warn!("{}", err_msg);
+        return Err(DriverError::execution(err_msg));
+    }
+    info!("Key up sent: {}", key_name);
+    return Ok(());
 }
-
 /// macOS implementation using osascript
 #[cfg(target_os = "macos")]
-pub fn send_key_press(key_code: u16) -> Result<()> {
+pub fn send_key_press(key_code: u16) -> DriverResult<()> {
+    debug!("Sending key press: 0x{:X}", key_code);
     let key_name = match key_code {
         0x41 => "a",
         0x42 => "b",
@@ -281,67 +308,71 @@ pub fn send_key_press(key_code: u16) -> Result<()> {
         0x20 => "space",
         0x09 => "tab",
         0x1B => "escape",
-        _ => return Ok(()),
+        _ => {
+            warn!("Unknown key code: 0x{:X}", key_code);
+            return Ok(());
+        }
     };
-
-    let script = format!(
-        r#"tell application "System Events" to keystroke "{}""#,
-        key_name
-    );
-    Command::new("osascript").args(["-e", &script]).output()?;
-    Ok(())
+    let script = format!(r#"tell application "System Events" to keystroke "{}""#, key_name);
+    let output = Command::new("osascript").args(["-e", &script]).output();
+    if let Err(e) = output {
+        let err_msg = format!("Failed to send key press: {}", e);
+        warn!("{}", err_msg);
+        return Err(DriverError::execution(err_msg));
+    }
+    info!("Key press sent: {}", key_name);
+    return Ok(());
 }
-
 #[cfg(target_os = "macos")]
-pub fn send_key_down(key_code: u16) -> Result<()> {
+pub fn send_key_down(key_code: u16) -> DriverResult<()> {
+    debug!("Key down not implemented on macOS: 0x{:X}", key_code);
     let _ = key_code;
-    Ok(())
+    return Ok(());
 }
-
 #[cfg(target_os = "macos")]
-pub fn send_key_up(key_code: u16) -> Result<()> {
+pub fn send_key_up(key_code: u16) -> DriverResult<()> {
+    debug!("Key up not implemented on macOS: 0x{:X}", key_code);
     let _ = key_code;
-    Ok(())
+    return Ok(());
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn send_key_press(key_code: u16) -> Result<()> {
+pub fn send_key_press(key_code: u16) -> DriverResult<()> {
     let _ = key_code;
-    anyhow::bail!("Key press not implemented on this platform")
+    let err_msg = "Key press not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn send_key_down(key_code: u16) -> Result<()> {
+pub fn send_key_down(key_code: u16) -> DriverResult<()> {
     let _ = key_code;
-    anyhow::bail!("Key down not implemented on this platform")
+    let err_msg = "Key down not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn send_key_up(key_code: u16) -> Result<()> {
+pub fn send_key_up(key_code: u16) -> DriverResult<()> {
     let _ = key_code;
-    anyhow::bail!("Key up not implemented on this platform")
+    let err_msg = "Key up not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 /// Parse shortcut string like "Ctrl+C" or "Ctrl+Shift+S"
-pub fn parse_shortcut(shortcut: &str) -> Result<Vec<(String, bool)>> {
+pub fn parse_shortcut(shortcut: &str) -> DriverResult<Vec<(String, bool)>> {
+    debug!("Parsing shortcut: {}", shortcut);
     let parts: Vec<&str> = shortcut.split('+').collect();
     let mut keys = Vec::new();
-
     for part in parts {
         let key = part.to_lowercase();
-        let is_modifier = matches!(
-            key.as_str(),
-            "ctrl" | "control" | "alt" | "shift" | "win" | "windows" | "cmd" | "command"
-        );
+        let is_modifier = matches!(key.as_str(), "ctrl" | "control" | "alt" | "shift" | "win" | "windows" | "cmd" | "command");
         keys.push((key, is_modifier));
     }
-
-    Ok(keys)
+    info!("Parsed shortcut: {:?}", keys);
+    return Ok(keys);
 }
-
 /// Send modifier key state
 #[cfg(target_os = "windows")]
-pub fn set_modifier_state(modifier: &str, down: bool) -> Result<()> {
+pub fn set_modifier_state(modifier: &str, down: bool) -> DriverResult<()> {
+    debug!("Setting modifier state: {}, down: {}", modifier, down);
     let key_code = match modifier.to_lowercase().as_str() {
         "ctrl" | "control" => get_key_code("ctrl"),
         "alt" => get_key_code("alt"),
@@ -349,21 +380,23 @@ pub fn set_modifier_state(modifier: &str, down: bool) -> Result<()> {
         "win" | "windows" => get_key_code("win"),
         _ => None,
     };
-
     if let Some(code) = key_code {
         if down {
             send_key_down(code)?;
         } else {
             send_key_up(code)?;
         }
-        Ok(())
+        info!("Modifier state set: {}, down: {}", modifier, down);
+        return Ok(());
     } else {
-        anyhow::bail!("Unknown modifier: {}", modifier)
+        let err_msg = format!("Unknown modifier: {}", modifier);
+        warn!("{}", err_msg);
+        return Err(DriverError::validation("modifier", err_msg));
     }
 }
-
 #[cfg(target_os = "linux")]
-pub fn set_modifier_state(modifier: &str, down: bool) -> Result<()> {
+pub fn set_modifier_state(modifier: &str, down: bool) -> DriverResult<()> {
+    debug!("Setting modifier state: {}, down: {}", modifier, down);
     let key_name = match modifier.to_lowercase().as_str() {
         "ctrl" | "control" => "ctrl",
         "alt" => "alt",
@@ -371,55 +404,56 @@ pub fn set_modifier_state(modifier: &str, down: bool) -> Result<()> {
         "win" | "windows" => "super",
         _ => "",
     };
-
     if !key_name.is_empty() {
         let cmd = if down { "keydown" } else { "keyup" };
-        Command::new("xdotool").args([cmd, key_name]).output()?;
+        let output = Command::new("xdotool").args([cmd, key_name]).output();
+        if let Err(e) = output {
+            let err_msg = format!("Failed to set modifier state: {}", e);
+            warn!("{}", err_msg);
+            return Err(DriverError::execution(err_msg));
+        }
+        info!("Modifier state set: {}, down: {}", key_name, down);
     }
-    Ok(())
+    return Ok(());
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-pub fn set_modifier_state(modifier: &str, down: bool) -> Result<()> {
+pub fn set_modifier_state(modifier: &str, down: bool) -> DriverResult<()> {
     let _ = (modifier, down);
-    Ok(())
+    debug!("Set modifier state not implemented on this platform");
+    return Ok(());
 }
-
 /// Send a shortcut (combination of keys)
-pub fn send_shortcut(shortcut: &str) -> Result<()> {
+pub fn send_shortcut(shortcut: &str) -> DriverResult<()> {
+    debug!("Sending shortcut: {}", shortcut);
     let keys = parse_shortcut(shortcut)?;
-
     // Press all modifiers in order
     for (key, is_modifier) in &keys {
         if *is_modifier {
             let _ = set_modifier_state(key, true);
         }
     }
-
     // Find and press the main key
     let main_key = keys.last().unwrap();
     if let Some(code) = get_key_code(&main_key.0) {
         send_key_press(code)?;
     }
-
     // Release modifiers in reverse order
     for (key, is_modifier) in keys.iter().rev() {
         if *is_modifier {
             let _ = set_modifier_state(key, false);
         }
     }
-
-    Ok(())
+    info!("Shortcut sent: {}", shortcut);
+    return Ok(());
 }
-
 /// Type text as keyboard input
 #[cfg(target_os = "windows")]
-pub fn type_text(text: &str) -> Result<()> {
+pub fn type_text(text: &str) -> DriverResult<()> {
+    debug!("Typing text (Windows): {}", text);
     for c in text.chars() {
         if c.is_ascii_alphabetic() {
             let vk = get_key_code(&c.to_lowercase().to_string()).unwrap_or(0);
             let is_upper = c.is_ascii_uppercase();
-
             if is_upper {
                 let shift = get_key_code("shift").unwrap();
                 unsafe {
@@ -450,30 +484,39 @@ pub fn type_text(text: &str) -> Result<()> {
             }
         }
     }
-    Ok(())
+    info!("Text typed: {}", text);
+    return Ok(());
 }
-
 #[cfg(target_os = "linux")]
-pub fn type_text(text: &str) -> Result<()> {
-    Command::new("xdotool")
-        .args(["type", "--clearmodifiers", text])
-        .output()?;
-    Ok(())
+pub fn type_text(text: &str) -> DriverResult<()> {
+    debug!("Typing text (Linux): {}", text);
+    let output = Command::new("xdotool").args(["type", "--clearmodifiers", text]).output();
+    if let Err(e) = output {
+        let err_msg = format!("Failed to type text: {}", e);
+        warn!("{}", err_msg);
+        return Err(DriverError::execution(err_msg));
+    }
+    info!("Text typed: {}", text);
+    return Ok(());
 }
-
 #[cfg(target_os = "macos")]
-pub fn type_text(text: &str) -> Result<()> {
+pub fn type_text(text: &str) -> DriverResult<()> {
+    debug!("Typing text (macOS): {}", text);
     let escaped = text.replace("\\", "\\\\").replace("\"", "\\\"");
-    let script = format!(
-        r#"tell application "System Events" to keystroke "{}""#,
-        escaped
-    );
-    Command::new("osascript").args(["-e", &script]).output()?;
-    Ok(())
+    let script = format!(r#"tell application "System Events" to keystroke "{}""#, escaped);
+    let output = Command::new("osascript").args(["-e", &script]).output();
+    if let Err(e) = output {
+        let err_msg = format!("Failed to type text: {}", e);
+        warn!("{}", err_msg);
+        return Err(DriverError::execution(err_msg));
+    }
+    info!("Text typed: {}", text);
+    return Ok(());
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn type_text(text: &str) -> Result<()> {
+pub fn type_text(text: &str) -> DriverResult<()> {
     let _ = text;
-    anyhow::bail!("Type text not implemented on this platform")
+    let err_msg = "Type text not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }

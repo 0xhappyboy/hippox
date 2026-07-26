@@ -1,57 +1,57 @@
 //! WiFi analyze quality skill - analyze WiFi quality and recommend channel
-
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
 use super::common::{get_wifi_status, scan_wifi_networks};
 use crate::{
-    DriverCallback, DriverCategory, DriverContext, types::{Driver, DriverParameter}
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
 };
-
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
+/// Driver for analyzing WiFi quality and recommending optimal channel
 #[derive(Debug)]
 pub struct WifiAnalyzeQualityDriver;
-
 #[async_trait::async_trait]
 impl Driver for WifiAnalyzeQualityDriver {
     fn name(&self) -> &str {
         "wifi_analyze_quality"
     }
-
     fn description(&self) -> &str {
         "Analyze WiFi quality and recommend the best channel to use"
     }
-
     fn usage_hint(&self) -> &str {
         "Use this skill to diagnose WiFi interference and get recommendations for improving connection quality."
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "wifi_analyze_quality"
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Quality Analysis:\n- Score: 75/100\n- Current Channel: 6\n- Recommended Channel: 11\n- Recommendations: Switch to channel 11 to avoid interference from 3 nearby networks".to_string()
+        return "Quality Analysis:\n- Score: 75/100\n- Current Channel: 6\n- Recommended Channel: 11\n- Recommendations: Switch to channel 11 to avoid interference from 3 nearby networks".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::Wifi
+        return DriverCategory::Wifi;
     }
-
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let status = get_wifi_status()?;
-        let networks = scan_wifi_networks()?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing wifi_analyze_quality driver");
+        // Get current WiFi status
+        let status = get_wifi_status().map_err(|e| {
+            debug!("Failed to get WiFi status: {}", e);
+            return DriverError::execution(format!("Failed to get WiFi status: {}", e));
+        })?;
+        // Scan for nearby networks
+        let networks = scan_wifi_networks().map_err(|e| {
+            debug!("Failed to scan WiFi networks: {}", e);
+            return DriverError::execution(format!("Failed to scan WiFi networks: {}", e));
+        })?;
         let current_channel = status.channel.unwrap_or(6);
         // Count networks per channel
         let mut channel_counts: HashMap<u32, u32> = HashMap::new();
@@ -82,14 +82,10 @@ impl Driver for WifiAnalyzeQualityDriver {
         };
         let mut recommendations = Vec::new();
         if best_channel != current_channel {
-            recommendations.push(format!(
-                "Switch to channel {} to avoid interference from {} nearby networks",
-                best_channel, min_count
-            ));
+            recommendations.push(format!("Switch to channel {} to avoid interference from {} nearby networks", best_channel, min_count));
         }
         if signal < 50 {
-            recommendations
-                .push("Move closer to the router for better signal strength".to_string());
+            recommendations.push("Move closer to the router for better signal strength".to_string());
         }
         let mut result = format!(
             "Quality Analysis:\n- Score: {}/100\n- Current Channel: {}\n- Recommended Channel: {}\n- Interfering Networks: {}\n",
@@ -101,6 +97,7 @@ impl Driver for WifiAnalyzeQualityDriver {
                 result.push_str(&format!("  * {}\n", rec));
             }
         }
-        Ok(result)
+        info!("WiFi quality analysis completed, score: {}/100", score);
+        return Ok(result);
     }
 }

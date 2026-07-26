@@ -1,28 +1,36 @@
-//! Disk SMART driver
+//! Disk SMART driver module
+//!
+//! This module provides functionality to get disk S.M.A.R.T. health information
+//! including health percentage, temperature, power-on hours, and wear level.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     drivers::operating_system_disk::common::DiskSmartInfo,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::process::Command;
+use tracing::{debug, info};
 /// Driver for getting disk SMART health information
 #[derive(Debug)]
 pub struct DiskSmartDriver;
 #[async_trait::async_trait]
 impl Driver for DiskSmartDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "disk_smart"
+        return "disk_smart";
     }
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Get disk S.M.A.R.T. health status including health percentage and temperature"
+        return "Get disk S.M.A.R.T. health status including health percentage and temperature";
     }
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to check disk health and predict potential failures"
+        return "Use this skill to check disk health and predict potential failures";
     }
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "device".to_string(),
             param_type: "string".to_string(),
             description: "Disk device (e.g., /dev/sda)".to_string(),
@@ -30,66 +38,66 @@ impl Driver for DiskSmartDriver {
             default: None,
             example: Some(Value::String("/dev/sda".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "disk_smart",
             "parameters": {
                 "device": "/dev/sda"
             }
-        })
+        }));
     }
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        r#"Disk SMART Health:
+        return r#"Disk SMART Health:
 Health: 95.0%
 Temperature: 35.0°C
 Power On Hours: 12345
 Wear Level: 85.0%
 Errors: No"#
-            .to_string()
+            .to_string();
     }
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemDisk
+        return DriverCategory::OperatingSystemDisk;
     }
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let device = parameters
-            .get("device")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: device"))?;
+    ) -> DriverResult<String> {
+        debug!("Executing disk_smart driver");
+        let device = parameters.get("device").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("device"))?;
+        debug!("Getting SMART info for device: {}", device);
         let smart = get_smart_info(device)?;
         let mut output = String::from("Disk SMART Health:\n");
         output.push_str(&format!("Health: {:.1}%\n", smart.health_percent));
-        output.push_str(&format!(
-            "Temperature: {:.1}°C\n",
-            smart.temperature_celsius
-        ));
+        output.push_str(&format!("Temperature: {:.1}°C\n", smart.temperature_celsius));
         output.push_str(&format!("Power On Hours: {}\n", smart.power_on_hours));
         if let Some(wear) = smart.wear_level {
             output.push_str(&format!("Wear Level: {:.1}%\n", wear));
         }
-        output.push_str(&format!(
-            "Errors: {}\n",
-            if smart.has_error { "Yes" } else { "No" }
-        ));
+        output.push_str(&format!("Errors: {}\n", if smart.has_error { "Yes" } else { "No" }));
         if let Some(error) = smart.error_message {
             output.push_str(&format!("Error: {}\n", error));
         }
-        Ok(output)
+        info!("SMART info retrieved for {}", device);
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("device").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("device"))?;
+        return Ok(());
     }
 }
-fn get_smart_info(device: &str) -> Result<DiskSmartInfo> {
+fn get_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
     #[cfg(target_os = "linux")]
     {
-        if let Ok(output) = std::process::Command::new("smartctl")
-            .args(&["-a", device])
-            .output()
-        {
+        if let Ok(output) = Command::new("smartctl").args(&["-a", device]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     let mut health = 100.0;
@@ -99,11 +107,9 @@ fn get_smart_info(device: &str) -> Result<DiskSmartInfo> {
                     let mut has_error = false;
                     let mut error_msg = None;
                     for line in output_str.lines() {
-                        if line.contains("SMART overall-health self-assessment test result: PASSED")
-                        {
-                        } else if line
-                            .contains("SMART overall-health self-assessment test result: FAILED")
-                        {
+                        if line.contains("SMART overall-health self-assessment test result: PASSED") {
+                            // Health is good
+                        } else if line.contains("SMART overall-health self-assessment test result: FAILED") {
                             health = 50.0;
                             has_error = true;
                             error_msg = Some("SMART health test failed".to_string());
@@ -125,9 +131,7 @@ fn get_smart_info(device: &str) -> Result<DiskSmartInfo> {
                                     wear = Some(wear_val);
                                 }
                             }
-                        } else if line.contains("Reallocated_Sector_Ct")
-                            || line.contains("Reallocated")
-                        {
+                        } else if line.contains("Reallocated_Sector_Ct") || line.contains("Reallocated") {
                             if let Some(ct_str) = line.split_whitespace().last() {
                                 if let Ok(ct) = ct_str.parse::<u64>() {
                                     if ct > 0 {
@@ -153,47 +157,39 @@ fn get_smart_info(device: &str) -> Result<DiskSmartInfo> {
                 }
             }
         }
-        Ok(DiskSmartInfo {
+        return Ok(DiskSmartInfo {
             health_percent: 100.0,
             temperature_celsius: 25.0,
             power_on_hours: 0,
             wear_level: None,
             has_error: false,
             error_message: None,
-        })
+        });
     }
     #[cfg(target_os = "windows")]
     {
-        get_windows_smart_info(device)
+        return get_windows_smart_info(device);
     }
     #[cfg(target_os = "macos")]
     {
-        get_macos_smart_info(device)
+        return get_macos_smart_info(device);
     }
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
-        Ok(DiskSmartInfo {
+        return Ok(DiskSmartInfo {
             health_percent: 100.0,
             temperature_celsius: 0.0,
             power_on_hours: 0,
             wear_level: None,
             has_error: false,
             error_message: Some("SMART not supported on this platform".to_string()),
-        })
+        });
     }
 }
 #[cfg(target_os = "windows")]
-fn get_windows_smart_info(device: &str) -> Result<DiskSmartInfo> {
+fn get_windows_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
     use std::process::Command;
-    let output = Command::new("powershell")
-        .args(&["-Command", &format!("smartctl -a '{}'", device)])
-        .output();
-    let output_wmi = Command::new("powershell")
-        .args(&[
-            "-Command",
-            "Get-CimInstance -Namespace root/wmi -ClassName MSStorageDriver_FailurePredictStatus | Select-Object PredictFailure, Reason"
-        ])
-        .output();
+    let output = Command::new("powershell").args(&["-Command", &format!("smartctl -a '{}'", device)]).output();
     let mut health = 100.0;
     let mut temp = 0.0;
     let mut power_on = 0;
@@ -205,8 +201,7 @@ fn get_windows_smart_info(device: &str) -> Result<DiskSmartInfo> {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();
             for line in output_str.lines() {
                 if line.contains("SMART overall-health self-assessment test result: PASSED") {
-                } else if line.contains("SMART overall-health self-assessment test result: FAILED")
-                {
+                } else if line.contains("SMART overall-health self-assessment test result: FAILED") {
                     health = 50.0;
                     has_error = true;
                     error_msg = Some("SMART health test failed".to_string());
@@ -232,36 +227,17 @@ fn get_windows_smart_info(device: &str) -> Result<DiskSmartInfo> {
             }
         }
     }
-    if health == 100.0 && !has_error {
-        if let Ok(output) = output_wmi {
-            if output.status.success() {
-                let output_str = String::from_utf8_lossy(&output.stdout).to_string();
-                for line in output_str.lines() {
-                    if line.contains("PredictFailure") && line.contains("True") {
-                        has_error = true;
-                        error_msg = Some("SMART predicts drive failure".to_string());
-                        health = 30.0;
-                    }
-                    if line.contains("Reason") && has_error {
-                        if let Some(reason) = line.split(':').nth(1) {
-                            error_msg = Some(reason.trim().to_string());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(DiskSmartInfo {
+    return Ok(DiskSmartInfo {
         health_percent: health,
         temperature_celsius: temp as f32,
         power_on_hours: power_on,
         wear_level: wear.map(|v| v as f32),
         has_error,
         error_message: error_msg,
-    })
+    });
 }
 #[cfg(target_os = "macos")]
-fn get_macos_smart_info(device: &str) -> Result<DiskSmartInfo> {
+fn get_macos_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
     use std::process::Command;
     let output = Command::new("smartctl").args(&["-a", device]).output();
     let mut health = 100.0;
@@ -275,8 +251,7 @@ fn get_macos_smart_info(device: &str) -> Result<DiskSmartInfo> {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();
             for line in output_str.lines() {
                 if line.contains("SMART overall-health self-assessment test result: PASSED") {
-                } else if line.contains("SMART overall-health self-assessment test result: FAILED")
-                {
+                } else if line.contains("SMART overall-health self-assessment test result: FAILED") {
                     health = 50.0;
                     has_error = true;
                     error_msg = Some("SMART health test failed".to_string());
@@ -302,38 +277,14 @@ fn get_macos_smart_info(device: &str) -> Result<DiskSmartInfo> {
             }
         }
     }
-    if health == 100.0 && !has_error {
-        let output = Command::new("system_profiler")
-            .args(&["SPStorageDataType"])
-            .output();
-        if let Ok(output) = output {
-            if output.status.success() {
-                let output_str = String::from_utf8_lossy(&output.stdout).to_string();
-                for line in output_str.lines() {
-                    if line.contains("S.M.A.R.T. Status") {
-                        if line.contains("Verified") || line.contains("Passed") {
-                        } else if line.contains("Failing") {
-                            has_error = true;
-                            error_msg = Some("S.M.A.R.T. status indicates failure".to_string());
-                            health = 20.0;
-                        } else if line.contains("Warning") {
-                            has_error = true;
-                            error_msg = Some("S.M.A.R.T. status warning".to_string());
-                            health = 50.0;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(DiskSmartInfo {
+    return Ok(DiskSmartInfo {
         health_percent: health,
         temperature_celsius: temp,
         power_on_hours: power_on,
         wear_level: wear,
         has_error,
         error_message: error_msg,
-    })
+    });
 }
 #[cfg(test)]
 mod tests {

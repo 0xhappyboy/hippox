@@ -1,16 +1,15 @@
-//! Sensitive file scan skill
-
-use crate::DriverCallback;
-use crate::DriverContext;
+//! Sensitive file scan driver
+//!
+//! This driver provides functionality to scan for sensitive files exposed on a web server.
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// List of sensitive files to scan for
 const SENSITIVE_FILES: &[(&str, &str)] = &[
     (".env", "Environment configuration file"),
     (".git/config", "Git configuration file"),
@@ -40,26 +39,26 @@ const SENSITIVE_FILES: &[(&str, &str)] = &[
     (".mysql_history", "MySQL history file"),
     (".psql_history", "PostgreSQL history file"),
 ];
-
+/// Driver for scanning sensitive files
 #[derive(Debug)]
 pub struct SensitiveFileScanDriver;
-
 #[async_trait::async_trait]
 impl Driver for SensitiveFileScanDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "sensitive_file_scan"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Scan for sensitive files exposed on a web server"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to find exposed sensitive files like .env, .git, config files, etc."
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "target".to_string(),
                 param_type: "string".to_string(),
@@ -87,42 +86,46 @@ impl Driver for SensitiveFileScanDriver {
                 example: Some(Value::Number(20.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "sensitive_file_scan",
             "parameters": {
                 "target": "http://example.com"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Sensitive File Scan Results:\n\nFound: .env (200) - Environment configuration file\nFound: .git/config (200) - Git configuration file\nFound: robots.txt (200) - Robots exclusion file".to_string()
+        return "Sensitive File Scan Results:\n\nFound: .env (200) - Environment configuration file\nFound: .git/config (200) - Git configuration file\nFound: robots.txt (200) - Robots exclusion file".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing sensitive_file_scan driver");
         let target = get_param_string(parameters, "target")?;
         let timeout_secs = get_param_u64(parameters, "timeout", 5);
         let concurrency = get_param_u64(parameters, "concurrency", 10) as usize;
+        info!("Sensitive file scan: target={}, timeout={}s, concurrency={}", target, timeout_secs, concurrency);
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(timeout_secs))
-            .build()?;
+            .build()
+            .map_err(|e| DriverError::execution(format!("Failed to build HTTP client: {}", e)))?;
         let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
         let mut tasks = vec![];
         for (path, desc) in SENSITIVE_FILES {
-            let permit = semaphore.clone().acquire_owned().await?;
+            let permit =
+                semaphore.clone().acquire_owned().await.map_err(|e| DriverError::execution(format!("Failed to acquire semaphore: {}", e)))?;
             let client_clone = client.clone();
             let target_clone = target.clone();
             let path_clone = path.to_string();
@@ -132,11 +135,7 @@ impl Driver for SensitiveFileScanDriver {
                 match client_clone.get(&url).send().await {
                     Ok(resp) => {
                         let status = resp.status().as_u16();
-                        if status < 400 {
-                            Some((url, status, desc_clone))
-                        } else {
-                            None
-                        }
+                        if status < 400 { Some((url, status, desc_clone)) } else { None }
                     }
                     _ => None,
                 }
@@ -148,27 +147,25 @@ impl Driver for SensitiveFileScanDriver {
                 found.push(result);
             }
         }
+        info!("Sensitive file scan complete: {} files found", found.len());
         let mut output = format!("Sensitive File Scan Results for {}:\n", target);
         if found.is_empty() {
             output.push_str("\nNo sensitive files found.");
+            info!("No sensitive files found");
         } else {
             output.push_str(&format!("\nFound {} sensitive files:\n", found.len()));
             for (url, status, desc) in found {
                 output.push_str(&format!("  {} (HTTP {}) - {}\n", url, status, desc));
             }
         }
-        Ok(output)
+        return Ok(output);
     }
 }
-
-fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
-    params
-        .get(name)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("Missing parameter: {}", name))
+/// Gets a string parameter from the parameters map
+fn get_param_string(params: &HashMap<String, Value>, name: &str) -> DriverResult<String> {
+    params.get(name).and_then(|v| v.as_str()).map(|s| s.to_string()).ok_or_else(|| DriverError::missing_parameter(name))
 }
-
+/// Gets a u64 parameter from the parameters map with a default value
 fn get_param_u64(params: &HashMap<String, Value>, name: &str, default: u64) -> u64 {
     params.get(name).and_then(|v| v.as_u64()).unwrap_or(default)
 }

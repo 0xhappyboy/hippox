@@ -1,33 +1,38 @@
+//! PDF file driver module
+//!
+//! This module provides drivers for PDF file operations including
+//! reading PDF files, extracting text content, merging PDF files,
+//! and getting PDF metadata information.
 use crate::DriverCallback;
 use crate::DriverContext;
 use crate::{
     DriverCategory,
     types::{Driver, DriverParameter},
 };
-use crate::{ensure_dir, file_exists, validate_path};
-use anyhow::Result;
+use crate::{DriverError, DriverResult, ensure_dir, file_exists, validate_path};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for reading PDF files and extracting text content
 #[derive(Debug)]
 pub struct PdfReadDriver;
-
 #[async_trait::async_trait]
 impl Driver for PdfReadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "pdf_read"
+        return "pdf_read";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Read and extract text content from PDF files"
+        return "Read and extract text content from PDF files";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to read PDF documents, extract text from PDF files"
+        return "Use this skill when the user wants to read PDF documents, extract text from PDF files";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "path".to_string(),
                 param_type: "string".to_string(),
@@ -55,197 +60,120 @@ impl Driver for PdfReadDriver {
                 example: Some(Value::Number(10.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "pdf_read",
             "parameters": {
                 "path": "document.pdf"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "PDF content extracted from document.pdf\nPage 1: This is the content...".to_string()
+        return "PDF content extracted from document.pdf\nPage 1: This is the content...".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing pdf_read driver");
         let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
         let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-
-        if let Some(cb) = cb {
-            cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Starting PDF read operation".to_string()),
-            );
+        let step_name = context.as_ref().and_then(|c| c.driver_name()).map(String::from);
+        // Notify callback of start
+        if let Some(cb) = callback {
+            cb.on_start(task_id.clone(), driver_index, step_name.clone());
+            cb.on_log(task_id.clone(), driver_index, Some("Starting PDF read operation".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(10), None);
         }
-
-        let path = parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Reading PDF file: {}", path)),
-            );
+        // Extract required parameters
+        let path = parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Reading PDF file: {}", path)));
             cb.on_progress(task_id.clone(), driver_index, Some(20), None);
         }
-
-        let start_page = parameters
-            .get("start_page")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1) as usize;
-        let end_page = parameters
-            .get("end_page")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize);
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!(
-                    "Start page: {}, End page: {:?}",
-                    start_page, end_page
-                )),
-            );
+        let start_page = parameters.get("start_page").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+        let end_page = parameters.get("end_page").and_then(|v| v.as_u64()).map(|v| v as usize);
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Start page: {}, End page: {:?}", start_page, end_page)));
             cb.on_progress(task_id.clone(), driver_index, Some(30), None);
         }
-
-        let validated_path = validate_path(path, None)?;
+        let validated_path = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid path: {}", e)))?;
         if !file_exists(&validated_path.to_string_lossy()) {
-            anyhow::bail!("PDF file not found: {}", path);
+            return Err(DriverError::execution(format!("PDF file not found: {}", path)));
         }
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Validated path, loading PDF".to_string()),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Validated path, loading PDF".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(40), None);
         }
-
         use pdf_extract::extract_text;
-        let full_text = extract_text(&validated_path)
-            .map_err(|e| anyhow::anyhow!("Failed to extract PDF text: {}", e))?;
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("PDF text extracted successfully".to_string()),
-            );
+        let full_text = extract_text(&validated_path).map_err(|e| DriverError::execution(format!("Failed to extract PDF text: {}", e)))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("PDF text extracted successfully".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(60), None);
         }
-
         let pages: Vec<&str> = full_text.split("\n\n").collect();
         let start = start_page.saturating_sub(1);
         let end = end_page.unwrap_or(pages.len()).min(pages.len());
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!(
-                    "Total pages: {}, Selected range: {}-{}",
-                    pages.len(),
-                    start + 1,
-                    end
-                )),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Total pages: {}, Selected range: {}-{}", pages.len(), start + 1, end)));
             cb.on_progress(task_id.clone(), driver_index, Some(75), None);
         }
-
         if start >= pages.len() {
-            anyhow::bail!(
-                "Start page {} exceeds total pages {}",
-                start_page,
-                pages.len()
-            );
+            return Err(DriverError::execution(format!("Start page {} exceeds total pages {}", start_page, pages.len())));
         }
-
         let mut output = format!("PDF file: {}\n", path);
         output.push_str(&format!("Total pages: {}\n", pages.len()));
         output.push_str(&format!("Showing pages {}-{}\n\n", start + 1, end));
-
         for i in start..end {
             output.push_str(&format!("=== Page {} ===\n", i + 1));
             output.push_str(pages[i]);
             output.push_str("\n\n");
         }
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!(
-                    "Completed PDF read, output length: {} bytes",
-                    output.len()
-                )),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Completed PDF read, output length: {} bytes", output.len())));
             cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("pdf_read".to_string()),
-                Some(output.clone()),
-            );
+            cb.on_complete(task_id.clone(), driver_index, Some("pdf_read".to_string()), Some(output.clone()));
         }
-
-        Ok(output)
+        info!("PDF read completed: {}", path);
+        return Ok(output);
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        return Ok(());
     }
 }
-
+/// Driver for merging multiple PDF files into one
 #[derive(Debug)]
 pub struct PdfMergeDriver;
-
 #[async_trait::async_trait]
 impl Driver for PdfMergeDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "pdf_merge"
+        return "pdf_merge";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Merge multiple PDF files into a single PDF"
+        return "Merge multiple PDF files into a single PDF";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to combine multiple PDF files into one"
+        return "Use this skill when the user wants to combine multiple PDF files into one";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "inputs".to_string(),
                 param_type: "array".to_string(),
@@ -264,95 +192,67 @@ impl Driver for PdfMergeDriver {
                 example: Some(Value::String("merged.pdf".to_string())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "pdf_merge",
             "parameters": {
                 "inputs": ["doc1.pdf", "doc2.pdf"],
                 "output": "merged.pdf"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Merged 2 PDF files into: merged.pdf".to_string()
+        return "Merged 2 PDF files into: merged.pdf".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing pdf_merge driver");
         let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
         let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-
-        if let Some(cb) = cb {
-            cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Starting PDF merge operation".to_string()),
-            );
+        let step_name = context.as_ref().and_then(|c| c.driver_name()).map(String::from);
+        // Notify callback of start
+        if let Some(cb) = callback {
+            cb.on_start(task_id.clone(), driver_index, step_name.clone());
+            cb.on_log(task_id.clone(), driver_index, Some("Starting PDF merge operation".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(10), None);
         }
         use lopdf::{Document, Object, ObjectId};
         let inputs = parameters
             .get("inputs")
-            .ok_or_else(|| anyhow::anyhow!("Missing 'inputs' parameter"))?
+            .ok_or_else(|| DriverError::missing_parameter("inputs"))?
             .as_array()
-            .ok_or_else(|| anyhow::anyhow!("'inputs' must be an array"))?;
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Number of input files: {}", inputs.len())),
-            );
+            .ok_or_else(|| DriverError::invalid_type("inputs", "array", "other"))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Number of input files: {}", inputs.len())));
             cb.on_progress(task_id.clone(), driver_index, Some(15), None);
         }
-
-        let output = parameters
-            .get("output")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'output' parameter"))?;
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Output file: {}", output)),
-            );
+        let output = parameters.get("output").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("output"))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Output file: {}", output)));
             cb.on_progress(task_id.clone(), driver_index, Some(20), None);
         }
-
         if inputs.is_empty() {
-            anyhow::bail!("At least one input file is required");
+            return Err(DriverError::execution("At least one input file is required".to_string()));
         }
-
-        let validated_output = validate_path(output, None)?;
+        let validated_output = validate_path(output, None).map_err(|e| DriverError::execution(format!("Invalid output path: {}", e)))?;
         if let Some(parent) = validated_output.parent() {
-            ensure_dir(&parent.to_string_lossy())?;
+            ensure_dir(&parent.to_string_lossy()).map_err(|e| DriverError::execution(format!("Failed to create directory: {}", e)))?;
         }
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Validated output path, creating directory".to_string()),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Validated output path, creating directory".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(25), None);
         }
         let mut merged_doc = Document::new();
@@ -360,34 +260,18 @@ impl Driver for PdfMergeDriver {
         let mut max_id = 0;
         let total_inputs = inputs.len();
         for (idx, input_path) in inputs.iter().enumerate() {
-            let path = input_path
-                .as_str()
-                .ok_or_else(|| anyhow::anyhow!("Input path must be a string"))?;
-            if let Some(cb) = cb {
+            let path = input_path.as_str().ok_or_else(|| DriverError::execution("Input path must be a string".to_string()))?;
+            if let Some(cb) = callback {
                 let progress = 25 + ((idx + 1) as f32 / total_inputs as f32 * 50.0) as u32;
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some(format!(
-                        "Processing file {}/{}: {}",
-                        idx + 1,
-                        total_inputs,
-                        path
-                    )),
-                );
+                cb.on_log(task_id.clone(), driver_index, Some(format!("Processing file {}/{}: {}", idx + 1, total_inputs, path)));
                 cb.on_progress(task_id.clone(), driver_index, Some(progress), None);
             }
-            let validated_input = validate_path(path, None)?;
-            let doc = Document::load(&validated_input)
-                .map_err(|e| anyhow::anyhow!("Failed to load PDF '{}': {}", path, e))?;
+            let validated_input = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid input path '{}': {}", path, e)))?;
+            let doc = Document::load(&validated_input).map_err(|e| DriverError::execution(format!("Failed to load PDF '{}': {}", path, e)))?;
             let pages = doc.page_iter().collect::<Vec<_>>();
             total_pages += pages.len();
-            if let Some(cb) = cb {
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some(format!("Loaded PDF with {} pages", pages.len())),
-                );
+            if let Some(cb) = callback {
+                cb.on_log(task_id.clone(), driver_index, Some(format!("Loaded PDF with {} pages", pages.len())));
             }
             for (id, object) in doc.objects.iter() {
                 let new_id = (id.0 + max_id, id.1 + max_id as u16);
@@ -395,12 +279,8 @@ impl Driver for PdfMergeDriver {
             }
             max_id += doc.max_id;
         }
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("All files loaded, total pages: {}", total_pages)),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("All files loaded, total pages: {}", total_pages)));
             cb.on_progress(task_id.clone(), driver_index, Some(80), None);
         }
         let mut page_objects = Vec::new();
@@ -415,74 +295,50 @@ impl Driver for PdfMergeDriver {
                 }
             }
         }
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Found {} page objects", page_objects.len())),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Found {} page objects", page_objects.len())));
             cb.on_progress(task_id.clone(), driver_index, Some(90), None);
         }
         if page_objects.is_empty() {
-            anyhow::bail!("No pages found in input PDFs");
+            return Err(DriverError::execution("No pages found in input PDFs".to_string()));
         }
-        merged_doc
-            .save(&validated_output)
-            .map_err(|e| anyhow::anyhow!("Failed to save merged PDF: {}", e))?;
-        let result = format!(
-            "Merged {} PDF files into: {} ({} total pages)",
-            inputs.len(),
-            output,
-            total_pages
-        );
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Merge completed: {}", result)),
-            );
+        merged_doc.save(&validated_output).map_err(|e| DriverError::execution(format!("Failed to save merged PDF: {}", e)))?;
+        let result = format!("Merged {} PDF files into: {} ({} total pages)", inputs.len(), output, total_pages);
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Merge completed: {}", result)));
             cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("pdf_merge".to_string()),
-                Some(result.clone()),
-            );
+            cb.on_complete(task_id.clone(), driver_index, Some("pdf_merge".to_string()), Some(result.clone()));
         }
-        Ok(result)
+        info!("PDF merge completed: {} files merged into {}", inputs.len(), output);
+        return Ok(result);
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("inputs")
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: inputs"))?;
-        parameters
-            .get("output")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: output"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("inputs").ok_or_else(|| DriverError::missing_parameter("inputs"))?;
+        parameters.get("output").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("output"))?;
+        return Ok(());
     }
 }
-
+/// Driver for getting PDF metadata information
 #[derive(Debug)]
 pub struct PdfInfoDriver;
-
 #[async_trait::async_trait]
 impl Driver for PdfInfoDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "pdf_info"
+        return "pdf_info";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Get metadata information from PDF file (pages, title, author, etc.)"
+        return "Get metadata information from PDF file (pages, title, author, etc.)";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to get information about a PDF file"
+        return "Use this skill when the user wants to get information about a PDF file";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "path".to_string(),
             param_type: "string".to_string(),
             description: "Path to the PDF file".to_string(),
@@ -490,92 +346,61 @@ impl Driver for PdfInfoDriver {
             default: None,
             example: Some(Value::String("document.pdf".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "pdf_info",
             "parameters": {
                 "path": "document.pdf"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "PDF Info:\nPages: 25\nTitle: My Document\nAuthor: John Doe".to_string()
+        return "PDF Info:\nPages: 25\nTitle: My Document\nAuthor: John Doe".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Document
+        return DriverCategory::Document;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing pdf_info driver");
         let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
         let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-
-        if let Some(cb) = cb {
-            cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Starting PDF info operation".to_string()),
-            );
+        let step_name = context.as_ref().and_then(|c| c.driver_name()).map(String::from);
+        // Notify callback of start
+        if let Some(cb) = callback {
+            cb.on_start(task_id.clone(), driver_index, step_name.clone());
+            cb.on_log(task_id.clone(), driver_index, Some("Starting PDF info operation".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(10), None);
         }
-
         use lopdf::Document;
-        let path = parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Reading PDF info for: {}", path)),
-            );
+        let path = parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Reading PDF info for: {}", path)));
             cb.on_progress(task_id.clone(), driver_index, Some(20), None);
         }
-
-        let validated_path = validate_path(path, None)?;
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Validated path, loading PDF".to_string()),
-            );
+        let validated_path = validate_path(path, None).map_err(|e| DriverError::execution(format!("Invalid path: {}", e)))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Validated path, loading PDF".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(30), None);
         }
-        let doc = Document::load(&validated_path)
-            .map_err(|e| anyhow::anyhow!("Failed to load PDF: {}", e))?;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("PDF loaded successfully".to_string()),
-            );
+        let doc = Document::load(&validated_path).map_err(|e| DriverError::execution(format!("Failed to load PDF: {}", e)))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("PDF loaded successfully".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(50), None);
         }
         let pages = doc.page_iter().count();
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Total pages: {}", pages)),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Total pages: {}", pages)));
             cb.on_progress(task_id.clone(), driver_index, Some(60), None);
         }
         let mut output = format!("PDF Info for: {}\n", path);
@@ -584,15 +409,10 @@ impl Driver for PdfInfoDriver {
             if let Ok(info_id) = info_ref.as_reference() {
                 if let Ok(info) = doc.get_object(info_id) {
                     if let Ok(dict) = info.as_dict() {
-                        if let Some(cb) = cb {
-                            cb.on_log(
-                                task_id.clone(),
-                                driver_index,
-                                Some("Extracting metadata from PDF".to_string()),
-                            );
+                        if let Some(cb) = callback {
+                            cb.on_log(task_id.clone(), driver_index, Some("Extracting metadata from PDF".to_string()));
                             cb.on_progress(task_id.clone(), driver_index, Some(70), None);
                         }
-
                         if let Ok(title) = dict.get(b"Title") {
                             if let Ok(title_str) = title.as_str() {
                                 output.push_str(&format!("Title: {:?}\n", title_str));
@@ -622,35 +442,19 @@ impl Driver for PdfInfoDriver {
                 }
             }
         }
-        let file_size = std::fs::metadata(&validated_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&validated_path).map(|m| m.len()).unwrap_or(0);
         output.push_str(&format!("File size: {:.2} KB\n", file_size as f64 / 1024.0));
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!(
-                    "PDF info completed, output length: {} bytes",
-                    output.len()
-                )),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("PDF info completed, output length: {} bytes", output.len())));
             cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("pdf_info".to_string()),
-                Some(output.clone()),
-            );
+            cb.on_complete(task_id.clone(), driver_index, Some("pdf_info".to_string()), Some(output.clone()));
         }
-        Ok(output)
+        info!("PDF info completed: {}", path);
+        return Ok(output);
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: path"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("path"))?;
+        return Ok(());
     }
 }

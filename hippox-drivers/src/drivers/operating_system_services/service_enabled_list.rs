@@ -1,64 +1,60 @@
-//! Service enabled list Driver
-
+//! Service enabled list Driver - list services that start automatically on boot
 use super::common::list_enabled_services;
-use crate::{DriverCallback, DriverContext};
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for listing enabled services
 #[derive(Debug)]
 pub struct ServiceEnabledListDriver;
-
 #[async_trait::async_trait]
 impl Driver for ServiceEnabledListDriver {
     fn name(&self) -> &str {
-        "service_enabled_list"
+        return "service_enabled_list";
     }
-
     fn description(&self) -> &str {
-        "List services that start automatically on boot"
+        return "List services that start automatically on boot";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to see which services are configured to start at boot."
+        return "Use this skill to see which services are configured to start at boot.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "service_enabled_list"
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Enabled services (auto-start):\n1. ssh\n2. systemd-logind".to_string()
+        return "Enabled services (auto-start):\n1. ssh\n2. systemd-logind".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemServices
+        return DriverCategory::OperatingSystemServices;
     }
-
     async fn execute(
         &self,
-        parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let services = list_enabled_services()?;
+        _parameters: &HashMap<String, Value>,
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing service_enabled_list driver");
+        let services = list_enabled_services().map_err(|e| {
+            debug!("Failed to list enabled services: {}", e);
+            return DriverError::execution(format!("Failed to list enabled services: {}", e));
+        })?;
         if services.is_empty() {
+            info!("No enabled services found");
             return Ok("No enabled services found".to_string());
         }
         let mut result = format!("Enabled services (auto-start):\n");
         for (i, svc) in services.iter().enumerate() {
             result.push_str(&format!("{}. {}\n", i + 1, svc.name));
         }
-        Ok(result)
+        info!("Found {} enabled services", services.len());
+        return Ok(result);
     }
 }

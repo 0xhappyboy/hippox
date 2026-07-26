@@ -1,34 +1,35 @@
-//! Image resize skill
-
+//! Image resize driver module
+//!
+//! This module provides functionality to resize images to specified dimensions
+//! with aspect ratio preservation support and multiple resampling filters.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext, file_exists,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult, file_exists,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
-use image::GenericImageView;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for resizing images
 #[derive(Debug)]
 pub struct ImageResizeDriver;
-
 #[async_trait::async_trait]
 impl Driver for ImageResizeDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "image_resize"
+        return "image_resize";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Resize an image to specified width and height"
+        return "Resize an image to specified width and height";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to change the dimensions of an image. \
-        Supports maintaining aspect ratio with the 'preserve_aspect' parameter."
+        return "Use this skill when you need to change the dimensions of an image. \
+        Supports maintaining aspect ratio with the 'preserve_aspect' parameter.";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "source".to_string(),
                 param_type: "string".to_string(),
@@ -77,9 +78,7 @@ impl Driver for ImageResizeDriver {
             DriverParameter {
                 name: "filter".to_string(),
                 param_type: "string".to_string(),
-                description:
-                    "Resampling filter (nearest, triangle, catmullrom, gaussian, lanczos3)"
-                        .to_string(),
+                description: "Resampling filter (nearest, triangle, catmullrom, gaussian, lanczos3)".to_string(),
                 required: false,
                 default: Some(Value::String("lanczos3".to_string())),
                 example: Some(Value::String("gaussian".to_string())),
@@ -91,11 +90,11 @@ impl Driver for ImageResizeDriver {
                     "lanczos3".to_string(),
                 ]),
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "image_resize",
             "parameters": {
                 "source": "/photos/original.jpg",
@@ -104,96 +103,69 @@ impl Driver for ImageResizeDriver {
                 "height": 300,
                 "preserve_aspect": true
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Successfully resized image from 1920x1080 to 300x225".to_string()
+        return "Successfully resized image from 1920x1080 to 300x225".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Media
+        return DriverCategory::Media;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing image_resize driver");
         let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
         let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-        if let Some(cb) = cb {
+        let step_name = context.as_ref().and_then(|c| c.driver_name()).map(String::from);
+        // Notify callback of start
+        if let Some(cb) = callback {
             cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Starting image resize operation".to_string()),
-            );
+            cb.on_log(task_id.clone(), driver_index, Some("Starting image resize operation".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(10), None);
         }
-        let source = parameters
-            .get("source")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'source' parameter"))?;
-        let destination = parameters
-            .get("destination")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'destination' parameter"))?;
-        let width = parameters
-            .get("width")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing or invalid 'width' parameter"))?
-            as u32;
-        let height = parameters
-            .get("height")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing or invalid 'height' parameter"))?
-            as u32;
-        let preserve_aspect = parameters
-            .get("preserve_aspect")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
-        let filter_name = parameters
-            .get("filter")
-            .and_then(|v| v.as_str())
-            .unwrap_or("lanczos3");
-        if let Some(cb) = cb {
+        // Extract required parameters
+        let source = parameters.get("source").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("source"))?;
+        let destination = parameters.get("destination").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("destination"))?;
+        let width = parameters.get("width").and_then(|v| v.as_u64()).ok_or_else(|| DriverError::missing_parameter("width"))? as u32;
+        let height = parameters.get("height").and_then(|v| v.as_u64()).ok_or_else(|| DriverError::missing_parameter("height"))? as u32;
+        let preserve_aspect = parameters.get("preserve_aspect").and_then(|v| v.as_bool()).unwrap_or(true);
+        let filter_name = parameters.get("filter").and_then(|v| v.as_str()).unwrap_or("lanczos3");
+        debug!("Resizing image: source={}, target={}x{}, preserve_aspect={}", source, width, height, preserve_aspect);
+        if let Some(cb) = callback {
             cb.on_log(
                 task_id.clone(),
                 driver_index,
-                Some(format!("Source: {}, destination: {}, width: {}, height: {}, preserve_aspect: {}, filter: {}",
-                    source, destination, width, height, preserve_aspect, filter_name)),
+                Some(format!(
+                    "Source: {}, destination: {}, width: {}, height: {}, preserve_aspect: {}, filter: {}",
+                    source, destination, width, height, preserve_aspect, filter_name
+                )),
             );
             cb.on_progress(task_id.clone(), driver_index, Some(20), None);
         }
+        // Validate source file exists
         if !file_exists(source) {
-            anyhow::bail!("Source image not found: {}", source);
+            return Err(DriverError::execution(format!("Source image not found: {}", source)));
         }
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Source file verified: {}", source)),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Source file verified: {}", source)));
             cb.on_progress(task_id.clone(), driver_index, Some(30), None);
         }
-        let img = image::open(source)
-            .map_err(|e| anyhow::anyhow!("Failed to open image '{}': {}", source, e))?;
+        // Open image
+        use image::GenericImageView;
+        let img = image::open(source).map_err(|e| DriverError::execution(format!("Failed to open image '{}': {}", source, e)))?;
         let (orig_w, orig_h) = img.dimensions();
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Original dimensions: {}x{}", orig_w, orig_h)),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Original dimensions: {}x{}", orig_w, orig_h)));
             cb.on_progress(task_id.clone(), driver_index, Some(40), None);
         }
+        // Calculate new dimensions
         let (new_w, new_h) = if preserve_aspect {
             let ratio = orig_w as f32 / orig_h as f32;
             let target_ratio = width as f32 / height as f32;
@@ -209,14 +181,11 @@ impl Driver for ImageResizeDriver {
         } else {
             (width, height)
         };
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Calculated new dimensions: {}x{}", new_w, new_h)),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Calculated new dimensions: {}x{}", new_w, new_h)));
             cb.on_progress(task_id.clone(), driver_index, Some(60), None);
         }
+        // Select filter
         let filter = match filter_name {
             "nearest" => image::imageops::FilterType::Nearest,
             "triangle" => image::imageops::FilterType::Triangle,
@@ -224,45 +193,32 @@ impl Driver for ImageResizeDriver {
             "gaussian" => image::imageops::FilterType::Gaussian,
             _ => image::imageops::FilterType::Lanczos3,
         };
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Resizing image...".to_string()),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Resizing image...".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(70), None);
         }
+        // Resize and save
         let resized = img.resize(new_w, new_h, filter);
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Saving resized image...".to_string()),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Saving resized image...".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(85), None);
         }
-        resized
-            .save(destination)
-            .map_err(|e| anyhow::anyhow!("Failed to save: {}", e))?;
-        let result = format!(
-            "Successfully resized image from {}x{} to {}x{}",
-            orig_w, orig_h, new_w, new_h
-        );
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Result: {}", result)),
-            );
+        resized.save(destination).map_err(|e| DriverError::execution(format!("Failed to save: {}", e)))?;
+        let result = format!("Successfully resized image from {}x{} to {}x{}", orig_w, orig_h, new_w, new_h);
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Result: {}", result)));
             cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("image_resize".to_string()),
-                Some(result.clone()),
-            );
+            cb.on_complete(task_id.clone(), driver_index, Some("image_resize".to_string()), Some(result.clone()));
         }
-
-        Ok(result)
+        info!("Image resize completed: {}", result);
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("source").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("source"))?;
+        parameters.get("destination").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("destination"))?;
+        parameters.get("width").and_then(|v| v.as_u64()).ok_or_else(|| DriverError::missing_parameter("width"))?;
+        parameters.get("height").and_then(|v| v.as_u64()).ok_or_else(|| DriverError::missing_parameter("height"))?;
+        return Ok(());
     }
 }

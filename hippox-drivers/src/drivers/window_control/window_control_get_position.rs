@@ -1,35 +1,34 @@
-//! Window get position skill
-
+//! Window get position driver
+//!
+//! This driver provides functionality to get the position and size of a specified window.
 use super::common::{find_window, get_window_rect};
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for getting window position
 #[derive(Debug)]
 pub struct WindowControlGetPositionDriver;
-
 #[async_trait::async_trait]
 impl Driver for WindowControlGetPositionDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "window_control_get_position"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Get the position and size of a specified window"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to get window coordinates for mouse operations"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "title".to_string(),
                 param_type: "string".to_string(),
@@ -48,41 +47,39 @@ impl Driver for WindowControlGetPositionDriver {
                 example: Some(Value::String("WeChat.exe".to_string())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "window_control_get_position",
             "parameters": {
                 "title": "微信"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Window position: x=100, y=200, width=800, height=600".to_string()
+        return "Window position: x=100, y=200, width=800, height=600".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Window
+        return DriverCategory::Window;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing window_control_get_position driver");
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-
+        info!("Getting window position: title={:?}, process={:?}", title, process);
         let window_id = find_window(title, process)?;
         let rect = get_window_rect(window_id)?;
-
-        Ok(format!(
-            "Window position: x={}, y={}, width={}, height={}",
-            rect.x, rect.y, rect.width, rect.height
-        ))
+        info!("Window position: x={}, y={}, w={}, h={}", rect.x, rect.y, rect.width, rect.height);
+        return Ok(format!("Window position: x={}, y={}, width={}, height={}", rect.x, rect.y, rect.width, rect.height));
     }
 }

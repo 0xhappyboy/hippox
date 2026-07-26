@@ -1,45 +1,46 @@
-//! CPU features driver
-
+//! CPU features driver module
+//!
+//! This module provides functionality to detect CPU instruction set extensions
+//! supported by the processor.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     drivers::operating_system_cpu::common::CpuFeatures,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
 /// Driver for detecting CPU features/instructions
 #[derive(Debug)]
 pub struct CpuFeaturesDriver;
-
 #[async_trait::async_trait]
 impl Driver for CpuFeaturesDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "cpu_features"
+        return "cpu_features";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Detect CPU instruction set extensions supported by the processor"
+        return "Detect CPU instruction set extensions supported by the processor";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to check which CPU features are available for optimization"
+        return "Use this skill to check which CPU features are available for optimization";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "cpu_features",
             "parameters": {}
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        r#"CPU Features:
+        return r#"CPU Features:
 ✓ SSE
 ✓ SSE2
 ✓ SSE3
@@ -54,19 +55,20 @@ impl Driver for CpuFeaturesDriver {
 ✗ RDSEED
 ✗ VMX
 ✗ SVM"#
-            .to_string()
+            .to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemCpu
+        return DriverCategory::OperatingSystemCpu;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing cpu_features driver");
         let features = detect_features();
         let mut output = String::from("CPU Features:\n");
         output.push_str(&format!("SSE: {}\n", check_mark(features.sse)));
@@ -81,20 +83,20 @@ impl Driver for CpuFeaturesDriver {
         output.push_str(&format!("AES-NI: {}\n", check_mark(features.aes_ni)));
         output.push_str(&format!("RDRAND: {}\n", check_mark(features.rdrand)));
         output.push_str(&format!("RDSEED: {}\n", check_mark(features.rdseed)));
-        output.push_str(&format!(
-            "Hypervisor: {}\n",
-            check_mark(features.hypervisor)
-        ));
+        output.push_str(&format!("Hypervisor: {}\n", check_mark(features.hypervisor)));
         output.push_str(&format!("VMX (Intel): {}\n", check_mark(features.vmx)));
         output.push_str(&format!("SVM (AMD): {}\n", check_mark(features.svm)));
-        Ok(output)
+        info!("CPU features detected");
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        return Ok(());
     }
 }
-
 fn check_mark(flag: bool) -> &'static str {
     if flag { "✓" } else { "✗" }
 }
-
 fn detect_features() -> CpuFeatures {
     let mut features = CpuFeatures {
         sse: false,
@@ -140,20 +142,6 @@ fn detect_features() -> CpuFeatures {
             features.avx512f = ext_features.has_avx512f();
             features.rdseed = ext_features.has_rdseed();
         }
-        // Get SVM support from extended CPUID leaf 0x80000001
-        if let Some(ext_cpu) = cpuid.get_extended_cpu_topology() {
-            // SVM is typically detected via CPUID 0x80000001 ECX bit 2
-            // Try to get it from the extended feature info
-            if let Some(ext_feat) = cpuid.get_extended_feature_info() {
-                // Some versions of raw_cpuid expose SVM here
-                // If has_svm() doesn't exist, we skip it
-                #[cfg(any())]
-                {
-                    features.svm = ext_feat.has_svm();
-                }
-            }
-        }
-        // Alternative SVM detection via /proc/cpuinfo on Linux
         #[cfg(target_os = "linux")]
         {
             if let Ok(content) = std::fs::read_to_string("/proc/cpuinfo") {
@@ -163,19 +151,12 @@ fn detect_features() -> CpuFeatures {
             }
         }
     }
-
     #[cfg(not(target_arch = "x86_64"))]
     {
-        // On non-x86 architectures, try to detect via /proc/cpuinfo
         #[cfg(target_os = "linux")]
         {
             if let Ok(content) = std::fs::read_to_string("/proc/cpuinfo") {
-                let flags = content
-                    .lines()
-                    .find(|line| line.starts_with("flags"))
-                    .map(|line| line.to_string())
-                    .unwrap_or_default();
-
+                let flags = content.lines().find(|line| line.starts_with("flags")).map(|line| line.to_string()).unwrap_or_default();
                 features.sse = flags.contains("sse");
                 features.sse2 = flags.contains("sse2");
                 features.sse3 = flags.contains("sse3");
@@ -194,13 +175,11 @@ fn detect_features() -> CpuFeatures {
             }
         }
     }
-    features
+    return features;
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_cpu_features_metadata() {
         let driver = CpuFeaturesDriver;

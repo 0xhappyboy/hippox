@@ -1,34 +1,28 @@
-//! Service start Driver
-
-use anyhow::Result;
-use serde_json::{Value, json};
-use std::collections::HashMap;
-
+//! Service start Driver - start a system service
 use super::common::start_service;
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
+/// Driver for starting a service
 #[derive(Debug)]
 pub struct ServiceStartDriver;
-
 #[async_trait::async_trait]
 impl Driver for ServiceStartDriver {
     fn name(&self) -> &str {
-        "service_start"
+        return "service_start";
     }
-
     fn description(&self) -> &str {
-        "Start a system service"
+        return "Start a system service";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to start a service like ssh, nginx, etc."
+        return "Use this skill to start a service like ssh, nginx, etc.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "service_name".to_string(),
             param_type: "string".to_string(),
             description: "Name of the service to start".to_string(),
@@ -36,37 +30,38 @@ impl Driver for ServiceStartDriver {
             default: None,
             example: Some(Value::String("nginx".to_string())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "service_start",
             "parameters": {
                 "service_name": "nginx"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Service nginx started successfully".to_string()
+        return "Service nginx started successfully".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemServices
+        return DriverCategory::OperatingSystemServices;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let service_name = parameters
-            .get("service_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'service_name' parameter"))?;
-        start_service(service_name)?;
-        Ok(format!("Service {} started successfully", service_name))
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing service_start driver");
+        let service_name = parameters.get("service_name").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'service_name' parameter");
+            return DriverError::missing_parameter("service_name");
+        })?;
+        start_service(service_name).map_err(|e| {
+            debug!("Failed to start service {}: {}", service_name, e);
+            return DriverError::execution(format!("Failed to start service: {}", e));
+        })?;
+        info!("Service {} started successfully", service_name);
+        return Ok(format!("Service {} started successfully", service_name));
     }
 }

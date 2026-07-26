@@ -1,8 +1,9 @@
 //! Shared utilities for CPU operations
-
+//!
+//! This module provides common data structures used across CPU drivers
+//! including CPU info, core info, load average, cache info, and features.
 use serde::{Deserialize, Serialize};
-
-/// CPU information
+/// CPU information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuInfo {
     pub vendor: String,
@@ -15,24 +16,21 @@ pub struct CpuInfo {
     pub min_frequency_mhz: u64,
     pub is_hypervisor: bool,
 }
-
-/// CPU core information
+/// CPU core information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuCoreInfo {
     pub core_id: usize,
     pub usage_percent: f32,
     pub frequency_mhz: Option<u64>,
 }
-
-/// CPU load average
+/// CPU load average structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuLoadAverage {
     pub one_minute: f64,
     pub five_minutes: f64,
     pub fifteen_minutes: f64,
 }
-
-/// CPU cache information
+/// CPU cache information structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuCacheInfo {
     pub level: u8,
@@ -41,8 +39,7 @@ pub struct CpuCacheInfo {
     pub associativity: Option<u64>,
     pub cache_type: String,
 }
-
-/// CPU feature flags
+/// CPU features structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuFeatures {
     pub sse: bool,

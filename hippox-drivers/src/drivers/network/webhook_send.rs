@@ -1,29 +1,58 @@
-use crate::common::http::send_webhook;
-use crate::types::{Driver, DriverParameter};
-use crate::{DriverCallback, DriverCategory, DriverContext};
-use anyhow::Result;
+//! Webhook send driver
+//!
+//! This driver provides functionality to send a webhook notification via HTTP POST with JSON payload.
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
+use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use std::time::Duration;
+use tracing::{debug, info};
+/// Send a webhook to a URL with JSON payload
+pub async fn send_webhook(url: &str, payload: &Value, headers: Option<HashMap<String, String>>) -> DriverResult<String> {
+    debug!("Sending webhook to: {}", url);
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| DriverError::execution(format!("Failed to build HTTP client: {}", e)))?;
+    let mut request_builder = client.post(url).json(payload);
+    if let Some(headers_map) = headers {
+        for (key, value) in headers_map {
+            request_builder = request_builder.header(&key, value);
+        }
+    }
+    let response = request_builder.send().await.map_err(|e| DriverError::execution(format!("Webhook request failed: {}", e)))?;
+    let status = response.status().as_u16();
+    info!("Webhook sent: status={}", status);
+    let body = response.text().await.map_err(|e| DriverError::execution(format!("Failed to read response: {}", e)))?;
+    if status >= 200 && status < 300 {
+        Ok(format!("Webhook sent successfully (status: {})\nResponse: {}", status, body))
+    } else {
+        Err(DriverError::execution(format!("Webhook failed (status: {}): {}", status, body)))
+    }
+}
+/// Driver for sending webhooks
 #[derive(Debug)]
 pub struct WebhookSendDriver;
-
 #[async_trait::async_trait]
 impl Driver for WebhookSendDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "webhook_send"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Send a webhook notification via HTTP POST with JSON payload"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill when you need to send a notification or event to a webhook endpoint"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "url".to_string(),
                 param_type: "string".to_string(),
@@ -51,116 +80,48 @@ impl Driver for WebhookSendDriver {
                 example: Some(json!({"X-API-Key": "secret"})),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "webhook_send",
             "parameters": {
                 "url": "https://hooks.slack.com/XXXXX",
                 "payload": {"text": "Hello from Hippox"}
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Webhook sent successfully (status: 200)".to_string()
+        return "Webhook sent successfully (status: 200)".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
-        let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-
-        if let Some(cb) = cb {
-            cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Sending webhook".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(10), None);
-        }
-
-        let url = parameters
-            .get("url")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'url' parameter"))?;
-
-        let payload = parameters
-            .get("payload")
-            .ok_or_else(|| anyhow::anyhow!("Missing 'payload' parameter"))?;
-
-        let headers = parameters
-            .get("headers")
-            .and_then(|v| v.as_object())
-            .map(|obj| {
-                let mut map = HashMap::new();
-                for (k, v) in obj {
-                    if let Some(s) = v.as_str() {
-                        map.insert(k.clone(), s.to_string());
-                    }
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing webhook_send driver");
+        let url = parameters.get("url").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("url"))?;
+        let payload = parameters.get("payload").ok_or_else(|| DriverError::missing_parameter("payload"))?;
+        let headers = parameters.get("headers").and_then(|v| v.as_object()).map(|obj| {
+            let mut map = HashMap::new();
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    map.insert(k.clone(), s.to_string());
                 }
-                map
-            });
-
-        if let Some(cb) = cb {
-            cb.on_log(task_id.clone(), driver_index, Some(format!("URL: {}", url)));
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Payload: {}", payload)),
-            );
-            if let Some(h) = &headers {
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some(format!("Headers: {:?}", h)),
-                );
             }
-            cb.on_progress(task_id.clone(), driver_index, Some(30), None);
-        }
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Sending request...".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(50), None);
-        }
-
+            map
+        });
+        info!("Webhook send: url={}, payload_size={}", url, payload.to_string().len());
         let result = send_webhook(url, payload, headers).await?;
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Webhook sent".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("webhook_send".to_string()),
-                Some(result.clone()),
-            );
-        }
-
-        Ok(result)
+        info!("Webhook send successful: {}", result);
+        return Ok(result);
     }
 }

@@ -5,16 +5,14 @@
 //! - `TextSortDriver`: Sort lines of text alphabetically or numerically
 //! - `TextDeduplicateDriver`: Remove duplicate lines while preserving order
 //! - `TextFilterDriver`: Filter lines by keyword or regex pattern
-
-use crate::{
-    DriverCallback, DriverCategory, DriverContext,
-    types::{Driver, DriverParameter},
-};
-use anyhow::Result;
 use serde_json::{Value, json};
 use similar::{Algorithm, ChangeTag, TextDiff};
 use std::collections::{HashMap, HashSet};
-
+use tracing::{debug, info};
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
 /// A skill for comparing text differences between two strings.
 ///
 /// # Examples
@@ -26,23 +24,23 @@ use std::collections::{HashMap, HashSet};
 /// ```
 #[derive(Debug)]
 pub struct TextDiffDriver;
-
 #[async_trait::async_trait]
 impl Driver for TextDiffDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "text_diff"
+        return "text_diff";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Compare two texts and show the differences"
+        return "Compare two texts and show the differences";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to compare configuration files, code changes, or document versions"
+        return "Use this skill when you need to compare configuration files, code changes, or document versions";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "text1".to_string(),
                 param_type: "string".to_string(),
@@ -70,44 +68,38 @@ impl Driver for TextDiffDriver {
                 example: Some(json!(2)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "text_diff",
             "parameters": {
                 "text1": "Hello World\nLine 2\nLine 3",
                 "text2": "Hello Rust\nLine 2\nChanged Line"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "--- text1\n+++ text2\n@@ -1,3 +1,3 @@\n-Hello World\n+Hello Rust\n Line 2\n-Line 3\n+Changed Line".to_string()
+        return "--- text1\n+++ text2\n@@ -1,3 +1,3 @@\n-Hello World\n+Hello Rust\n Line 2\n-Line 3\n+Changed Line".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let text1 = parameters
-            .get("text1")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text1"))?;
-        let text2 = parameters
-            .get("text2")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text2"))?;
-        let diff = TextDiff::configure()
-            .algorithm(Algorithm::Patience)
-            .diff_lines(text1, text2);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing text_diff driver");
+        let text1 = parameters.get("text1").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text1"))?;
+        let text2 = parameters.get("text2").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text2"))?;
+        debug!("Comparing texts");
+        let diff = TextDiff::configure().algorithm(Algorithm::Patience).diff_lines(text1, text2);
         let mut result = Vec::new();
         for change in diff.iter_all_changes() {
             let prefix = match change.tag() {
@@ -115,20 +107,19 @@ impl Driver for TextDiffDriver {
                 ChangeTag::Insert => "+",
                 ChangeTag::Equal => " ",
             };
-            result.push(format!(
-                "{}{}",
-                prefix,
-                change.as_str().unwrap_or("").trim_end()
-            ));
+            result.push(format!("{}{}", prefix, change.as_str().unwrap_or("").trim_end()));
         }
-        if result.is_empty() {
-            Ok("No differences found".to_string())
-        } else {
-            Ok(result.join("\n"))
-        }
+        let output = if result.is_empty() { "No differences found".to_string() } else { result.join("\n") };
+        info!("Diff comparison completed");
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("text1").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text1"))?;
+        parameters.get("text2").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text2"))?;
+        return Ok(());
     }
 }
-
 /// A skill for sorting lines of text.
 ///
 /// # Examples
@@ -140,23 +131,23 @@ impl Driver for TextDiffDriver {
 /// ```
 #[derive(Debug)]
 pub struct TextSortDriver;
-
 #[async_trait::async_trait]
 impl Driver for TextSortDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "text_sort"
+        return "text_sort";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Sort lines of text alphabetically or numerically"
+        return "Sort lines of text alphabetically or numerically";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to organize data, prepare reports, or sort lists"
+        return "Use this skill when you need to organize data, prepare reports, or sort lists";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "text".to_string(),
                 param_type: "string".to_string(),
@@ -202,55 +193,42 @@ impl Driver for TextSortDriver {
                 example: Some(json!(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "text_sort",
             "parameters": {
                 "text": "10\n2\n30\n4",
                 "numeric": true
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "2\n4\n10\n30".to_string()
+        return "2\n4\n10\n30".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let text = parameters
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text"))?;
-        let numeric = parameters
-            .get("numeric")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let reverse = parameters
-            .get("reverse")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let unique = parameters
-            .get("unique")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing text_sort driver");
+        let text = parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        let numeric = parameters.get("numeric").and_then(|v| v.as_bool()).unwrap_or(false);
+        let reverse = parameters.get("reverse").and_then(|v| v.as_bool()).unwrap_or(false);
+        let unique = parameters.get("unique").and_then(|v| v.as_bool()).unwrap_or(false);
         let lines: Vec<&str> = text.lines().collect();
+        debug!("Sorting {} lines, numeric: {}, reverse: {}, unique: {}", lines.len(), numeric, reverse, unique);
         let mut sorted_lines: Vec<String> = if numeric {
-            let mut nums: Vec<f64> = lines
-                .iter()
-                .filter_map(|l| l.trim().parse::<f64>().ok())
-                .collect();
+            let mut nums: Vec<f64> = lines.iter().filter_map(|l| l.trim().parse::<f64>().ok()).collect();
             if reverse {
                 nums.sort_by(|a, b| b.partial_cmp(a).unwrap());
             } else {
@@ -270,10 +248,16 @@ impl Driver for TextSortDriver {
             let mut seen = HashSet::new();
             sorted_lines.retain(|line| seen.insert(line.clone()));
         }
-        Ok(sorted_lines.join("\n"))
+        let result = sorted_lines.join("\n");
+        info!("Sort completed");
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        return Ok(());
     }
 }
-
 /// A skill for removing duplicate lines from text.
 ///
 /// # Examples
@@ -284,23 +268,23 @@ impl Driver for TextSortDriver {
 /// ```
 #[derive(Debug)]
 pub struct TextDeduplicateDriver;
-
 #[async_trait::async_trait]
 impl Driver for TextDeduplicateDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "text_deduplicate"
+        return "text_deduplicate";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Remove duplicate lines from text while preserving order"
+        return "Remove duplicate lines from text while preserving order";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you have duplicate entries in lists, logs, or data files"
+        return "Use this skill when you have duplicate entries in lists, logs, or data files";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "text".to_string(),
                 param_type: "string".to_string(),
@@ -313,64 +297,61 @@ impl Driver for TextDeduplicateDriver {
             DriverParameter {
                 name: "case_sensitive".to_string(),
                 param_type: "boolean".to_string(),
-                description: "Treat lines with different case as different (default: true)"
-                    .to_string(),
+                description: "Treat lines with different case as different (default: true)".to_string(),
                 required: false,
                 default: Some(json!(true)),
                 example: Some(json!(false)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "text_deduplicate",
             "parameters": {
                 "text": "Red\nred\nBlue\nblue\nRed"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Red\nblue".to_string()
+        return "Red\nblue".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let text = parameters
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text"))?;
-        let case_sensitive = parameters
-            .get("case_sensitive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing text_deduplicate driver");
+        let text = parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        let case_sensitive = parameters.get("case_sensitive").and_then(|v| v.as_bool()).unwrap_or(true);
+        debug!("Deduplicating text, case_sensitive: {}", case_sensitive);
         let mut seen = HashSet::new();
         let mut result = Vec::new();
         for line in text.lines() {
-            let key = if case_sensitive {
-                line.to_string()
-            } else {
-                line.to_lowercase()
-            };
+            let key = if case_sensitive { line.to_string() } else { line.to_lowercase() };
             if !seen.contains(&key) {
                 seen.insert(key);
                 result.push(line);
             }
         }
-        Ok(result.join("\n"))
+        let output = result.join("\n");
+        info!("Deduplicated: {} lines -> {} lines", text.lines().count(), result.len());
+        return Ok(output);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        return Ok(());
     }
 }
-
 /// A skill for filtering lines by keyword or regex pattern.
 ///
 /// # Examples
@@ -382,23 +363,23 @@ impl Driver for TextDeduplicateDriver {
 /// ```
 #[derive(Debug)]
 pub struct TextFilterDriver;
-
 #[async_trait::async_trait]
 impl Driver for TextFilterDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "text_filter"
+        return "text_filter";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Filter lines by keyword or regular expression pattern"
+        return "Filter lines by keyword or regular expression pattern";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to extract specific lines from logs, search through text, or filter data"
+        return "Use this skill when you need to extract specific lines from logs, search through text, or filter data";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "text".to_string(),
                 param_type: "string".to_string(),
@@ -444,59 +425,46 @@ impl Driver for TextFilterDriver {
                 example: Some(json!(false)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "text_filter",
             "parameters": {
                 "text": "ERROR: disk full\nINFO: started\nWARNING: low memory",
                 "pattern": "ERROR|WARNING"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "ERROR: disk full\nWARNING: low memory".to_string()
+        return "ERROR: disk full\nWARNING: low memory".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let text = parameters
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text"))?;
-        let pattern = parameters
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pattern"))?;
-        let invert = parameters
-            .get("invert")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let use_regex = parameters
-            .get("regex")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let case_sensitive = parameters
-            .get("case_sensitive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing text_filter driver");
+        let text = parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        let pattern = parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        let invert = parameters.get("invert").and_then(|v| v.as_bool()).unwrap_or(false);
+        let use_regex = parameters.get("regex").and_then(|v| v.as_bool()).unwrap_or(false);
+        let case_sensitive = parameters.get("case_sensitive").and_then(|v| v.as_bool()).unwrap_or(true);
+        debug!("Filtering text, pattern: {}, invert: {}, regex: {}, case_sensitive: {}", pattern, invert, use_regex, case_sensitive);
         let mut filtered = Vec::new();
         if use_regex {
             let regex = if case_sensitive {
-                regex::Regex::new(pattern)?
+                regex::Regex::new(pattern).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
             } else {
-                regex::Regex::new(&format!("(?i){}", pattern))?
+                regex::Regex::new(&format!("(?i){}", pattern)).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
             };
             for line in text.lines() {
                 let matches = regex.is_match(line);
@@ -505,35 +473,29 @@ impl Driver for TextFilterDriver {
                 }
             }
         } else {
-            let pattern_lower = if !case_sensitive {
-                pattern.to_lowercase()
-            } else {
-                pattern.to_string()
-            };
+            let pattern_lower = if !case_sensitive { pattern.to_lowercase() } else { pattern.to_string() };
             for line in text.lines() {
-                let line_compare = if !case_sensitive {
-                    line.to_lowercase()
-                } else {
-                    line.to_string()
-                };
+                let line_compare = if !case_sensitive { line.to_lowercase() } else { line.to_string() };
                 let matches = line_compare.contains(&pattern_lower);
                 if (!invert && matches) || (invert && !matches) {
                     filtered.push(line);
                 }
             }
         }
-        if filtered.is_empty() {
-            Ok("No lines matched".to_string())
-        } else {
-            Ok(filtered.join("\n"))
-        }
+        let result = if filtered.is_empty() { "No lines matched".to_string() } else { filtered.join("\n") };
+        info!("Filtered {} lines", filtered.len());
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        return Ok(());
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[tokio::test]
     async fn test_text_diff() {
         let skill = TextDiffDriver;
@@ -543,7 +505,6 @@ mod tests {
         let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("World") || result.contains("Rust"));
     }
-
     #[tokio::test]
     async fn test_text_sort() {
         let skill = TextSortDriver;
@@ -552,7 +513,6 @@ mod tests {
         let result = skill.execute(&params, None, None).await.unwrap();
         assert_eq!(result, "a\nb\nc");
     }
-
     #[tokio::test]
     async fn test_text_deduplicate() {
         let skill = TextDeduplicateDriver;
@@ -561,7 +521,6 @@ mod tests {
         let result = skill.execute(&params, None, None).await.unwrap();
         assert_eq!(result, "a\nb\nc");
     }
-
     #[tokio::test]
     async fn test_text_filter() {
         let skill = TextFilterDriver;

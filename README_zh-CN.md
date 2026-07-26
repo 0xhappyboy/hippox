@@ -152,6 +152,75 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### 自定义驱动与驱动分类
+
+```rust
+use hippox_drivers::{
+    Driver, DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    DriverParameter, register_driver,
+};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+const CATEGORY_WEATHER: DriverCategory = DriverCategory::Custom("weather_ops");
+
+#[derive(Debug)]
+pub struct WeatherDriver;
+
+#[async_trait::async_trait]
+impl Driver for WeatherDriver {
+    fn name(&self) -> &str { "weather_query" }
+    fn description(&self) -> &str { "Query weather for a city" }
+    fn category(&self) -> DriverCategory { CATEGORY_WEATHER }
+    fn parameters(&self) -> Vec<DriverParameter> {
+        vec![DriverParameter {
+            name: "city".to_string(),
+            param_type: "string".to_string(),
+            description: "City name".to_string(),
+            required: true,
+            default: None,
+            example: Some(Value::String("Beijing".to_string())),
+            enum_values: None,
+        }]
+    }
+    fn example_call(&self) -> DriverResult<Value> {
+        Ok(json!({"action": "weather_query", "parameters": {"city": "Beijing"}}))
+    }
+    fn example_output(&self) -> String {
+        "Weather for Beijing: 25°C, Sunny".to_string()
+    }
+    async fn execute(
+        &self,
+        parameters: &HashMap<String, Value>,
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        let city = parameters.get("city").and_then(|v| v.as_str())
+            .ok_or_else(|| DriverError::missing_parameter("city"))?;
+        Ok(format!("Weather for {}: 25°C, Sunny", city))
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    register_driver(
+        CATEGORY_WEATHER,
+        "weather_query".to_string(),
+        Arc::new(WeatherDriver),
+    );
+    use hippox_drivers::get_driver_by_name;
+    let driver = get_driver_by_name("weather_query").unwrap();
+    let mut params = HashMap::new();
+    params.insert("city".to_string(), json!("Shanghai"));
+    let result = driver.execute(&params, None, None).await?;
+    println!("{}", result); // Weather for Shanghai: 25°C, Sunny
+    use hippox_drivers::get_all_categorys;
+    println!("所有分类: {:?}", get_all_categorys()); // 包含 "weather_ops"
+    Ok(())
+}
+```
+
 ### Configuration
 
 #### 1. HippoxConfig

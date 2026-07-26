@@ -5,17 +5,14 @@
 //! - `RegexFindDriver`: Find all matches of a pattern in a string
 //! - `RegexReplaceDriver`: Replace pattern matches with a replacement string
 //! - `RegexExtractDriver`: Extract capture groups from matches
-
-use crate::{DriverCallback, DriverContext};
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
 /// A skill for checking if a pattern matches a string.
 ///
 /// # Examples
@@ -27,23 +24,23 @@ use std::collections::HashMap;
 /// ```
 #[derive(Debug)]
 pub struct RegexMatchDriver;
-
 #[async_trait::async_trait]
 impl Driver for RegexMatchDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "regex_match"
+        return "regex_match";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Check if a regular expression pattern matches a string"
+        return "Check if a regular expression pattern matches a string";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to validate string format, check if text matches a pattern, or perform pattern-based filtering"
+        return "Use this skill when you need to validate string format, check if text matches a pattern, or perform pattern-based filtering";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "pattern".to_string(),
                 param_type: "string".to_string(),
@@ -71,55 +68,55 @@ impl Driver for RegexMatchDriver {
                 example: Some(json!(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "regex_match",
             "parameters": {
                 "pattern": r"^\d{4}-\d{2}-\d{2}$",
                 "text": "2024-01-15"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Pattern matches: true".to_string()
+        return "Pattern matches: true".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let pattern = parameters
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pattern"))?;
-        let text = parameters
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text"))?;
-        let case_insensitive = parameters
-            .get("case_insensitive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing regex_match driver");
+        let pattern = parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        let text = parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        let case_insensitive = parameters.get("case_insensitive").and_then(|v| v.as_bool()).unwrap_or(false);
+        debug!("Checking if pattern '{}' matches text", pattern);
         let regex = if case_insensitive {
-            Regex::new(&format!("(?i){}", pattern))?
+            Regex::new(&format!("(?i){}", pattern)).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
         } else {
-            Regex::new(pattern)?
+            Regex::new(pattern).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
         };
         let is_match = regex.is_match(text);
-        Ok(format!("Pattern matches: {}", is_match))
+        let result = format!("Pattern matches: {}", is_match);
+        info!("{}", result);
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        return Ok(());
     }
 }
-
 /// A skill for finding all matches of a pattern in a string.
 ///
 /// # Examples
@@ -131,23 +128,23 @@ impl Driver for RegexMatchDriver {
 /// ```
 #[derive(Debug)]
 pub struct RegexFindDriver;
-
 #[async_trait::async_trait]
 impl Driver for RegexFindDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "regex_find"
+        return "regex_find";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Find all matches of a regular expression pattern in a string"
+        return "Find all matches of a regular expression pattern in a string";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to extract all occurrences of a pattern from text"
+        return "Use this skill when you need to extract all occurrences of a pattern from text";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "pattern".to_string(),
                 param_type: "string".to_string(),
@@ -175,64 +172,59 @@ impl Driver for RegexFindDriver {
                 example: Some(json!(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "regex_find",
             "parameters": {
                 "pattern": r"\b[A-Z][a-z]+\b",
                 "text": "Hello World from Rust"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Found matches:\n  - Hello\n  - World\n  - Rust".to_string()
+        return "Found matches:\n  - Hello\n  - World\n  - Rust".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let pattern = parameters
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pattern"))?;
-        let text = parameters
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text"))?;
-        let case_insensitive = parameters
-            .get("case_insensitive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing regex_find driver");
+        let pattern = parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        let text = parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        let case_insensitive = parameters.get("case_insensitive").and_then(|v| v.as_bool()).unwrap_or(false);
+        debug!("Finding pattern '{}' in text", pattern);
         let regex = if case_insensitive {
-            Regex::new(&format!("(?i){}", pattern))?
+            Regex::new(&format!("(?i){}", pattern)).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
         } else {
-            Regex::new(pattern)?
+            Regex::new(pattern).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
         };
         let matches: Vec<&str> = regex.find_iter(text).map(|m| m.as_str()).collect();
-        if matches.is_empty() {
-            Ok("No matches found".to_string())
+        let result = if matches.is_empty() {
+            "No matches found".to_string()
         } else {
-            let result = format!(
-                "Found {} match(es):\n  {}",
-                matches.len(),
-                matches.join("\n  ")
-            );
-            Ok(result)
-        }
+            format!("Found {} match(es):\n  {}", matches.len(), matches.join("\n  "))
+        };
+        info!("{}", result);
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        return Ok(());
     }
 }
-
 /// A skill for replacing pattern matches with a replacement string.
 ///
 /// # Examples
@@ -245,23 +237,23 @@ impl Driver for RegexFindDriver {
 /// ```
 #[derive(Debug)]
 pub struct RegexReplaceDriver;
-
 #[async_trait::async_trait]
 impl Driver for RegexReplaceDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "regex_replace"
+        return "regex_replace";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Replace all matches of a regular expression pattern with a replacement string"
+        return "Replace all matches of a regular expression pattern with a replacement string";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to redact sensitive information, format text, or perform search-and-replace operations"
+        return "Use this skill when you need to redact sensitive information, format text, or perform search-and-replace operations";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "pattern".to_string(),
                 param_type: "string".to_string(),
@@ -298,60 +290,58 @@ impl Driver for RegexReplaceDriver {
                 example: Some(json!(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "regex_replace",
             "parameters": {
                 "pattern": r"\b(\d{3})-(\d{4})\b",
                 "text": "Call 555-1234 for support",
                 "replacement": "[$1-$2]"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Result: Call [555-1234] for support".to_string()
+        return "Result: Call [555-1234] for support".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let pattern = parameters
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pattern"))?;
-        let text = parameters
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text"))?;
-        let replacement = parameters
-            .get("replacement")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: replacement"))?;
-        let case_insensitive = parameters
-            .get("case_insensitive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing regex_replace driver");
+        let pattern = parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        let text = parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        let replacement = parameters.get("replacement").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("replacement"))?;
+        let case_insensitive = parameters.get("case_insensitive").and_then(|v| v.as_bool()).unwrap_or(false);
+        debug!("Replacing pattern '{}' with '{}'", pattern, replacement);
         let regex = if case_insensitive {
-            Regex::new(&format!("(?i){}", pattern))?
+            Regex::new(&format!("(?i){}", pattern)).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
         } else {
-            Regex::new(pattern)?
+            Regex::new(pattern).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?
         };
         let result = regex.replace_all(text, replacement);
-        Ok(format!("Result: {}", result))
+        let result_str = format!("Result: {}", result);
+        info!("{}", result_str);
+        return Ok(result_str);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        parameters.get("replacement").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("replacement"))?;
+        return Ok(());
     }
 }
-
 /// A skill for extracting capture groups from regex matches.
 ///
 /// # Examples
@@ -363,28 +353,27 @@ impl Driver for RegexReplaceDriver {
 /// ```
 #[derive(Debug)]
 pub struct RegexExtractDriver;
-
 #[async_trait::async_trait]
 impl Driver for RegexExtractDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "regex_extract"
+        return "regex_extract";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Extract capture groups from regular expression matches"
+        return "Extract capture groups from regular expression matches";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when you need to extract specific parts of text like dates, IDs, or structured data"
+        return "Use this skill when you need to extract specific parts of text like dates, IDs, or structured data";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "pattern".to_string(),
                 param_type: "string".to_string(),
-                description: "Regular expression with capture groups (using parentheses)"
-                    .to_string(),
+                description: "Regular expression with capture groups (using parentheses)".to_string(),
                 required: true,
                 default: None,
                 example: Some(json!(r"(\w+)@(\w+\.\w+)")),
@@ -408,46 +397,39 @@ impl Driver for RegexExtractDriver {
                 example: Some(json!(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "regex_extract",
             "parameters": {
                 "pattern": r"(\d{2})/(\d{2})/(\d{4})",
                 "text": "Today is 12/25/2024"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Extracted groups:\nMatch 1:\n  Group 1: 12\n  Group 2: 25\n  Group 3: 2024".to_string()
+        return "Extracted groups:\nMatch 1:\n  Group 1: 12\n  Group 2: 25\n  Group 3: 2024".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Text
+        return DriverCategory::Text;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let pattern = parameters
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pattern"))?;
-        let text = parameters
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: text"))?;
-        let first_only = parameters
-            .get("first_only")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let regex = Regex::new(pattern)?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing regex_extract driver");
+        let pattern = parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        let text = parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        let first_only = parameters.get("first_only").and_then(|v| v.as_bool()).unwrap_or(false);
+        debug!("Extracting groups from pattern '{}'", pattern);
+        let regex = Regex::new(pattern).map_err(|e| DriverError::execution(format!("Invalid regex pattern: {}", e)))?;
         let mut output = Vec::new();
         if first_only {
             if let Some(caps) = regex.captures(text) {
@@ -465,10 +447,7 @@ impl Driver for RegexExtractDriver {
             if all_captures.is_empty() {
                 return Ok("No matches found".to_string());
             }
-            output.push(format!(
-                "Extracted groups ({} match(es)):",
-                all_captures.len()
-            ));
+            output.push(format!("Extracted groups ({} match(es)):", all_captures.len()));
             for (match_idx, caps) in all_captures.iter().enumerate() {
                 output.push(format!("Match {}:", match_idx + 1));
                 for (group_idx, cap) in caps.iter().enumerate() {
@@ -478,37 +457,39 @@ impl Driver for RegexExtractDriver {
                 }
             }
         }
-        Ok(output.join("\n"))
+        let result = output.join("\n");
+        info!("Extraction completed");
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        parameters.get("text").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("text"))?;
+        return Ok(());
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[tokio::test]
     async fn test_regex_match() {
         let skill = RegexMatchDriver;
         let mut params = HashMap::new();
         params.insert("pattern".to_string(), json!(r"^\d+$"));
         params.insert("text".to_string(), json!("12345"));
-
         let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("true"));
     }
-
     #[tokio::test]
     async fn test_regex_find() {
         let skill = RegexFindDriver;
         let mut params = HashMap::new();
         params.insert("pattern".to_string(), json!(r"\d+"));
         params.insert("text".to_string(), json!("42 and 100"));
-
         let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("42"));
         assert!(result.contains("100"));
     }
-
     #[tokio::test]
     async fn test_regex_replace() {
         let skill = RegexReplaceDriver;
@@ -516,18 +497,15 @@ mod tests {
         params.insert("pattern".to_string(), json!(r"\d+"));
         params.insert("text".to_string(), json!("ID: 12345"));
         params.insert("replacement".to_string(), json!("[HIDDEN]"));
-
         let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("ID: [HIDDEN]"));
     }
-
     #[tokio::test]
     async fn test_regex_extract() {
         let skill = RegexExtractDriver;
         let mut params = HashMap::new();
         params.insert("pattern".to_string(), json!(r"(\w+)-(\d+)"));
         params.insert("text".to_string(), json!("item-42"));
-
         let result = skill.execute(&params, None, None).await.unwrap();
         assert!(result.contains("item"));
         assert!(result.contains("42"));

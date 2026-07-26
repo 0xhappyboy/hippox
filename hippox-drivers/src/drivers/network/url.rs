@@ -1,32 +1,33 @@
-use crate::DriverCallback;
-use crate::DriverContext;
+//! URL reading driver
+//!
+//! This driver provides functionality to fetch and read content from a URL.
 use crate::{
-    DriverCategory, execute, parse_config,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult, RequestConfig, execute,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for reading URLs
 #[derive(Debug)]
 pub struct ReadUrlDriver;
-
 #[async_trait::async_trait]
 impl Driver for ReadUrlDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "read_url"
+        return "read_url";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Fetch and read content from a URL"
+        return "Fetch and read content from a URL";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill when the user wants to fetch a webpage, API response, or any content from a URL"
+        return "Use this skill when the user wants to fetch a webpage, API response, or any content from a URL";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "url".to_string(),
                 param_type: "string".to_string(),
@@ -43,12 +44,7 @@ impl Driver for ReadUrlDriver {
                 required: false,
                 default: Some(Value::String("GET".to_string())),
                 example: Some(Value::String("GET".to_string())),
-                enum_values: Some(vec![
-                    "GET".to_string(),
-                    "POST".to_string(),
-                    "PUT".to_string(),
-                    "DELETE".to_string(),
-                ]),
+                enum_values: Some(vec!["GET".to_string(), "POST".to_string(), "PUT".to_string(), "DELETE".to_string()]),
             },
             DriverParameter {
                 name: "headers".to_string(),
@@ -89,226 +85,82 @@ impl Driver for ReadUrlDriver {
                 example: Some(Value::Bool(true)),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "read_url",
             "parameters": {
                 "url": "https://api.github.com/repos/rust-lang/rust"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "HTTP 200:\n{\"full_name\": \"rust-lang/rust\", ...}".to_string()
+        return "HTTP 200:\n{\"full_name\": \"rust-lang/rust\", ...}".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
-        let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-        if let Some(cb) = cb {
-            cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Starting URL fetch".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(5), None);
-        }
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing read_url driver");
         let url = parameters
             .get("url")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: url"))?;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Fetching URL: {}", url)),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(10), None);
-        }
-        let method = parameters
-            .get("method")
-            .and_then(|v| v.as_str())
-            .unwrap_or("GET");
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("HTTP Method: {}", method)),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(15), None);
-        }
-        let timeout = parameters
-            .get("timeout")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(30);
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Timeout: {} seconds", timeout)),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(20), None);
-        }
-        let max_size = parameters
-            .get("max_size")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1024 * 1024) as usize;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Max size: {} bytes", max_size)),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(25), None);
-        }
-        let raw = parameters
-            .get("raw")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Raw output: {}", raw)),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(30), None);
-        }
-        let headers = parameters
-            .get("headers")
-            .and_then(|v| v.as_object())
-            .map(|obj| {
-                obj.iter()
-                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                    .collect::<HashMap<String, String>>()
-            });
-        if let Some(cb) = cb {
-            if let Some(h) = &headers {
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some(format!("Headers: {:?}", h)),
-                );
-            } else {
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some("No custom headers".to_string()),
-                );
-            }
-            cb.on_progress(task_id.clone(), driver_index, Some(35), None);
-        }
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Sending HTTP request...".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(50), None);
-        }
-        let config = parse_config(parameters)?;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Waiting for response...".to_string()),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(65), None);
-        }
-        let response = execute(&config).await?;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!(
-                    "Response received (status: {}, size: {} bytes)",
-                    response.status,
-                    response.body.len()
-                )),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(80), None);
-        }
-        let result = if raw {
-            if let Some(cb) = cb {
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some("Processing raw content...".to_string()),
-                );
-                cb.on_progress(task_id.clone(), driver_index, Some(90), None);
-            }
-            if response.body.len() > max_size {
-                let truncated = format!(
-                    "{}{}",
-                    &response.body[..max_size],
-                    "\n\n[Content truncated due to size limit]"
-                );
-                if let Some(cb) = cb {
-                    cb.on_log(
-                        task_id.clone(),
-                        driver_index,
-                        Some(format!(
-                            "Content truncated: {} of {} bytes shown",
-                            max_size,
-                            response.body.len()
-                        )),
-                    );
+            .ok_or_else(|| {
+                debug!("Missing 'url' parameter");
+                return DriverError::missing_parameter("url");
+            })?
+            .to_string();
+        let method = parameters.get("method").and_then(|v| v.as_str()).unwrap_or("GET").to_string();
+        let timeout = parameters.get("timeout").and_then(|v| v.as_u64()).unwrap_or(30);
+        let max_size = parameters.get("max_size").and_then(|v| v.as_u64()).unwrap_or(1024 * 1024) as usize;
+        let raw = parameters.get("raw").and_then(|v| v.as_bool()).unwrap_or(false);
+        let headers = parameters.get("headers").and_then(|v| v.as_object()).map(|obj| {
+            let mut map = HashMap::new();
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    map.insert(k.clone(), s.to_string());
                 }
+            }
+            return map;
+        });
+        info!("Read URL: url={}, method={}, timeout={}s, max_size={}, raw={}", url, method, timeout, max_size, raw);
+        let config = RequestConfig { url, method, headers, body: None, timeout_secs: Some(timeout) };
+        let response = execute(&config).await.map_err(|e| {
+            debug!("Failed to fetch URL: {}", e);
+            return DriverError::execution(format!("Failed to fetch URL: {}", e));
+        })?;
+        info!("Read URL complete: status={}, body_size={}", response.status, response.body.len());
+        let result = if raw {
+            if response.body.len() > max_size {
+                let truncated = format!("{}{}", &response.body[..max_size], "\n\n[Content truncated due to size limit]");
+                info!("Content truncated: {} of {} bytes shown", max_size, response.body.len());
                 truncated
             } else {
                 response.body
             }
         } else {
-            if let Some(cb) = cb {
-                cb.on_log(
-                    task_id.clone(),
-                    driver_index,
-                    Some("Formatting response...".to_string()),
-                );
-                cb.on_progress(task_id.clone(), driver_index, Some(90), None);
-            }
             response.to_formatted_string()
         };
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Final result size: {} characters", result.len())),
-            );
-            cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("read_url".to_string()),
-                Some(result.clone()),
-            );
-        }
-        Ok(result)
+        return Ok(result);
     }
-
-    fn validate(&self, parameters: &HashMap<String, Value>) -> Result<()> {
-        parameters
-            .get("url")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: url"))?;
-        Ok(())
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        debug!("Validating read_url parameters");
+        parameters.get("url").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'url' parameter");
+            return DriverError::missing_parameter("url");
+        })?;
+        info!("read_url validation passed");
+        return Ok(());
     }
 }

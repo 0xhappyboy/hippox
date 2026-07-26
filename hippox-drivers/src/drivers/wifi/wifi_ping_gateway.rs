@@ -1,35 +1,28 @@
 //! WiFi ping gateway skill - test connection to gateway
-
 use super::common::{get_default_gateway, ping_gateway};
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for pinging the default gateway
 #[derive(Debug)]
 pub struct WifiPingGatewayDriver;
-
 #[async_trait::async_trait]
 impl Driver for WifiPingGatewayDriver {
     fn name(&self) -> &str {
-        "wifi_ping_gateway"
+        return "wifi_ping_gateway";
     }
-
     fn description(&self) -> &str {
-        "Ping the default gateway to test WiFi connection quality"
+        return "Ping the default gateway to test WiFi connection quality";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to test the connection to your router. High latency or packet loss indicates WiFi issues."
+        return "Use this skill to test the connection to your router. High latency or packet loss indicates WiFi issues.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "count".to_string(),
             param_type: "integer".to_string(),
             description: "Number of ping packets to send (default: 4)".to_string(),
@@ -37,42 +30,43 @@ impl Driver for WifiPingGatewayDriver {
             default: Some(Value::Number(4.into())),
             example: Some(Value::Number(10.into())),
             enum_values: None,
-        }]
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "wifi_ping_gateway",
             "parameters": {
                 "count": 4
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "Gateway: 192.168.1.1, Ping: 2.5ms (0% loss)".to_string()
+        return "Gateway: 192.168.1.1, Ping: 2.5ms (0% loss)".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::Wifi
+        return DriverCategory::Wifi;
     }
-
     async fn execute(
         &self,
-        parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let gateway = get_default_gateway()?;
-        let (success, avg_time) = ping_gateway(&gateway)?;
-
+        _parameters: &HashMap<String, Value>,
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing wifi_ping_gateway driver");
+        let gateway = get_default_gateway().map_err(|e| {
+            debug!("Failed to get default gateway: {}", e);
+            return DriverError::execution(format!("Failed to get default gateway: {}", e));
+        })?;
+        let (success, avg_time) = ping_gateway(&gateway).map_err(|e| {
+            debug!("Failed to ping gateway: {}", e);
+            return DriverError::execution(format!("Failed to ping gateway: {}", e));
+        })?;
         if success {
-            Ok(format!("Gateway: {}, Ping: {}ms", gateway, avg_time))
+            info!("Gateway: {}, Ping: {}ms", gateway, avg_time);
+            return Ok(format!("Gateway: {}, Ping: {}ms", gateway, avg_time));
         } else {
-            Ok(format!(
-                "Gateway: {}, Ping failed (timeout or unreachable)",
-                gateway
-            ))
+            info!("Gateway: {}, Ping failed (timeout or unreachable)", gateway);
+            return Ok(format!("Gateway: {}, Ping failed (timeout or unreachable)", gateway));
         }
     }
 }

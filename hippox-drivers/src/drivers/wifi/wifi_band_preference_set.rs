@@ -1,83 +1,75 @@
 //! WiFi band preference set skill - set preferred frequency band
-
-use crate::DriverCallback;
-use crate::DriverContext;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Command;
-
+use tracing::{debug, info};
+/// Driver for setting WiFi frequency band preference
 #[derive(Debug)]
 pub struct WifiBandPreferenceSetDriver;
-
 #[async_trait::async_trait]
 impl Driver for WifiBandPreferenceSetDriver {
     fn name(&self) -> &str {
-        "wifi_band_preference_set"
+        return "wifi_band_preference_set";
     }
-
     fn description(&self) -> &str {
-        "Set preferred WiFi frequency band (2.4GHz, 5GHz, or 6GHz)"
+        return "Set preferred WiFi frequency band (2.4GHz, 5GHz, or 6GHz)";
     }
-
     fn usage_hint(&self) -> &str {
-        "Use this skill to prefer a specific band. 2.4GHz has better range, 5GHz/6GHz has faster speed but shorter range."
+        return "Use this skill to prefer a specific band. 2.4GHz has better range, 5GHz/6GHz has faster speed but shorter range.";
     }
-
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![DriverParameter {
+        return vec![DriverParameter {
             name: "band".to_string(),
             param_type: "string".to_string(),
             description: "Preferred band: '2.4', '5', '6', or 'auto'".to_string(),
             required: true,
             default: None,
             example: Some(Value::String("5".to_string())),
-            enum_values: Some(vec![
-                "2.4".to_string(),
-                "5".to_string(),
-                "6".to_string(),
-                "auto".to_string(),
-            ]),
-        }]
+            enum_values: Some(vec!["2.4".to_string(), "5".to_string(), "6".to_string(), "auto".to_string()]),
+        }];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "wifi_band_preference_set",
             "parameters": {
                 "band": "5"
             }
-        })
+        }));
     }
-
     fn example_output(&self) -> String {
-        "WiFi band preference set to: 5GHz".to_string()
+        return "WiFi band preference set to: 5GHz".to_string();
     }
-
     fn category(&self) -> DriverCategory {
-        DriverCategory::Wifi
+        return DriverCategory::Wifi;
     }
-
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let band = parameters
-            .get("band")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'band' parameter"))?;
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing wifi_band_preference_set driver");
+        let band = parameters.get("band").and_then(|v| v.as_str()).ok_or_else(|| {
+            debug!("Missing 'band' parameter");
+            return DriverError::missing_parameter("band");
+        })?;
         let band_name = match band {
             "2.4" => "2.4GHz",
             "5" => "5GHz",
             "6" => "6GHz",
             "auto" => "Auto",
-            _ => anyhow::bail!("Invalid band: {}", band),
+            _ => {
+                debug!("Invalid band: {}", band);
+                return Err(DriverError::invalid_enum_value(
+                    "band",
+                    band,
+                    vec!["2.4".to_string(), "5".to_string(), "6".to_string(), "auto".to_string()],
+                ));
+            }
         };
         #[cfg(target_os = "windows")]
         {
@@ -88,9 +80,10 @@ impl Driver for WifiBandPreferenceSetDriver {
                 "auto" => "0",
                 _ => "0",
             };
-            Command::new("netsh")
-                .args(["wlan", "set", "allowexplicitcreds", "band=", band_code])
-                .output()?;
+            Command::new("netsh").args(["wlan", "set", "allowexplicitcreds", "band=", band_code]).output().map_err(|e| {
+                debug!("Failed to set band preference: {}", e);
+                return DriverError::execution(format!("Failed to set band preference: {}", e));
+            })?;
         }
         #[cfg(target_os = "linux")]
         {
@@ -100,10 +93,12 @@ impl Driver for WifiBandPreferenceSetDriver {
                 "auto" => "any",
                 _ => "any",
             };
-            Command::new("iw")
-                .args(["reg", "set", band_value])
-                .output()?;
+            Command::new("iw").args(["reg", "set", band_value]).output().map_err(|e| {
+                debug!("Failed to set regulatory band: {}", e);
+                return DriverError::execution(format!("Failed to set regulatory band: {}", e));
+            })?;
         }
-        Ok(format!("WiFi band preference set to: {}", band_name))
+        info!("WiFi band preference set to: {}", band_name);
+        return Ok(format!("WiFi band preference set to: {}", band_name));
     }
 }

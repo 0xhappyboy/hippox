@@ -1,6 +1,6 @@
 [package]
 name = "hippox-drivers"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛All indivisible atomic driver units in Hippox."
@@ -16,7 +16,6 @@ futures-util = "0.3"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 rust-i18n = "4.0.0"

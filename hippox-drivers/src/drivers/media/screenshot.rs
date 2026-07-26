@@ -1,33 +1,34 @@
-//! Screenshot Driver
-
+//! Screenshot driver module
+//!
+//! This module provides functionality to capture screenshots of the entire screen
+//! or a specified region.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
-use image::{GenericImageView, ImageBuffer, Rgba};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for capturing screenshots
 #[derive(Debug)]
 pub struct ScreenshotDriver;
-
 #[async_trait::async_trait]
 impl Driver for ScreenshotDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "screenshot"
+        return "screenshot";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Capture a screenshot of the entire screen or a region"
+        return "Capture a screenshot of the entire screen or a region";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to capture screenshots. Specify region with x, y, width, height."
+        return "Use this skill to capture screenshots. Specify region with x, y, width, height.";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "destination".to_string(),
                 param_type: "string".to_string(),
@@ -73,156 +74,106 @@ impl Driver for ScreenshotDriver {
                 example: Some(Value::Number(600.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "screenshot",
             "parameters": {
                 "destination": "/screenshots/desktop.png"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Screenshot saved to /screenshots/desktop.png".to_string()
+        return "Screenshot saved to /screenshots/desktop.png".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Media
+        return DriverCategory::Media;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
         callback: Option<&dyn DriverCallback>,
         context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing screenshot driver");
         let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
         let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-        if let Some(cb) = cb {
+        let step_name = context.as_ref().and_then(|c| c.driver_name()).map(String::from);
+        // Notify callback of start
+        if let Some(cb) = callback {
             cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Starting screenshot capture".to_string()),
-            );
+            cb.on_log(task_id.clone(), driver_index, Some("Starting screenshot capture".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(10), None);
         }
-        let destination = parameters
-            .get("destination")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'destination' parameter"))?;
-        let x = parameters
-            .get("x")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as u32);
-        let y = parameters
-            .get("y")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as u32);
-        let width = parameters
-            .get("width")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32);
-        let height = parameters
-            .get("height")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32);
-        if let Some(cb) = cb {
+        // Extract required parameters
+        let destination = parameters.get("destination").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("destination"))?;
+        let x = parameters.get("x").and_then(|v| v.as_i64()).map(|v| v as u32);
+        let y = parameters.get("y").and_then(|v| v.as_i64()).map(|v| v as u32);
+        let width = parameters.get("width").and_then(|v| v.as_u64()).map(|v| v as u32);
+        let height = parameters.get("height").and_then(|v| v.as_u64()).map(|v| v as u32);
+        debug!("Capturing screenshot: dest={}, region=({:?},{:?}){:?}x{:?}", destination, x, y, width, height);
+        if let Some(cb) = callback {
             cb.on_log(
                 task_id.clone(),
                 driver_index,
-                Some(format!(
-                    "Destination: {:?}, region: x={:?}, y={:?}, w={:?}, h={:?}",
-                    destination, x, y, width, height
-                )),
+                Some(format!("Destination: {:?}, region: x={:?}, y={:?}, w={:?}, h={:?}", destination, x, y, width, height)),
             );
             cb.on_progress(task_id.clone(), driver_index, Some(20), None);
         }
+        // Capture screenshot
         use xcap::Monitor;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Getting monitors...".to_string()),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Getting monitors...".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(30), None);
         }
-        let monitors =
-            Monitor::all().map_err(|e| anyhow::anyhow!("Failed to get monitors: {}", e))?;
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitor found"))?;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Capturing screen...".to_string()),
-            );
+        let monitors = Monitor::all().map_err(|e| DriverError::execution(format!("Failed to get monitors: {}", e)))?;
+        let monitor = monitors.first().ok_or_else(|| DriverError::execution("No monitor found".to_string()))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Capturing screen...".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(50), None);
         }
-        let image = monitor
-            .capture_image()
-            .map_err(|e| anyhow::anyhow!("Failed to capture screen: {}", e))?;
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Processing captured image...".to_string()),
-            );
+        let image = monitor.capture_image().map_err(|e| DriverError::execution(format!("Failed to capture screen: {}", e)))?;
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Processing captured image...".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(70), None);
         }
+        // Crop if region is specified
         let result = if let (Some(x), Some(y), Some(w), Some(h)) = (x, y, width, height) {
             let (img_w, img_h) = image.dimensions();
             if x + w <= img_w && y + h <= img_h {
+                use image::GenericImageView;
                 image::imageops::crop(&mut image.clone(), x, y, w, h).to_image()
             } else {
-                anyhow::bail!(
+                return Err(DriverError::execution(format!(
                     "Crop region out of bounds: image size {}x{}, region {}x{} at ({}, {})",
-                    img_w,
-                    img_h,
-                    w,
-                    h,
-                    x,
-                    y
-                );
+                    img_w, img_h, w, h, x, y
+                )));
             }
         } else {
             image
         };
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some("Saving screenshot...".to_string()),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some("Saving screenshot...".to_string()));
             cb.on_progress(task_id.clone(), driver_index, Some(85), None);
         }
-        result
-            .save(destination)
-            .map_err(|e| anyhow::anyhow!("Failed to save screenshot: {}", e))?;
+        result.save(destination).map_err(|e| DriverError::execution(format!("Failed to save screenshot: {}", e)))?;
         let result_msg = format!("Screenshot saved to {}", destination);
-        if let Some(cb) = cb {
-            cb.on_log(
-                task_id.clone(),
-                driver_index,
-                Some(format!("Result: {}", result_msg)),
-            );
+        if let Some(cb) = callback {
+            cb.on_log(task_id.clone(), driver_index, Some(format!("Result: {}", result_msg)));
             cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(
-                task_id.clone(),
-                driver_index,
-                Some("screenshot".to_string()),
-                Some(result_msg.clone()),
-            );
+            cb.on_complete(task_id.clone(), driver_index, Some("screenshot".to_string()), Some(result_msg.clone()));
         }
-        Ok(result_msg)
+        info!("Screenshot captured: {}", destination);
+        return Ok(result_msg);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("destination").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("destination"))?;
+        return Ok(());
     }
 }

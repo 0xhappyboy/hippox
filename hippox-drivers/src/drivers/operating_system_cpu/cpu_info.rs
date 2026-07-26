@@ -1,46 +1,47 @@
-//! CPU information driver
-
+//! CPU information driver module
+//!
+//! This module provides functionality to get detailed CPU information including
+//! vendor, model, cores, frequency, and virtualization status.
 use crate::{
-    DriverCallback, DriverCategory, DriverContext,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     drivers::operating_system_cpu::common::CpuInfo,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use sysinfo::System;
-
+use tracing::{debug, info};
 /// Driver for getting CPU information
 #[derive(Debug)]
 pub struct CpuInfoDriver;
-
 #[async_trait::async_trait]
 impl Driver for CpuInfoDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "cpu_info"
+        return "cpu_info";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Get detailed CPU information including vendor, model, cores, and frequency"
+        return "Get detailed CPU information including vendor, model, cores, and frequency";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to get system CPU specifications and capabilities"
+        return "Use this skill to get system CPU specifications and capabilities";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![]
+        return vec![];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "cpu_info",
             "parameters": {}
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        r#"CPU Info:
+        return r#"CPU Info:
 Vendor: GenuineIntel
 Model: Intel(R) Core(TM) i7-10750H
 Architecture: x86_64
@@ -48,21 +49,21 @@ Physical Cores: 6
 Logical Cores: 12
 Max Frequency: 2600 MHz
 Min Frequency: 800 MHz"#
-            .to_string()
+            .to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemCpu
+        return DriverCategory::OperatingSystemCpu;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         _parameters: &HashMap<String, Value>,
         _callback: Option<&dyn DriverCallback>,
         _context: Option<&DriverContext>,
-    ) -> Result<String> {
+    ) -> DriverResult<String> {
+        debug!("Executing cpu_info driver");
         let system = System::new_all();
-
         let mut cpu_info = CpuInfo {
             vendor: "Unknown".to_string(),
             brand: "Unknown".to_string(),
@@ -81,14 +82,12 @@ Min Frequency: 800 MHz"#
             cpu_info.brand = cpu.brand().to_string();
             cpu_info.model_name = cpu.brand().to_string();
             cpu_info.logical_cores = cpus.len();
-            // Estimate physical cores
             #[cfg(target_os = "linux")]
             {
                 if let Ok(content) = std::fs::read_to_string("/proc/cpuinfo") {
-                    let mut physical_ids = std::collections::HashSet::new();
-                    let mut core_ids = std::collections::HashSet::new();
+                    let mut physical_ids = HashSet::new();
+                    let mut core_ids = HashSet::new();
                     let mut current_physical = String::new();
-
                     for line in content.lines() {
                         if line.starts_with("physical id") {
                             if let Some(id) = line.split(':').nth(1) {
@@ -111,18 +110,14 @@ Min Frequency: 800 MHz"#
             {
                 cpu_info.physical_cores = cpus.len() / 2;
             }
-
             if cpu_info.physical_cores == 0 {
                 cpu_info.physical_cores = cpus.len();
             }
         }
-        // Get frequency info from sysinfo
         if let Some(cpu) = system.cpus().first() {
             cpu_info.max_frequency_mhz = cpu.frequency() as u64;
-            // Min frequency is often not available via sysinfo
             cpu_info.min_frequency_mhz = cpu_info.max_frequency_mhz / 2;
         }
-        // Check if running in VM
         #[cfg(target_os = "linux")]
         {
             if let Ok(content) = std::fs::read_to_string("/proc/cpuinfo") {
@@ -134,7 +129,7 @@ Min Frequency: 800 MHz"#
                 }
             }
         }
-        let output = format!(
+        let result = format!(
             "CPU Info:\n\
              Vendor: {}\n\
              Model: {}\n\
@@ -153,15 +148,17 @@ Min Frequency: 800 MHz"#
             cpu_info.min_frequency_mhz,
             if cpu_info.is_hypervisor { "Yes" } else { "No" }
         );
-
-        Ok(output)
+        info!("CPU information retrieved");
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, _parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        return Ok(());
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_cpu_info_metadata() {
         let driver = CpuInfoDriver;

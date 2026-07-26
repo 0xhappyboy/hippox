@@ -1,29 +1,35 @@
-use crate::common::http::{http_upload, UploadConfig};
-use crate::types::{Driver, DriverParameter};
-use crate::{DriverCallback, DriverCategory, DriverContext};
-use anyhow::Result;
+//! HTTP upload driver
+//!
+//! This driver provides functionality to upload a file to an HTTP server
+//! using multipart/form-data.
+use crate::common::http::{UploadConfig, http_upload};
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for uploading files via HTTP
 #[derive(Debug)]
 pub struct HttpUploadDriver;
-
 #[async_trait::async_trait]
 impl Driver for HttpUploadDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "http_upload"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Upload a file to an HTTP server using multipart/form-data"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill when you need to upload a file to a server via HTTP multipart form"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "url".to_string(),
                 param_type: "string".to_string(),
@@ -69,101 +75,51 @@ impl Driver for HttpUploadDriver {
                 example: Some(Value::Number(60.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "http_upload",
             "parameters": {
                 "url": "https://example.com/upload",
                 "file_path": "/tmp/file.txt"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Uploaded /tmp/file.txt to https://example.com/upload (status: 200)".to_string()
+        return "Uploaded /tmp/file.txt to https://example.com/upload (status: 200)".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let task_id = context.as_ref().and_then(|c| c.task_id()).map(String::from);
-        let driver_index = context.as_ref().and_then(|c| c.driver_index());
-        let step_name = context
-            .as_ref()
-            .and_then(|c| c.driver_name())
-            .map(String::from);
-        let cb = callback;
-        if let Some(cb) = cb {
-            cb.on_start(task_id.clone(), driver_index, step_name);
-            cb.on_log(task_id.clone(), driver_index, Some("Starting HTTP upload".to_string()));
-            cb.on_progress(task_id.clone(), driver_index, Some(5), None);
-        }
-        let url = parameters
-            .get("url")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'url' parameter"))?;
-        let file_path = parameters
-            .get("file_path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'file_path' parameter"))?;
-        let field_name = parameters
-            .get("field_name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("file")
-            .to_string();
-        let timeout = parameters
-            .get("timeout")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(300);
-        let headers = parameters
-            .get("headers")
-            .and_then(|v| v.as_object())
-            .map(|obj| {
-                let mut map = HashMap::new();
-                for (k, v) in obj {
-                    if let Some(s) = v.as_str() {
-                        map.insert(k.clone(), s.to_string());
-                    }
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing http_upload driver");
+        let url = parameters.get("url").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("url"))?;
+        let file_path = parameters.get("file_path").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("file_path"))?;
+        let field_name = parameters.get("field_name").and_then(|v| v.as_str()).unwrap_or("file").to_string();
+        let timeout = parameters.get("timeout").and_then(|v| v.as_u64()).unwrap_or(300);
+        let headers = parameters.get("headers").and_then(|v| v.as_object()).map(|obj| {
+            let mut map = HashMap::new();
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    map.insert(k.clone(), s.to_string());
                 }
-                map
-            });
-        if let Some(cb) = cb {
-            cb.on_log(task_id.clone(), driver_index, Some(format!("URL: {}", url)));
-            cb.on_log(task_id.clone(), driver_index, Some(format!("File: {}", file_path)));
-            cb.on_log(task_id.clone(), driver_index, Some(format!("Field: {}", field_name)));
-            cb.on_log(task_id.clone(), driver_index, Some(format!("Timeout: {}s", timeout)));
-            if let Some(h) = &headers {
-                cb.on_log(task_id.clone(), driver_index, Some(format!("Headers: {:?}", h)));
             }
-            cb.on_progress(task_id.clone(), driver_index, Some(20), None);
-        }
-        let config = UploadConfig {
-            url: url.to_string(),
-            file_path: file_path.to_string(),
-            field_name,
-            headers,
-            timeout_secs: Some(timeout),
-        };
-        if let Some(cb) = cb {
-            cb.on_log(task_id.clone(), driver_index, Some("Uploading...".to_string()));
-            cb.on_progress(task_id.clone(), driver_index, Some(40), None);
-        }
-        let result = http_upload(&config).await?;
-        if let Some(cb) = cb {
-            cb.on_log(task_id.clone(), driver_index, Some("Upload completed".to_string()));
-            cb.on_progress(task_id.clone(), driver_index, Some(100), None);
-            cb.on_complete(task_id.clone(), driver_index, Some("http_upload".to_string()), Some(result.clone()));
-        }
-        Ok(result)
+            map
+        });
+        info!("HTTP upload: url={}, file={}, field={}, timeout={}s", url, file_path, field_name, timeout);
+        let config = UploadConfig { url: url.to_string(), file_path: file_path.to_string(), field_name, headers, timeout_secs: Some(timeout) };
+        let result = http_upload(&config).await.map_err(|e| DriverError::execution(format!("Upload failed: {}", e)))?;
+        info!("HTTP upload completed: {}", result);
+        return Ok(result);
     }
 }

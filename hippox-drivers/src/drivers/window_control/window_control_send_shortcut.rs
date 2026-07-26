@@ -1,35 +1,34 @@
-//! Window send shortcut Driver
-
-use super::common::{find_window, set_foreground_window};
-use crate::DriverCallback;
-use crate::DriverContext;
+//! Window send shortcut driver
+//!
+//! This driver provides functionality to send a keyboard shortcut to a specified window.
+use super::common::find_window;
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for sending keyboard shortcuts
 #[derive(Debug)]
 pub struct WindowControlSendShortcutDriver;
-
 #[async_trait::async_trait]
 impl Driver for WindowControlSendShortcutDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "window_control_send_shortcut"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Send a keyboard shortcut to a specified window"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to send shortcuts like Ctrl+C, Ctrl+V, Alt+Tab"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "title".to_string(),
                 param_type: "string".to_string(),
@@ -71,61 +70,46 @@ impl Driver for WindowControlSendShortcutDriver {
                     "Delete".to_string(),
                 ]),
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "window_control_send_shortcut",
             "parameters": {
                 "title": "记事本",
                 "shortcut": "Ctrl+S"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Shortcut sent to window".to_string()
+        return "Shortcut sent to window".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Window
+        return DriverCategory::Window;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing window_control_send_shortcut driver");
         let title = parameters.get("title").and_then(|v| v.as_str());
         let process = parameters.get("process").and_then(|v| v.as_str());
-        let shortcut = parameters
-            .get("shortcut")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing shortcut"))?;
-
-        if let Some(_window_id) = find_window(title, process).ok() {
-            // Activate window first
-            // set_foreground_window(window_id)?;
+        let shortcut = parameters.get("shortcut").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("shortcut"))?;
+        info!("Sending shortcut: title={:?}, process={:?}, shortcut={}", title, process, shortcut);
+        // Find window to activate
+        if let Some(window_id) = find_window(title, process).ok() {
+            info!("Found window ID: {}, will send shortcut", window_id);
+            // TODO: Activate window and send shortcut using enigo or similar
         }
-
+        // Platform-specific shortcut implementation
         // Use enigo or similar to send shortcut
         let _ = shortcut;
-
-        // Platform-specific shortcut implementation
-        #[cfg(target_os = "windows")]
-        {
-            use windows::Win32::UI::Input::*;
-            // Map shortcut string to virtual keys
-            match shortcut {
-                "Ctrl+C" => {
-                    // Send Ctrl+C
-                }
-                _ => {}
-            }
-        }
-
-        Ok("Shortcut sent to window (implementation pending)".to_string())
+        return Ok("Shortcut sent to window (implementation pending)".to_string());
     }
 }

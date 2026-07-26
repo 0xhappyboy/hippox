@@ -1,6 +1,9 @@
 //! Network common utilities
-
-use anyhow::Result;
+//!
+//! This module provides network-related utilities including port parsing,
+//! service detection, DNS lookup, and TCP connection functions.
+use crate::DriverError;
+use crate::result::DriverResult;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -8,33 +11,54 @@ use std::net::ToSocketAddrs;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-
+use tracing::{debug, info, warn};
 /// Parse port specification string into vector of ports
 /// Supports: "80", "1-1024", "22,80,443", "22,80-90,443"
-pub fn parse_ports(ports_spec: &str) -> Result<Vec<u16>> {
+pub fn parse_ports(ports_spec: &str) -> DriverResult<Vec<u16>> {
+    debug!("Parsing ports specification: {}", ports_spec);
     let mut ports = Vec::new();
     for part in ports_spec.split(',') {
         let part = part.trim();
         if part.contains('-') {
             let range: Vec<&str> = part.split('-').collect();
             if range.len() == 2 {
-                let start = range[0].parse::<u16>()?;
-                let end = range[1].parse::<u16>()?;
+                let start = match range[0].parse::<u16>() {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let err_msg = format!("Invalid port range start: {}", e);
+                        warn!("{}", err_msg);
+                        return Err(DriverError::validation("ports_spec", err_msg));
+                    }
+                };
+                let end = match range[1].parse::<u16>() {
+                    Ok(e) => e,
+                    Err(e) => {
+                        let err_msg = format!("Invalid port range end: {}", e);
+                        warn!("{}", err_msg);
+                        return Err(DriverError::validation("ports_spec", err_msg));
+                    }
+                };
                 for port in start..=end {
                     ports.push(port);
                 }
             }
         } else if !part.is_empty() {
-            let port = part.parse::<u16>()?;
+            let port = match part.parse::<u16>() {
+                Ok(p) => p,
+                Err(e) => {
+                    let err_msg = format!("Invalid port: {}", e);
+                    warn!("{}", err_msg);
+                    return Err(DriverError::validation("ports_spec", err_msg));
+                }
+            };
             ports.push(port);
         }
     }
     ports.sort();
     ports.dedup();
-    Ok(ports)
+    info!("Parsed {} ports", ports.len());
+    return Ok(ports);
 }
-
-/// Get service name for a port using range matching
 /// Get service name for a port using range matching
 pub fn get_service_name(port: u16) -> &'static str {
     match port {
@@ -105,7 +129,6 @@ pub fn get_service_name(port: u16) -> &'static str {
         _ => "Unknown",
     }
 }
-
 /// Get probe string for a port
 pub fn get_probe_for_port(port: u16) -> Option<&'static [u8]> {
     match port {
@@ -122,23 +145,18 @@ pub fn get_probe_for_port(port: u16) -> Option<&'static [u8]> {
         _ => None,
     }
 }
-
 /// Identify service from banner
 pub fn identify_service(port: u16, banner: &str) -> (String, Option<String>, u8) {
     let banner_lower = banner.to_lowercase();
     let service = get_service_name(port);
-
     if service == "Unknown" {
         return ("Unknown".to_string(), None, 0);
     }
-
     // Extract version from banner
     let version = extract_version_from_banner(&banner_lower);
     let confidence = if version.is_some() { 90 } else { 70 };
-
-    (service.to_string(), version, confidence)
+    return (service.to_string(), version, confidence);
 }
-
 fn extract_version_from_banner(banner: &str) -> Option<String> {
     let patterns = [
         (r"nginx/([\d\.]+)", "nginx"),
@@ -160,7 +178,6 @@ fn extract_version_from_banner(banner: &str) -> Option<String> {
         (r"Dropbear[_\-]?([\d\.]+)", "dropbear"),
         (r"OpenSSL/([\d\.]+)", "openssl"),
     ];
-
     for (pattern, _) in &patterns {
         let re = regex::Regex::new(pattern).ok()?;
         if let Some(cap) = re.captures(banner) {
@@ -169,44 +186,79 @@ fn extract_version_from_banner(banner: &str) -> Option<String> {
             }
         }
     }
-    None
+    return None;
 }
-
 /// Resolve hostname to IP address
-pub fn resolve_host(host: &str) -> Result<std::net::IpAddr> {
+pub fn resolve_host(host: &str) -> DriverResult<std::net::IpAddr> {
+    debug!("Resolving host: {}", host);
     let addr = format!("{}:0", host);
-    let mut addrs = addr.to_socket_addrs()?;
-    addrs
-        .next()
-        .map(|s| s.ip())
-        .ok_or_else(|| anyhow::anyhow!("Failed to resolve host: {}", host))
+    let mut addrs = match addr.to_socket_addrs() {
+        Ok(a) => a,
+        Err(e) => {
+            let err_msg = format!("Failed to resolve host {}: {}", host, e);
+            warn!("{}", err_msg);
+            return Err(DriverError::execution(err_msg));
+        }
+    };
+    match addrs.next() {
+        Some(s) => {
+            info!("Resolved host {} to {}", host, s.ip());
+            return Ok(s.ip());
+        }
+        None => {
+            let err_msg = format!("Failed to resolve host: {}", host);
+            warn!("{}", err_msg);
+            return Err(DriverError::execution(err_msg));
+        }
+    }
 }
-
 /// TCP connect with timeout
-pub async fn tcp_connect(ip: std::net::IpAddr, port: u16, timeout_secs: u64) -> Result<TcpStream> {
+pub async fn tcp_connect(ip: std::net::IpAddr, port: u16, timeout_secs: u64) -> DriverResult<TcpStream> {
+    debug!("Connecting to {}:{} with timeout {}s", ip, port, timeout_secs);
     let addr = std::net::SocketAddr::new(ip, port);
     let timeout_dur = Duration::from_secs(timeout_secs);
-    let stream = timeout(timeout_dur, TcpStream::connect(&addr)).await??;
-    Ok(stream)
+    let stream = match timeout(timeout_dur, TcpStream::connect(&addr)).await {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => {
+            let err_msg = format!("Failed to connect to {}:{}: {}", ip, port, e);
+            warn!("{}", err_msg);
+            return Err(DriverError::execution(err_msg));
+        }
+        Err(_) => {
+            let err_msg = format!("Connection to {}:{} timed out after {}s", ip, port, timeout_secs);
+            warn!("{}", err_msg);
+            return Err(DriverError::timeout(Some(timeout_secs.to_string())));
+        }
+    };
+    info!("Connected to {}:{}", ip, port);
+    return Ok(stream);
 }
-
-pub fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
-    params
-        .get(name)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("Missing parameter: {}", name))
+/// Get string parameter from HashMap
+pub fn get_param_string(params: &HashMap<String, Value>, name: &str) -> DriverResult<String> {
+    debug!("Getting string parameter: {}", name);
+    match params.get(name).and_then(|v| v.as_str()) {
+        Some(s) => {
+            info!("Parameter {}: {}", name, s);
+            return Ok(s.to_string());
+        }
+        None => {
+            let err_msg = format!("Missing parameter: {}", name);
+            warn!("{}", err_msg);
+            return Err(DriverError::missing_parameter(name));
+        }
+    }
 }
-
+/// Get u64 parameter from HashMap with default
 pub fn get_param_u64(params: &HashMap<String, Value>, name: &str, default: u64) -> u64 {
-    params.get(name).and_then(|v| v.as_u64()).unwrap_or(default)
+    let value = params.get(name).and_then(|v| v.as_u64()).unwrap_or(default);
+    debug!("Parameter {}: {} (default: {})", name, value, default);
+    return value;
 }
-
+/// Get bool parameter from HashMap with default
 pub fn get_param_bool(params: &HashMap<String, Value>, name: &str, default: bool) -> bool {
-    params
-        .get(name)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(default)
+    let value = params.get(name).and_then(|v| v.as_bool()).unwrap_or(default);
+    debug!("Parameter {}: {} (default: {})", name, value, default);
+    return value;
 }
 /// Nslookup result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,23 +273,31 @@ pub struct NslookupResult {
     pub ns_records: Vec<String>,
     pub soa_record: Option<String>,
 }
-
 /// Perform detailed DNS lookup (nslookup style)
-pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<NslookupResult> {
+pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> DriverResult<NslookupResult> {
     use trust_dns_proto::rr::{RData, RecordType};
     use trust_dns_resolver::Resolver;
     use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
-
+    debug!("Performing nslookup for domain: {}, dns_server: {:?}", domain, dns_server);
     let dns_server = dns_server.unwrap_or("8.8.8.8");
-
     let resolver_config = ResolverConfig::from_parts(
         None,
         vec![],
-        NameServerConfigGroup::from_ips_clear(&[dns_server.parse()?], 53, true),
+        NameServerConfigGroup::from_ips_clear(
+            &[dns_server.parse().map_err(|e| DriverError::execution(format!("Invalid DNS server: {}", e)))?],
+            53,
+            true,
+        ),
     );
     let resolver_opts = ResolverOpts::default();
-    let resolver = Resolver::new(resolver_config, resolver_opts)?;
-
+    let resolver = match Resolver::new(resolver_config, resolver_opts) {
+        Ok(r) => r,
+        Err(e) => {
+            let err_msg = format!("Failed to create DNS resolver: {}", e);
+            warn!("{}", err_msg);
+            return Err(DriverError::execution(err_msg));
+        }
+    };
     let mut a_records = Vec::new();
     let mut aaaa_records = Vec::new();
     let mut mx_records = Vec::new();
@@ -245,7 +305,6 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
     let mut cname_records = Vec::new();
     let mut ns_records = Vec::new();
     let mut soa_record = None;
-
     // A records
     if let Ok(response) = resolver.lookup(domain, RecordType::A) {
         for record in response.iter() {
@@ -253,8 +312,8 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
                 a_records.push(ip.to_string());
             }
         }
+        debug!("Found {} A records", a_records.len());
     }
-
     // AAAA records
     if let Ok(response) = resolver.lookup(domain, RecordType::AAAA) {
         for record in response.iter() {
@@ -262,8 +321,8 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
                 aaaa_records.push(ip.to_string());
             }
         }
+        debug!("Found {} AAAA records", aaaa_records.len());
     }
-
     // MX records
     if let Ok(response) = resolver.lookup(domain, RecordType::MX) {
         for record in response.iter() {
@@ -272,23 +331,18 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
             }
         }
         mx_records.sort_by_key(|(_, priority)| *priority);
+        debug!("Found {} MX records", mx_records.len());
     }
-
     // TXT records
     if let Ok(response) = resolver.lookup(domain, RecordType::TXT) {
         for record in response.iter() {
             if let RData::TXT(txt) = record {
-                let text: String = txt
-                    .txt_data()
-                    .iter()
-                    .map(|d| String::from_utf8_lossy(d))
-                    .collect::<Vec<_>>()
-                    .join("");
+                let text: String = txt.txt_data().iter().map(|d| String::from_utf8_lossy(d)).collect::<Vec<_>>().join("");
                 txt_records.push(text);
             }
         }
+        debug!("Found {} TXT records", txt_records.len());
     }
-
     // CNAME records
     if let Ok(response) = resolver.lookup(domain, RecordType::CNAME) {
         for record in response.iter() {
@@ -296,8 +350,8 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
                 cname_records.push(cname.to_string());
             }
         }
+        debug!("Found {} CNAME records", cname_records.len());
     }
-
     // NS records
     if let Ok(response) = resolver.lookup(domain, RecordType::NS) {
         for record in response.iter() {
@@ -305,8 +359,8 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
                 ns_records.push(ns.to_string());
             }
         }
+        debug!("Found {} NS records", ns_records.len());
     }
-
     // SOA record
     if let Ok(response) = resolver.lookup(domain, RecordType::SOA) {
         for record in response.iter() {
@@ -315,9 +369,9 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
                 break;
             }
         }
+        debug!("SOA record found: {:?}", soa_record);
     }
-
-    Ok(NslookupResult {
+    let result = NslookupResult {
         domain: domain.to_string(),
         dns_server: dns_server.to_string(),
         a_records,
@@ -327,15 +381,24 @@ pub async fn nslookup(domain: &str, dns_server: Option<&str>) -> Result<Nslookup
         cname_records,
         ns_records,
         soa_record,
-    })
+    };
+    info!("nslookup completed for domain: {}", domain);
+    return Ok(result);
 }
-
 /// Get local network connections (netstat style)
-pub fn get_network_connections() -> Result<Vec<HashMap<String, String>>> {
+pub fn get_network_connections() -> DriverResult<Vec<HashMap<String, String>>> {
+    debug!("Getting network connections");
     #[cfg(target_os = "linux")]
     {
         let mut connections = Vec::new();
-        let content = std::fs::read_to_string("/proc/net/tcp")?;
+        let content = match std::fs::read_to_string("/proc/net/tcp") {
+            Ok(c) => c,
+            Err(e) => {
+                let err_msg = format!("Failed to read /proc/net/tcp: {}", e);
+                warn!("{}", err_msg);
+                return Err(DriverError::io(err_msg));
+            }
+        };
         for line in content.lines().skip(1) {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 4 {
@@ -346,12 +409,20 @@ pub fn get_network_connections() -> Result<Vec<HashMap<String, String>>> {
                 connections.push(conn);
             }
         }
-        Ok(connections)
+        info!("Found {} network connections", connections.len());
+        return Ok(connections);
     }
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
-        let output = Command::new("netstat").args(["-n", "-t"]).output()?;
+        let output = match Command::new("netstat").args(["-n", "-t"]).output() {
+            Ok(o) => o,
+            Err(e) => {
+                let err_msg = format!("Failed to execute netstat: {}", e);
+                warn!("{}", err_msg);
+                return Err(DriverError::execution(err_msg));
+            }
+        };
         let mut connections = Vec::new();
         if let Ok(text) = String::from_utf8(output.stdout) {
             for line in text.lines().skip(1) {
@@ -370,10 +441,13 @@ pub fn get_network_connections() -> Result<Vec<HashMap<String, String>>> {
                 }
             }
         }
-        Ok(connections)
+        info!("Found {} network connections", connections.len());
+        return Ok(connections);
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
-        Err(anyhow::anyhow!("netstat not supported on this platform"))
+        let err_msg = "netstat not supported on this platform".to_string();
+        warn!("{}", err_msg);
+        return Err(DriverError::internal(err_msg));
     }
 }

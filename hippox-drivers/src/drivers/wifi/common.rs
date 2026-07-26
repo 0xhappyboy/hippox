@@ -1,9 +1,10 @@
 //! Shared utilities for WiFi control across platforms
-
-use anyhow::Result;
+use crate::DriverError;
+use crate::result::DriverResult;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::process::Command;
-
+use tracing::{debug, info, warn};
 /// WiFi network information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WiFiNetwork {
@@ -15,7 +16,6 @@ pub struct WiFiNetwork {
     pub channel: Option<u32>,
     pub frequency: Option<u32>,
 }
-
 /// WiFi connection status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WiFiStatus {
@@ -28,7 +28,6 @@ pub struct WiFiStatus {
     pub channel: Option<u32>,
     pub link_speed: Option<u32>,
 }
-
 /// WiFi interface information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WiFiInterface {
@@ -37,7 +36,6 @@ pub struct WiFiInterface {
     pub state: String,
     pub is_default: bool,
 }
-
 /// WiFi quality analysis result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WiFiQualityAnalysis {
@@ -48,13 +46,15 @@ pub struct WiFiQualityAnalysis {
     pub signal_to_noise: i32,
     pub recommendations: Vec<String>,
 }
-
 /// Get current WiFi status (Windows)
 #[cfg(target_os = "windows")]
-pub fn get_wifi_status() -> Result<WiFiStatus> {
-    let output = Command::new("netsh")
-        .args(["wlan", "show", "interfaces"])
-        .output()?;
+pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
+    debug!("Getting WiFi status on Windows");
+    let output = Command::new("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| {
+        let err_msg = format!("Failed to execute netsh: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut status = WiFiStatus {
         connected: false,
@@ -104,9 +104,12 @@ pub fn get_wifi_status() -> Result<WiFiStatus> {
             }
         }
     }
-
     // Get IP address
-    let ip_output = Command::new("ipconfig").output()?;
+    let ip_output = Command::new("ipconfig").output().map_err(|e| {
+        let err_msg = format!("Failed to execute ipconfig: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let ip_stdout = String::from_utf8_lossy(&ip_output.stdout);
     if let Some(ssid) = &status.ssid {
         let mut in_section = false;
@@ -122,15 +125,14 @@ pub fn get_wifi_status() -> Result<WiFiStatus> {
             }
         }
     }
-
-    Ok(status)
+    info!("WiFi status retrieved: connected={}", status.connected);
+    return Ok(status);
 }
-
 /// Get current WiFi status (Linux)
 #[cfg(target_os = "linux")]
-pub fn get_wifi_status() -> Result<WiFiStatus> {
+pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
+    debug!("Getting WiFi status on Linux");
     let output = Command::new("iwgetid").arg("-r").output();
-
     let mut status = WiFiStatus {
         connected: false,
         ssid: None,
@@ -141,7 +143,6 @@ pub fn get_wifi_status() -> Result<WiFiStatus> {
         channel: None,
         link_speed: None,
     };
-
     if let Ok(output) = output {
         let ssid = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !ssid.is_empty() {
@@ -149,26 +150,25 @@ pub fn get_wifi_status() -> Result<WiFiStatus> {
             status.ssid = Some(ssid);
         }
     }
-
     // Get IP address
     let ip_output = Command::new("hostname").arg("-I").output();
     if let Ok(output) = ip_output {
         let ips = String::from_utf8_lossy(&output.stdout);
         status.ip_address = ips.split_whitespace().next().map(|s| s.to_string());
     }
-
-    Ok(status)
+    info!("WiFi status retrieved: connected={}", status.connected);
+    return Ok(status);
 }
-
 /// Get current WiFi status (macOS)
 #[cfg(target_os = "macos")]
-pub fn get_wifi_status() -> Result<WiFiStatus> {
-    let output = Command::new(
-        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport",
-    )
-    .arg("-I")
-    .output();
-
+pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
+    debug!("Getting WiFi status on macOS");
+    let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
+    let output = Command::new(airport_path).arg("-I").output().map_err(|e| {
+        let err_msg = format!("Failed to execute airport command: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let mut status = WiFiStatus {
         connected: false,
         ssid: None,
@@ -179,75 +179,70 @@ pub fn get_wifi_status() -> Result<WiFiStatus> {
         channel: None,
         link_speed: None,
     };
-
-    if let Ok(output) = output {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines() {
-            if line.contains("SSID:") {
-                if let Some(ssid) = line.split(':').nth(1) {
-                    let ssid = ssid.trim();
-                    if !ssid.is_empty() {
-                        status.connected = true;
-                        status.ssid = Some(ssid.to_string());
-                    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        if line.contains("SSID:") {
+            if let Some(ssid) = line.split(':').nth(1) {
+                let ssid = ssid.trim();
+                if !ssid.is_empty() {
+                    status.connected = true;
+                    status.ssid = Some(ssid.to_string());
                 }
             }
-            if line.contains("BSSID:") {
-                if let Some(bssid) = line.split(':').nth(1) {
-                    status.bssid = Some(bssid.trim().to_string());
+        }
+        if line.contains("BSSID:") {
+            if let Some(bssid) = line.split(':').nth(1) {
+                status.bssid = Some(bssid.trim().to_string());
+            }
+        }
+        if line.contains("agrCtlRSSI:") {
+            if let Some(signal) = line.split(':').nth(1) {
+                if let Ok(signal_val) = signal.trim().parse::<i32>() {
+                    status.signal_strength = Some(signal_val);
                 }
             }
-            if line.contains("agrCtlRSSI:") {
-                if let Some(signal) = line.split(':').nth(1) {
-                    if let Ok(signal_val) = signal.trim().parse::<i32>() {
-                        status.signal_strength = Some(signal_val);
-                    }
-                }
-            }
-            if line.contains("channel:") {
-                if let Some(channel) = line.split(':').nth(1) {
-                    let channel_str = channel.trim().split(',').next().unwrap_or("");
-                    if let Ok(channel_val) = channel_str.parse::<u32>() {
-                        status.channel = Some(channel_val);
-                    }
+        }
+        if line.contains("channel:") {
+            if let Some(channel) = line.split(':').nth(1) {
+                let channel_str = channel.trim().split(',').next().unwrap_or("");
+                if let Ok(channel_val) = channel_str.parse::<u32>() {
+                    status.channel = Some(channel_val);
                 }
             }
         }
     }
-
     // Get IP address
-    let ip_output = Command::new("ifconfig").arg("en0").output();
-    if let Ok(output) = ip_output {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines() {
-            if line.contains("inet ") && !line.contains("127.0.0.1") {
-                if let Some(ip) = line.split_whitespace().nth(1) {
-                    status.ip_address = Some(ip.to_string());
-                    break;
-                }
+    let ip_output = Command::new("ifconfig").arg("en0").output().map_err(|e| {
+        let err_msg = format!("Failed to execute ifconfig: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    let stdout = String::from_utf8_lossy(&ip_output.stdout);
+    for line in stdout.lines() {
+        if line.contains("inet ") && !line.contains("127.0.0.1") {
+            if let Some(ip) = line.split_whitespace().nth(1) {
+                status.ip_address = Some(ip.to_string());
+                break;
             }
         }
     }
-
-    Ok(status)
+    info!("WiFi status retrieved: connected={}", status.connected);
+    return Ok(status);
 }
-
 /// Scan for WiFi networks (Windows)
 #[cfg(target_os = "windows")]
-pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
+pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Scanning WiFi networks on Windows");
     // First, run a scan
-    let _ = Command::new("netsh")
-        .args(["wlan", "show", "networks", "mode=bssid"])
-        .output();
-
-    let output = Command::new("netsh")
-        .args(["wlan", "show", "networks", "mode=bssid"])
-        .output()?;
-
+    let _ = Command::new("netsh").args(["wlan", "show", "networks", "mode=bssid"]).output();
+    let output = Command::new("netsh").args(["wlan", "show", "networks", "mode=bssid"]).output().map_err(|e| {
+        let err_msg = format!("Failed to execute netsh: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
     let mut current_network: Option<WiFiNetwork> = None;
-
     for line in stdout.lines() {
         if line.contains("SSID") && !line.contains("BSSID") {
             if let Some(ssid) = line.split(':').nth(1) {
@@ -297,7 +292,6 @@ pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
             }
         }
     }
-
     // Remove duplicates by SSID (keep strongest signal)
     let mut unique_networks = std::collections::HashMap::new();
     for network in networks {
@@ -310,34 +304,26 @@ pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
             })
             .or_insert(network);
     }
-
     let mut result: Vec<WiFiNetwork> = unique_networks.into_values().collect();
     result.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-
-    Ok(result)
+    info!("Found {} WiFi networks", result.len());
+    return Ok(result);
 }
-
 /// Scan for WiFi networks (Linux)
 #[cfg(target_os = "linux")]
-pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
+pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Scanning WiFi networks on Linux");
     let output = Command::new("nmcli").args(["dev", "wifi", "list"]).output();
-
     if let Ok(output) = output {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut networks = Vec::new();
-
         for line in stdout.lines().skip(1) {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 4 {
                 let ssid = parts[1].to_string();
                 let signal_str = parts[2].replace("%", "");
                 let signal = signal_str.parse::<i32>().unwrap_or(0);
-                let encryption = if parts.len() > 3 {
-                    parts[3].to_string()
-                } else {
-                    "Unknown".to_string()
-                };
-
+                let encryption = if parts.len() > 3 { parts[3].to_string() } else { "Unknown".to_string() };
                 networks.push(WiFiNetwork {
                     ssid,
                     signal_strength: signal,
@@ -349,24 +335,26 @@ pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
                 });
             }
         }
-
         networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-        Ok(networks)
+        info!("Found {} WiFi networks", networks.len());
+        return Ok(networks);
     } else {
-        Ok(Vec::new())
+        info!("No WiFi networks found");
+        return Ok(Vec::new());
     }
 }
-
 /// Scan for WiFi networks (macOS)
 #[cfg(target_os = "macos")]
-pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
-    let airport_path =
-        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
-    let output = Command::new(airport_path).args(["-s"]).output()?;
-
+pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Scanning WiFi networks on macOS");
+    let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
+    let output = Command::new(airport_path).args(["-s"]).output().map_err(|e| {
+        let err_msg = format!("Failed to execute airport command: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
-
     for line in stdout.lines().skip(1) {
         if line.is_empty() {
             continue;
@@ -374,13 +362,8 @@ pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 3 {
             let ssid = parts[0].to_string();
-            let bssid = if parts.len() > 1 {
-                Some(parts[1].to_string())
-            } else {
-                None
-            };
+            let bssid = if parts.len() > 1 { Some(parts[1].to_string()) } else { None };
             let signal = parts[2].parse::<i32>().unwrap_or(0);
-
             networks.push(WiFiNetwork {
                 ssid,
                 signal_strength: signal,
@@ -392,14 +375,14 @@ pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
             });
         }
     }
-
     networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-    Ok(networks)
+    info!("Found {} WiFi networks", networks.len());
+    return Ok(networks);
 }
-
 /// Connect to WiFi network (Windows)
 #[cfg(target_os = "windows")]
-pub fn connect_wifi(ssid: &str, password: Option<&str>) -> Result<()> {
+pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
+    debug!("Connecting to WiFi network: {}", ssid);
     // Create profile XML
     let profile_xml = if let Some(pwd) = password {
         format!(
@@ -455,182 +438,220 @@ pub fn connect_wifi(ssid: &str, password: Option<&str>) -> Result<()> {
             ssid, ssid
         )
     };
-
     let profile_path = std::env::temp_dir().join(format!("{}.xml", ssid));
-    std::fs::write(&profile_path, profile_xml)?;
-
+    std::fs::write(&profile_path, profile_xml).map_err(|e| {
+        let err_msg = format!("Failed to write profile file: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::io(err_msg);
+    })?;
     let profile_path_str = profile_path.to_str().unwrap();
-    Command::new("netsh")
-        .args(["wlan", "add", "profile", "filename=", profile_path_str])
-        .output()?;
-
-    Command::new("netsh")
-        .args(["wlan", "connect", "name=", ssid])
-        .output()?;
-
+    Command::new("netsh").args(["wlan", "add", "profile", "filename=", profile_path_str]).output().map_err(|e| {
+        let err_msg = format!("Failed to add profile: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    Command::new("netsh").args(["wlan", "connect", "name=", ssid]).output().map_err(|e| {
+        let err_msg = format!("Failed to connect: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let _ = std::fs::remove_file(profile_path);
-
-    Ok(())
+    info!("Connected to WiFi network: {}", ssid);
+    return Ok(());
 }
-
 /// Connect to WiFi network (Linux)
 #[cfg(target_os = "linux")]
-pub fn connect_wifi(ssid: &str, password: Option<&str>) -> Result<()> {
+pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
+    debug!("Connecting to WiFi network: {}", ssid);
     if let Some(pwd) = password {
-        Command::new("nmcli")
-            .args(["dev", "wifi", "connect", ssid, "password", pwd])
-            .output()?;
+        Command::new("nmcli").args(["dev", "wifi", "connect", ssid, "password", pwd]).output().map_err(|e| {
+            let err_msg = format!("Failed to connect to WiFi: {}", e);
+            warn!("{}", err_msg);
+            return DriverError::execution(err_msg);
+        })?;
     } else {
-        Command::new("nmcli")
-            .args(["dev", "wifi", "connect", ssid])
-            .output()?;
+        Command::new("nmcli").args(["dev", "wifi", "connect", ssid]).output().map_err(|e| {
+            let err_msg = format!("Failed to connect to WiFi: {}", e);
+            warn!("{}", err_msg);
+            return DriverError::execution(err_msg);
+        })?;
     }
-    Ok(())
+    info!("Connected to WiFi network: {}", ssid);
+    return Ok(());
 }
-
 /// Connect to WiFi network (macOS)
 #[cfg(target_os = "macos")]
-pub fn connect_wifi(ssid: &str, password: Option<&str>) -> Result<()> {
-    let airport_path =
-        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
-
+pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
+    debug!("Connecting to WiFi network: {}", ssid);
+    let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
     if let Some(pwd) = password {
-        Command::new(airport_path)
-            .args(["--associate=", ssid, "--password=", pwd])
-            .output()?;
+        Command::new(airport_path).args(["--associate=", ssid, "--password=", pwd]).output().map_err(|e| {
+            let err_msg = format!("Failed to connect to WiFi: {}", e);
+            warn!("{}", err_msg);
+            return DriverError::execution(err_msg);
+        })?;
     } else {
-        Command::new(airport_path)
-            .args(["--associate=", ssid])
-            .output()?;
+        Command::new(airport_path).args(["--associate=", ssid]).output().map_err(|e| {
+            let err_msg = format!("Failed to connect to WiFi: {}", e);
+            warn!("{}", err_msg);
+            return DriverError::execution(err_msg);
+        })?;
     }
-    Ok(())
+    info!("Connected to WiFi network: {}", ssid);
+    return Ok(());
 }
-
 /// Disconnect from current WiFi
 #[cfg(target_os = "windows")]
-pub fn disconnect_wifi() -> Result<()> {
-    Command::new("netsh")
-        .args(["wlan", "disconnect"])
-        .output()?;
-    Ok(())
+pub fn disconnect_wifi() -> DriverResult<()> {
+    debug!("Disconnecting from WiFi on Windows");
+    Command::new("netsh").args(["wlan", "disconnect"]).output().map_err(|e| {
+        let err_msg = format!("Failed to disconnect: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("Disconnected from WiFi");
+    return Ok(());
 }
-
 #[cfg(target_os = "linux")]
-pub fn disconnect_wifi() -> Result<()> {
-    Command::new("nmcli")
-        .args(["dev", "disconnect", "wlan0"])
-        .output()?;
-    Ok(())
+pub fn disconnect_wifi() -> DriverResult<()> {
+    debug!("Disconnecting from WiFi on Linux");
+    Command::new("nmcli").args(["dev", "disconnect", "wlan0"]).output().map_err(|e| {
+        let err_msg = format!("Failed to disconnect: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("Disconnected from WiFi");
+    return Ok(());
 }
-
 #[cfg(target_os = "macos")]
-pub fn disconnect_wifi() -> Result<()> {
-    Command::new("networksetup")
-        .args(["-setairportpower", "en0", "off"])
-        .output()?;
-    Command::new("networksetup")
-        .args(["-setairportpower", "en0", "on"])
-        .output()?;
-    Ok(())
+pub fn disconnect_wifi() -> DriverResult<()> {
+    debug!("Disconnecting from WiFi on macOS");
+    Command::new("networksetup").args(["-setairportpower", "en0", "off"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi off: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    Command::new("networksetup").args(["-setairportpower", "en0", "on"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi on: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("Disconnected from WiFi");
+    return Ok(());
 }
-
 /// Forget a saved WiFi network
 #[cfg(target_os = "windows")]
-pub fn forget_wifi(ssid: &str) -> Result<()> {
-    Command::new("netsh")
-        .args(["wlan", "delete", "profile", "name=", ssid])
-        .output()?;
-    Ok(())
+pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
+    debug!("Forgetting WiFi network: {}", ssid);
+    Command::new("netsh").args(["wlan", "delete", "profile", "name=", ssid]).output().map_err(|e| {
+        let err_msg = format!("Failed to forget WiFi network: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("Forgot WiFi network: {}", ssid);
+    return Ok(());
 }
-
 #[cfg(target_os = "linux")]
-pub fn forget_wifi(ssid: &str) -> Result<()> {
-    Command::new("nmcli")
-        .args(["connection", "delete", ssid])
-        .output()?;
-    Ok(())
+pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
+    debug!("Forgetting WiFi network: {}", ssid);
+    Command::new("nmcli").args(["connection", "delete", ssid]).output().map_err(|e| {
+        let err_msg = format!("Failed to forget WiFi network: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("Forgot WiFi network: {}", ssid);
+    return Ok(());
 }
-
 #[cfg(target_os = "macos")]
-pub fn forget_wifi(ssid: &str) -> Result<()> {
-    Command::new("networksetup")
-        .args(["-removepreferredwirelessnetwork", "en0", ssid])
-        .output()?;
-    Ok(())
+pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
+    debug!("Forgetting WiFi network: {}", ssid);
+    Command::new("networksetup").args(["-removepreferredwirelessnetwork", "en0", ssid]).output().map_err(|e| {
+        let err_msg = format!("Failed to forget WiFi network: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("Forgot WiFi network: {}", ssid);
+    return Ok(());
 }
-
 /// Turn WiFi on
 #[cfg(target_os = "windows")]
-pub fn wifi_on() -> Result<()> {
-    Command::new("netsh")
-        .args([
-            "interface",
-            "set",
-            "interface",
-            "name=\"Wi-Fi\"",
-            "admin=ENABLED",
-        ])
-        .output()?;
-    Ok(())
+pub fn wifi_on() -> DriverResult<()> {
+    debug!("Turning WiFi on on Windows");
+    Command::new("netsh").args(["interface", "set", "interface", "name=\"Wi-Fi\"", "admin=ENABLED"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi on: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("WiFi turned on");
+    return Ok(());
 }
-
 #[cfg(target_os = "linux")]
-pub fn wifi_on() -> Result<()> {
-    Command::new("nmcli")
-        .args(["radio", "wifi", "on"])
-        .output()?;
-    Ok(())
+pub fn wifi_on() -> DriverResult<()> {
+    debug!("Turning WiFi on on Linux");
+    Command::new("nmcli").args(["radio", "wifi", "on"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi on: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("WiFi turned on");
+    return Ok(());
 }
-
 #[cfg(target_os = "macos")]
-pub fn wifi_on() -> Result<()> {
-    Command::new("networksetup")
-        .args(["-setairportpower", "en0", "on"])
-        .output()?;
-    Ok(())
+pub fn wifi_on() -> DriverResult<()> {
+    debug!("Turning WiFi on on macOS");
+    Command::new("networksetup").args(["-setairportpower", "en0", "on"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi on: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("WiFi turned on");
+    return Ok(());
 }
-
 /// Turn WiFi off
 #[cfg(target_os = "windows")]
-pub fn wifi_off() -> Result<()> {
-    Command::new("netsh")
-        .args([
-            "interface",
-            "set",
-            "interface",
-            "name=\"Wi-Fi\"",
-            "admin=DISABLED",
-        ])
-        .output()?;
-    Ok(())
+pub fn wifi_off() -> DriverResult<()> {
+    debug!("Turning WiFi off on Windows");
+    Command::new("netsh").args(["interface", "set", "interface", "name=\"Wi-Fi\"", "admin=DISABLED"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi off: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("WiFi turned off");
+    return Ok(());
 }
-
 #[cfg(target_os = "linux")]
-pub fn wifi_off() -> Result<()> {
-    Command::new("nmcli")
-        .args(["radio", "wifi", "off"])
-        .output()?;
-    Ok(())
+pub fn wifi_off() -> DriverResult<()> {
+    debug!("Turning WiFi off on Linux");
+    Command::new("nmcli").args(["radio", "wifi", "off"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi off: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("WiFi turned off");
+    return Ok(());
 }
-
 #[cfg(target_os = "macos")]
-pub fn wifi_off() -> Result<()> {
-    Command::new("networksetup")
-        .args(["-setairportpower", "en0", "off"])
-        .output()?;
-    Ok(())
+pub fn wifi_off() -> DriverResult<()> {
+    debug!("Turning WiFi off on macOS");
+    Command::new("networksetup").args(["-setairportpower", "en0", "off"]).output().map_err(|e| {
+        let err_msg = format!("Failed to turn WiFi off: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
+    info!("WiFi turned off");
+    return Ok(());
 }
-
 /// List saved WiFi networks
 #[cfg(target_os = "windows")]
-pub fn list_saved_networks() -> Result<Vec<WiFiNetwork>> {
-    let output = Command::new("netsh")
-        .args(["wlan", "show", "profiles"])
-        .output()?;
-
+pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Listing saved networks on Windows");
+    let output = Command::new("netsh").args(["wlan", "show", "profiles"]).output().map_err(|e| {
+        let err_msg = format!("Failed to list saved networks: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
-
     for line in stdout.lines() {
         if line.contains(":") && line.contains("所有用户配置文件") {
             if let Some(ssid) = line.split(':').nth(1) {
@@ -649,19 +670,19 @@ pub fn list_saved_networks() -> Result<Vec<WiFiNetwork>> {
             }
         }
     }
-
-    Ok(networks)
+    info!("Found {} saved networks", networks.len());
+    return Ok(networks);
 }
-
 #[cfg(target_os = "linux")]
-pub fn list_saved_networks() -> Result<Vec<WiFiNetwork>> {
-    let output = Command::new("nmcli")
-        .args(["connection", "show"])
-        .output()?;
-
+pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Listing saved networks on Linux");
+    let output = Command::new("nmcli").args(["connection", "show"]).output().map_err(|e| {
+        let err_msg = format!("Failed to list saved networks: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
-
     for line in stdout.lines().skip(1) {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 1 {
@@ -679,19 +700,19 @@ pub fn list_saved_networks() -> Result<Vec<WiFiNetwork>> {
             }
         }
     }
-
-    Ok(networks)
+    info!("Found {} saved networks", networks.len());
+    return Ok(networks);
 }
-
 #[cfg(target_os = "macos")]
-pub fn list_saved_networks() -> Result<Vec<WiFiNetwork>> {
-    let output = Command::new("networksetup")
-        .args(["-listpreferredwirelessnetworks", "en0"])
-        .output()?;
-
+pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Listing saved networks on macOS");
+    let output = Command::new("networksetup").args(["-listpreferredwirelessnetworks", "en0"]).output().map_err(|e| {
+        let err_msg = format!("Failed to list saved networks: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut networks = Vec::new();
-
     for line in stdout.lines().skip(1) {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 1 {
@@ -709,20 +730,20 @@ pub fn list_saved_networks() -> Result<Vec<WiFiNetwork>> {
             }
         }
     }
-
-    Ok(networks)
+    info!("Found {} saved networks", networks.len());
+    return Ok(networks);
 }
-
 /// List WiFi interfaces
 #[cfg(target_os = "windows")]
-pub fn list_interfaces() -> Result<Vec<WiFiInterface>> {
-    let output = Command::new("netsh")
-        .args(["wlan", "show", "interfaces"])
-        .output()?;
-
+pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
+    debug!("Listing WiFi interfaces on Windows");
+    let output = Command::new("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| {
+        let err_msg = format!("Failed to list interfaces: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut interfaces = Vec::new();
-
     for line in stdout.lines() {
         if line.contains("名称") || line.contains("Name") {
             if let Some(name) = line.split(':').nth(1) {
@@ -735,17 +756,19 @@ pub fn list_interfaces() -> Result<Vec<WiFiInterface>> {
             }
         }
     }
-
-    Ok(interfaces)
+    info!("Found {} WiFi interfaces", interfaces.len());
+    return Ok(interfaces);
 }
-
 #[cfg(target_os = "linux")]
-pub fn list_interfaces() -> Result<Vec<WiFiInterface>> {
-    let output = Command::new("iwconfig").output()?;
-
+pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
+    debug!("Listing WiFi interfaces on Linux");
+    let output = Command::new("iwconfig").output().map_err(|e| {
+        let err_msg = format!("Failed to execute iwconfig: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut interfaces = Vec::new();
-
     for line in stdout.lines() {
         if line.contains("IEEE 802.11") {
             let parts: Vec<&str> = line.split_whitespace().collect();
@@ -760,20 +783,20 @@ pub fn list_interfaces() -> Result<Vec<WiFiInterface>> {
             }
         }
     }
-
-    Ok(interfaces)
+    info!("Found {} WiFi interfaces", interfaces.len());
+    return Ok(interfaces);
 }
-
 #[cfg(target_os = "macos")]
-pub fn list_interfaces() -> Result<Vec<WiFiInterface>> {
-    let output = Command::new("networksetup")
-        .args(["-listallhardwareports"])
-        .output()?;
-
+pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
+    debug!("Listing WiFi interfaces on macOS");
+    let output = Command::new("networksetup").args(["-listallhardwareports"]).output().map_err(|e| {
+        let err_msg = format!("Failed to list interfaces: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut interfaces = Vec::new();
     let mut current_device = String::new();
-
     for line in stdout.lines() {
         if line.contains("Device:") {
             if let Some(device) = line.split(':').nth(1) {
@@ -791,19 +814,19 @@ pub fn list_interfaces() -> Result<Vec<WiFiInterface>> {
             }
         }
     }
-
-    Ok(interfaces)
+    info!("Found {} WiFi interfaces", interfaces.len());
+    return Ok(interfaces);
 }
-
 /// Ping gateway
-pub fn ping_gateway(gateway: &str) -> Result<(bool, u64)> {
-    let output = Command::new("ping")
-        .args(["-n", "4", "-w", "3", gateway])
-        .output()?;
-
+pub fn ping_gateway(gateway: &str) -> DriverResult<(bool, u64)> {
+    debug!("Pinging gateway: {}", gateway);
+    let output = Command::new("ping").args(["-n", "4", "-w", "3", gateway]).output().map_err(|e| {
+        let err_msg = format!("Failed to execute ping: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let success = output.status.success();
     let stdout = String::from_utf8_lossy(&output.stdout);
-
     // Extract average time
     let mut avg_time = 0u64;
     if let Some(time_pos) = stdout.find("Average = ") {
@@ -814,66 +837,78 @@ pub fn ping_gateway(gateway: &str) -> Result<(bool, u64)> {
             }
         }
     }
-
-    Ok((success, avg_time))
+    info!("Ping to gateway {}: success={}, avg_time={}ms", gateway, success, avg_time);
+    return Ok((success, avg_time));
 }
-
 /// Get default gateway
 #[cfg(target_os = "windows")]
-pub fn get_default_gateway() -> Result<String> {
-    let output = Command::new("ipconfig").output()?;
-
+pub fn get_default_gateway() -> DriverResult<String> {
+    debug!("Getting default gateway on Windows");
+    let output = Command::new("ipconfig").output().map_err(|e| {
+        let err_msg = format!("Failed to execute ipconfig: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in stdout.lines() {
         if line.contains("Default Gateway") && line.contains(":") {
             if let Some(gateway) = line.split(':').nth(1) {
                 let gateway = gateway.trim();
                 if gateway != "" {
+                    info!("Default gateway: {}", gateway);
                     return Ok(gateway.to_string());
                 }
             }
         }
     }
-
-    Ok("8.8.8.8".to_string())
+    info!("Default gateway not found, using 8.8.8.8");
+    return Ok("8.8.8.8".to_string());
 }
-
 #[cfg(target_os = "linux")]
-pub fn get_default_gateway() -> Result<String> {
-    let output = Command::new("ip")
-        .args(["route", "show", "default"])
-        .output()?;
-
+pub fn get_default_gateway() -> DriverResult<String> {
+    debug!("Getting default gateway on Linux");
+    let output = Command::new("ip").args(["route", "show", "default"]).output().map_err(|e| {
+        let err_msg = format!("Failed to execute ip: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parts: Vec<&str> = stdout.split_whitespace().collect();
     if parts.len() >= 3 {
-        return Ok(parts[2].to_string());
+        let gateway = parts[2].to_string();
+        info!("Default gateway: {}", gateway);
+        return Ok(gateway);
     }
-
-    Ok("8.8.8.8".to_string())
+    info!("Default gateway not found, using 8.8.8.8");
+    return Ok("8.8.8.8".to_string());
 }
-
 #[cfg(target_os = "macos")]
-pub fn get_default_gateway() -> Result<String> {
-    let output = Command::new("netstat").args(["-rn"]).output()?;
-
+pub fn get_default_gateway() -> DriverResult<String> {
+    debug!("Getting default gateway on macOS");
+    let output = Command::new("netstat").args(["-rn"]).output().map_err(|e| {
+        let err_msg = format!("Failed to execute netstat: {}", e);
+        warn!("{}", err_msg);
+        return DriverError::execution(err_msg);
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in stdout.lines() {
         if line.contains("default") {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 {
-                return Ok(parts[1].to_string());
+                let gateway = parts[1].to_string();
+                info!("Default gateway: {}", gateway);
+                return Ok(gateway);
             }
         }
     }
-
-    Ok("8.8.8.8".to_string())
+    info!("Default gateway not found, using 8.8.8.8");
+    return Ok("8.8.8.8".to_string());
 }
-
 // Platform-agnostic implementations for other platforms
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn get_wifi_status() -> Result<WiFiStatus> {
-    Ok(WiFiStatus {
+pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
+    debug!("Getting WiFi status on unsupported platform");
+    return Ok(WiFiStatus {
         connected: false,
         ssid: None,
         bssid: None,
@@ -882,55 +917,60 @@ pub fn get_wifi_status() -> Result<WiFiStatus> {
         frequency: None,
         channel: None,
         link_speed: None,
-    })
+    });
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>> {
-    Ok(Vec::new())
+pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Scanning WiFi networks on unsupported platform");
+    return Ok(Vec::new());
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn connect_wifi(ssid: &str, password: Option<&str>) -> Result<()> {
-    anyhow::bail!("WiFi control not implemented on this platform")
+pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
+    let err_msg = "WiFi control not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn disconnect_wifi() -> Result<()> {
-    anyhow::bail!("WiFi control not implemented on this platform")
+pub fn disconnect_wifi() -> DriverResult<()> {
+    let err_msg = "WiFi control not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn forget_wifi(ssid: &str) -> Result<()> {
-    anyhow::bail!("WiFi control not implemented on this platform")
+pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
+    let err_msg = "WiFi control not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn wifi_on() -> Result<()> {
-    anyhow::bail!("WiFi control not implemented on this platform")
+pub fn wifi_on() -> DriverResult<()> {
+    let err_msg = "WiFi control not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn wifi_off() -> Result<()> {
-    anyhow::bail!("WiFi control not implemented on this platform")
+pub fn wifi_off() -> DriverResult<()> {
+    let err_msg = "WiFi control not implemented on this platform".to_string();
+    warn!("{}", err_msg);
+    return Err(DriverError::execution(err_msg));
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn list_saved_networks() -> Result<Vec<WiFiNetwork>> {
-    Ok(Vec::new())
+pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
+    debug!("Listing saved networks on unsupported platform");
+    return Ok(Vec::new());
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn list_interfaces() -> Result<Vec<WiFiInterface>> {
-    Ok(Vec::new())
+pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
+    debug!("Listing interfaces on unsupported platform");
+    return Ok(Vec::new());
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn get_default_gateway() -> Result<String> {
-    Ok("8.8.8.8".to_string())
+pub fn get_default_gateway() -> DriverResult<String> {
+    debug!("Getting default gateway on unsupported platform");
+    return Ok("8.8.8.8".to_string());
 }
-
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-pub fn ping_gateway(gateway: &str) -> Result<(bool, u64)> {
-    Ok((false, 0))
+pub fn ping_gateway(gateway: &str) -> DriverResult<(bool, u64)> {
+    debug!("Pinging gateway on unsupported platform");
+    return Ok((false, 0));
 }

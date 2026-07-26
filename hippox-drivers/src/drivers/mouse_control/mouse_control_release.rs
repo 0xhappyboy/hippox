@@ -1,36 +1,34 @@
-// mouse_control/mouse_control_release.rs
-//! Mouse release skill
-
-use super::common::{MouseButton, mouse_release};
-use crate::DriverCallback;
-use crate::DriverContext;
+//! Mouse release driver module
+//!
+//! This module provides functionality to release a held mouse button.
+use super::common::{MouseButton, get_mouse_position, mouse_release};
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
+/// Driver for releasing a mouse button
 #[derive(Debug)]
 pub struct MouseControlReleaseDriver;
-
 #[async_trait::async_trait]
 impl Driver for MouseControlReleaseDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "mouse_control_release"
+        return "mouse_control_release";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Release a held mouse button"
+        return "Release a held mouse button";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to release a mouse button that was held with 'mouse_control_press'."
+        return "Use this skill to release a mouse button that was held with 'mouse_control_press'.";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "button".to_string(),
                 param_type: "string".to_string(),
@@ -38,11 +36,7 @@ impl Driver for MouseControlReleaseDriver {
                 required: true,
                 default: None,
                 example: Some(Value::String("left".to_string())),
-                enum_values: Some(vec![
-                    "left".to_string(),
-                    "right".to_string(),
-                    "middle".to_string(),
-                ]),
+                enum_values: Some(vec!["left".to_string(), "right".to_string(), "middle".to_string()]),
             },
             DriverParameter {
                 name: "x".to_string(),
@@ -62,62 +56,57 @@ impl Driver for MouseControlReleaseDriver {
                 example: Some(Value::Number(300.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "mouse_control_release",
             "parameters": {
                 "button": "left"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Mouse button left released".to_string()
+        return "Mouse button left released".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Mouse
+        return DriverCategory::Mouse;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let button_str = parameters
-            .get("button")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing 'button' parameter"))?;
-
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing mouse_control_release driver");
+        let button_str = parameters.get("button").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("button"))?;
         let button = match button_str {
             "left" => MouseButton::Left,
             "right" => MouseButton::Right,
             "middle" => MouseButton::Middle,
-            _ => anyhow::bail!("Unknown button: {}", button_str),
+            _ => return Err(DriverError::validation("button", format!("Unknown button: {}", button_str))),
         };
-
-        let x = parameters
-            .get("x")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
-        let y = parameters
-            .get("y")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
-
+        let x = parameters.get("x").and_then(|v| v.as_i64()).map(|v| v as i32);
+        let y = parameters.get("y").and_then(|v| v.as_i64()).map(|v| v as i32);
         let (release_x, release_y) = if let (Some(px), Some(py)) = (x, y) {
             (px, py)
         } else {
-            let pos = super::common::get_mouse_position()?;
+            let pos = get_mouse_position()?;
             (pos.x, pos.y)
         };
-
+        debug!("Releasing {} at ({}, {})", button_str, release_x, release_y);
         mouse_release(button, release_x, release_y)?;
-
-        Ok(format!("Mouse button {} released", button_str))
+        let result = format!("Mouse button {} released", button_str);
+        info!("{}", result);
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("button").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("button"))?;
+        return Ok(());
     }
 }

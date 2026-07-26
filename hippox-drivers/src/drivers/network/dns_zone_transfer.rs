@@ -1,36 +1,35 @@
-//! DNS zone transfer skill
-
-use crate::DriverCallback;
-use crate::DriverContext;
+//! DNS zone transfer driver
+//!
+//! This driver provides functionality to attempt DNS zone transfer (AXFR) to enumerate all records in a domain.
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use tracing::{debug, info};
 use trust_dns_resolver::Resolver;
 use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
-
+/// Driver for DNS zone transfer
 #[derive(Debug)]
 pub struct DnsZoneTransferDriver;
-
 #[async_trait::async_trait]
 impl Driver for DnsZoneTransferDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
         "dns_zone_transfer"
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
         "Attempt DNS zone transfer (AXFR) to enumerate all records in a domain"
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
         "Use this skill to enumerate DNS records for a domain via zone transfer"
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "domain".to_string(),
                 param_type: "string".to_string(),
@@ -58,51 +57,52 @@ impl Driver for DnsZoneTransferDriver {
                 example: Some(Value::Number(5.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "dns_zone_transfer",
             "parameters": {
                 "domain": "example.com"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "DNS Zone Transfer Results for example.com:\n\nA: 93.184.216.34\nMX: mail.example.com (priority 10)\nNS: ns1.example.com\nNS: ns2.example.com".to_string()
+        return "DNS Zone Transfer Results for example.com:\n\nA: 93.184.216.34\nMX: mail.example.com (priority 10)\nNS: ns1.example.com\nNS: ns2.example.com".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::Network
+        return DriverCategory::Network;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing dns_zone_transfer driver");
         let domain = get_param_string(parameters, "domain")?;
-        let dns_server = parameters
-            .get("dns_server")
-            .and_then(|v| v.as_str())
-            .unwrap_or("8.8.8.8");
-
+        let dns_server = parameters.get("dns_server").and_then(|v| v.as_str()).unwrap_or("8.8.8.8");
+        info!("Zone transfer: domain={}, dns_server={}", domain, dns_server);
         let resolver_config = ResolverConfig::from_parts(
             None,
             vec![],
-            NameServerConfigGroup::from_ips_clear(&[dns_server.parse()?], 53, true),
+            NameServerConfigGroup::from_ips_clear(
+                &[dns_server.parse().map_err(|e| DriverError::execution(format!("Invalid DNS server: {}", e)))?],
+                53,
+                true,
+            ),
         );
         let resolver_opts = ResolverOpts::default();
-        let resolver = Resolver::new(resolver_config, resolver_opts)?;
-
-        let records = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "PTR"];
+        let resolver =
+            Resolver::new(resolver_config, resolver_opts).map_err(|e| DriverError::execution(format!("Failed to create resolver: {}", e)))?;
+        let record_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "PTR"];
         let mut results = Vec::new();
         results.push(format!("DNS Zone Transfer Results for {}:\n", domain));
-
-        for rec_type in &records {
+        for rec_type in &record_types {
             let record_type = match *rec_type {
                 "A" => trust_dns_proto::rr::RecordType::A,
                 "AAAA" => trust_dns_proto::rr::RecordType::AAAA,
@@ -114,7 +114,6 @@ impl Driver for DnsZoneTransferDriver {
                 "PTR" => trust_dns_proto::rr::RecordType::PTR,
                 _ => continue,
             };
-
             if let Ok(response) = resolver.lookup(&domain, record_type) {
                 for record in response.iter() {
                     match record {
@@ -125,33 +124,20 @@ impl Driver for DnsZoneTransferDriver {
                             results.push(format!("AAAA: {}", ip));
                         }
                         trust_dns_proto::rr::RData::MX(mx) => {
-                            results.push(format!(
-                                "MX: {} (priority {})",
-                                mx.exchange(),
-                                mx.preference()
-                            ));
+                            results.push(format!("MX: {} (priority {})", mx.exchange(), mx.preference()));
                         }
                         trust_dns_proto::rr::RData::NS(ns) => {
                             results.push(format!("NS: {}", ns));
                         }
                         trust_dns_proto::rr::RData::TXT(txt) => {
-                            let text: String = txt
-                                .txt_data()
-                                .iter()
-                                .map(|d| String::from_utf8_lossy(d))
-                                .collect::<Vec<_>>()
-                                .join("");
+                            let text: String = txt.txt_data().iter().map(|d| String::from_utf8_lossy(d)).collect::<Vec<_>>().join("");
                             results.push(format!("TXT: {}", text));
                         }
                         trust_dns_proto::rr::RData::CNAME(cname) => {
                             results.push(format!("CNAME: {}", cname));
                         }
                         trust_dns_proto::rr::RData::SOA(soa) => {
-                            results.push(format!(
-                                "SOA: {} (serial: {})",
-                                soa.mname(),
-                                soa.serial()
-                            ));
+                            results.push(format!("SOA: {} (serial: {})", soa.mname(), soa.serial()));
                         }
                         trust_dns_proto::rr::RData::PTR(ptr) => {
                             results.push(format!("PTR: {}", ptr));
@@ -161,15 +147,11 @@ impl Driver for DnsZoneTransferDriver {
                 }
             }
         }
-
-        Ok(results.join("\n"))
+        info!("Zone transfer completed for {}: {} records found", domain, results.len() - 1);
+        return Ok(results.join("\n"));
     }
 }
-
-fn get_param_string(params: &HashMap<String, Value>, name: &str) -> Result<String> {
-    params
-        .get(name)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("Missing parameter: {}", name))
+/// Gets a string parameter from the parameters map
+fn get_param_string(params: &HashMap<String, Value>, name: &str) -> DriverResult<String> {
+    params.get(name).and_then(|v| v.as_str()).map(|s| s.to_string()).ok_or_else(|| DriverError::missing_parameter(name))
 }

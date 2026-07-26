@@ -1,36 +1,35 @@
-//! Memory scan Driver
-
-use crate::DriverCallback;
-use crate::DriverContext;
+//! Memory scan driver module
+//!
+//! This module provides functionality to scan process memory for a specific
+//! byte pattern with support for wildcards.
 use crate::{
-    DriverCategory,
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
     operating_system_memory::common::{Pattern, ProcessMemory},
     types::{Driver, DriverParameter},
 };
-use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-
+use tracing::{debug, info};
 /// Driver for scanning memory for a specific byte pattern
 #[derive(Debug)]
 pub struct MemoryScanDriver;
-
 #[async_trait::async_trait]
 impl Driver for MemoryScanDriver {
+    /// Returns the unique name of this driver
     fn name(&self) -> &str {
-        "memory_scan"
+        return "memory_scan";
     }
-
+    /// Returns a brief description of the driver's functionality
     fn description(&self) -> &str {
-        "Scan process memory for a specific byte pattern (hex pattern with wildcards)"
+        return "Scan process memory for a specific byte pattern (hex pattern with wildcards)";
     }
-
+    /// Returns detailed usage guidance for LLMs
     fn usage_hint(&self) -> &str {
-        "Use this skill to find memory addresses containing specific values. Pattern format: '48 8B 05 ? ? ? ?' where '?' is a wildcard."
+        return "Use this skill to find memory addresses containing specific values. Pattern format: '48 8B 05 ? ? ? ?' where '?' is a wildcard.";
     }
-
+    /// Returns the parameter definitions for this driver
     fn parameters(&self) -> Vec<DriverParameter> {
-        vec![
+        return vec![
             DriverParameter {
                 name: "pid".to_string(),
                 param_type: "integer".to_string(),
@@ -67,71 +66,50 @@ impl Driver for MemoryScanDriver {
                 example: Some(Value::Number(1048576.into())),
                 enum_values: None,
             },
-        ]
+        ];
     }
-
-    fn example_call(&self) -> Value {
-        json!({
+    /// Returns an example call for this driver
+    fn example_call(&self) -> DriverResult<Value> {
+        return Ok(json!({
             "action": "memory_scan",
             "parameters": {
                 "pid": 1234,
                 "pattern": "48 8B 05 ? ? ? ?"
             }
-        })
+        }));
     }
-
+    /// Returns an example output from this driver
     fn example_output(&self) -> String {
-        "Found at addresses:\n0x7FF6A1B4C000\n0x7FF6A1B4C100".to_string()
+        return "Found at addresses:\n0x7FF6A1B4C000\n0x7FF6A1B4C100".to_string();
     }
-
+    /// Returns the category of this driver
     fn category(&self) -> DriverCategory {
-        DriverCategory::OperatingSystemMemory
+        return DriverCategory::OperatingSystemMemory;
     }
-
+    /// Executes the driver with the given parameters
     async fn execute(
         &self,
         parameters: &HashMap<String, Value>,
-        callback: Option<&dyn DriverCallback>,
-        context: Option<&DriverContext>,
-    ) -> Result<String> {
-        let pid = parameters
-            .get("pid")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pid"))?
-            as u32;
-
-        let pattern_str = parameters
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing required parameter: pattern"))?;
-
-        let pattern = Pattern::from_hex(pattern_str)
-            .map_err(|e| anyhow::anyhow!("Invalid pattern: {}", e))?;
-
+        _callback: Option<&dyn DriverCallback>,
+        _context: Option<&DriverContext>,
+    ) -> DriverResult<String> {
+        debug!("Executing memory_scan driver");
+        // Extract required parameters
+        let pid = parameters.get("pid").and_then(|v| v.as_u64()).ok_or_else(|| DriverError::missing_parameter("pid"))? as u32;
+        let pattern_str = parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        let pattern = Pattern::from_hex(pattern_str).map_err(|e| DriverError::execution(format!("Invalid pattern: {}", e)))?;
         let default_size = 64 * 1024 * 1024;
-        let scan_size = parameters
-            .get("size")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(default_size) as usize;
-
-        let mut memory = ProcessMemory::open(pid, true)
-            .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
-
-        let start_address = if let Some(module) = parameters.get("module").and_then(|v| v.as_str())
-        {
-            memory
-                .get_module_base(module)
-                .map_err(|e| anyhow::anyhow!("Failed to get module base: {}", e))?
+        let scan_size = parameters.get("size").and_then(|v| v.as_u64()).unwrap_or(default_size) as usize;
+        debug!("Scanning PID {} for pattern: {}, size: {}", pid, pattern_str, scan_size);
+        let mut memory = ProcessMemory::open(pid, true).map_err(|e| DriverError::execution(format!("Failed to open process: {}", e)))?;
+        let start_address = if let Some(module) = parameters.get("module").and_then(|v| v.as_str()) {
+            memory.get_module_base(module).map_err(|e| DriverError::execution(format!("Failed to get module base: {}", e)))?
         } else {
             0x10000
         };
-
-        let results = memory
-            .scan(start_address, scan_size, &pattern)
-            .map_err(|e| anyhow::anyhow!("Failed to scan memory: {}", e))?;
-
-        if results.is_empty() {
-            Ok("Pattern not found".to_string())
+        let results = memory.scan(start_address, scan_size, &pattern).map_err(|e| DriverError::execution(format!("Failed to scan memory: {}", e)))?;
+        let result = if results.is_empty() {
+            "Pattern not found".to_string()
         } else {
             let mut output = format!("Found at {} address(es):\n", results.len());
             for addr in results.iter().take(100) {
@@ -140,17 +118,23 @@ impl Driver for MemoryScanDriver {
             if results.len() > 100 {
                 output.push_str(&format!("... and {} more", results.len() - 100));
             }
-            Ok(output)
-        }
+            output
+        };
+        info!("Memory scan completed: {}", result);
+        return Ok(result);
+    }
+    /// Validates the parameters before execution
+    fn validate(&self, parameters: &HashMap<String, Value>) -> DriverResult<()> {
+        parameters.get("pid").and_then(|v| v.as_u64()).ok_or_else(|| DriverError::missing_parameter("pid"))?;
+        parameters.get("pattern").and_then(|v| v.as_str()).ok_or_else(|| DriverError::missing_parameter("pattern"))?;
+        return Ok(());
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn test_memory_scan_skill_metadata() {
+    fn test_memory_scan_metadata() {
         let skill = MemoryScanDriver;
         assert_eq!(skill.name(), "memory_scan");
         assert_eq!(skill.category(), DriverCategory::OperatingSystemMemory);
