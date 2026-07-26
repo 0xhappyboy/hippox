@@ -24,4 +24,5 @@ pub use hippox_drivers::types::DriverCallback;
 pub use hippox_drivers::types::DriverContext;
 pub use hippox_drivers::types::DriverMetadata;
 pub use hippox_drivers::types::DriverParameter;
+pub use hippox_drivers::types::DriverResult;
 pub use langhub::types::ModelProvider;

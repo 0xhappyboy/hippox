@@ -11,6 +11,7 @@ pub use common::*;
 pub use drivers::*;
 pub use executor::*;
 pub use registry::*;
+pub use result::DriverResult;
 pub use result::*;
 pub use signabus::*;
 pub use types::Driver;
