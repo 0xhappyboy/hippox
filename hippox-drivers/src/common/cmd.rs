@@ -1,4 +1,3 @@
-// cmd.rs
 //! Generic command execution utilities.
 //!
 //! This module provides a pure, business-agnostic interface for executing external commands.
