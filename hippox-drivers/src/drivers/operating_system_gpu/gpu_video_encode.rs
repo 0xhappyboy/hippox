@@ -65,7 +65,7 @@ fn get_video_encode_usage() -> DriverResult<f32> {
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for encode usage");
         if let Ok(output) =
-            std::process::Command::new("nvidia-smi").args(&["--query-gpu", "utilization.encoder"]).args(&["--format", "csv,noheader"]).output()
+            crate::common::hidden_cmd("nvidia-smi").args(&["--query-gpu", "utilization.encoder"]).args(&["--format", "csv,noheader"]).output()
         {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -80,7 +80,7 @@ fn get_video_encode_usage() -> DriverResult<f32> {
         }
         // Try AMD via rocm-smi
         debug!("Trying AMD rocm-smi for encode usage");
-        if let Ok(output) = std::process::Command::new("rocm-smi").args(&["--showencoder"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("rocm-smi").args(&["--showencoder"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {

@@ -94,7 +94,7 @@ impl Driver for BluetoothTrustDeviceDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl {} {}", action, mac_address);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args([action, mac_address])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

@@ -46,7 +46,7 @@ pub struct ServiceConfig {
 }
 #[cfg(target_os = "windows")]
 fn run_powershell_command(args: &[&str]) -> DriverResult<String> {
-    let output = Command::new("powershell").args(["-Command", &args.join(" ")]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("powershell").args(["-Command", &args.join(" ")]).output().map_err(|e| {
         let err_msg = format!("Failed to execute PowerShell: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -62,7 +62,7 @@ fn run_powershell_command(args: &[&str]) -> DriverResult<String> {
 }
 #[cfg(target_os = "linux")]
 fn run_systemctl_command(args: &[&str]) -> DriverResult<String> {
-    let output = Command::new("systemctl").args(args).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("systemctl").args(args).output().map_err(|e| {
         let err_msg = format!("Failed to execute systemctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -78,7 +78,7 @@ fn run_systemctl_command(args: &[&str]) -> DriverResult<String> {
 }
 #[cfg(target_os = "linux")]
 fn run_service_command(args: &[&str]) -> DriverResult<String> {
-    let output = Command::new("service").args(args).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("service").args(args).output().map_err(|e| {
         let err_msg = format!("Failed to execute service: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -410,7 +410,7 @@ pub fn get_service_uptime(name: &str) -> DriverResult<Option<String>> {
 pub fn get_service_resources(name: &str) -> DriverResult<(Option<f64>, Option<u64>)> {
     debug!("Getting resources for service: {}", name);
     if let Some(pid) = get_service_pid(name)? {
-        let output = Command::new("ps").args(["-p", &pid.to_string(), "-o", "%cpu,%mem,rss"]).output().map_err(|e| {
+        let output = crate::common::hidden_cmd("ps").args(["-p", &pid.to_string(), "-o", "%cpu,%mem,rss"]).output().map_err(|e| {
             let err_msg = format!("Failed to execute ps: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
@@ -524,7 +524,7 @@ pub fn get_reverse_dependencies(name: &str) -> DriverResult<Vec<String>> {
 #[cfg(target_os = "linux")]
 pub fn get_service_logs(name: &str, lines: usize) -> DriverResult<Vec<ServiceLogEntry>> {
     debug!("Getting logs for service: {} ({} lines)", name, lines);
-    let output = Command::new("journalctl").args(["-u", name, "-n", &lines.to_string(), "--output=short-iso"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("journalctl").args(["-u", name, "-n", &lines.to_string(), "--output=short-iso"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute journalctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -986,7 +986,7 @@ pub fn rename_service(old_name: &str, new_name: &str) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn get_service_history(name: &str) -> DriverResult<Vec<String>> {
     debug!("Getting history for service: {}", name);
-    let output = Command::new("journalctl").args(["-u", name, "--output=short-iso"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("journalctl").args(["-u", name, "--output=short-iso"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute journalctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -1195,7 +1195,7 @@ fn parse_systemd_services_json(json_str: &str) -> DriverResult<Vec<ServiceInfo>>
 /// Helper function to run systemctl (Linux)
 #[cfg(target_os = "linux")]
 fn run_systemctl(args: &[&str]) -> DriverResult<String> {
-    let output = Command::new("systemctl").args(args).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("systemctl").args(args).output().map_err(|e| {
         let err_msg = format!("Failed to execute systemctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);

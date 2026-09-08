@@ -94,7 +94,7 @@ fn check_encryption() -> DriverResult<Vec<DiskPartition>> {
                     let fs = parts[2];
                     let is_encrypted = device.contains("crypt") || device.contains("luks") || fs.contains("crypto") || fs.contains("luks");
                     let is_luks =
-                        if let Ok(output) = Command::new("cryptsetup").args(&["isLuks", device]).output() { output.status.success() } else { false };
+                        if let Ok(output) = crate::common::hidden_cmd("cryptsetup").args(&["isLuks", device]).output() { output.status.success() } else { false };
                     partitions.push(DiskPartition {
                         device: device.to_string(),
                         mount_point: mount_point.to_string(),
@@ -115,7 +115,7 @@ fn check_encryption() -> DriverResult<Vec<DiskPartition>> {
     }
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = Command::new("fdesetup").args(&["status"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("fdesetup").args(&["status"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     let is_encrypted = output_str.contains("FileVault is On");
@@ -148,7 +148,7 @@ fn check_encryption() -> DriverResult<Vec<DiskPartition>> {
 fn get_windows_encryption_status() -> DriverResult<Vec<DiskPartition>> {
     use std::process::Command;
     let mut partitions = Vec::new();
-    let output = Command::new("manage-bde").args(&["-status"]).output();
+    let output = crate::common::hidden_cmd("manage-bde").args(&["-status"]).output();
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -202,7 +202,7 @@ fn get_windows_encryption_status() -> DriverResult<Vec<DiskPartition>> {
     }
     if partitions.is_empty() {
         let output =
-            Command::new("powershell").args(&["-Command", "Get-BitLockerVolume | Select-Object MountPoint, ProtectionStatus, VolumeType"]).output();
+            crate::common::hidden_cmd("powershell").args(&["-Command", "Get-BitLockerVolume | Select-Object MountPoint, ProtectionStatus, VolumeType"]).output();
         if let Ok(output) = output {
             if output.status.success() {
                 let output_str = String::from_utf8_lossy(&output.stdout).to_string();

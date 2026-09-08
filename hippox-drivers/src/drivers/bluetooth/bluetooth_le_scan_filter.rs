@@ -90,14 +90,14 @@ impl Driver for BluetoothLeScanFilterDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Starting BLE scan");
-            let _ = Command::new("bluetoothctl").args(["scan", "on"]).output();
+            let _ = crate::common::hidden_cmd("bluetoothctl").args(["scan", "on"]).output();
             debug!("Waiting for scan results ({}s)", timeout);
             tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["devices"])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;
-            let _ = Command::new("bluetoothctl").args(["scan", "off"]).output();
+            let _ = crate::common::hidden_cmd("bluetoothctl").args(["scan", "off"]).output();
             let stdout = String::from_utf8_lossy(&output.stdout);
             debug!("Scan completed, processing results");
             let mut result = format!("Found devices with service {}:\n", service_uuid);

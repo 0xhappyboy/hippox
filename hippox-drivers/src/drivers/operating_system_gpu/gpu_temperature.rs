@@ -65,7 +65,7 @@ fn get_gpu_temperature() -> DriverResult<f64> {
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for temperature");
         if let Ok(output) =
-            std::process::Command::new("nvidia-smi").args(&["--query-gpu", "temperature.gpu"]).args(&["--format", "csv,noheader"]).output()
+            std::process::crate::common::hidden_cmd("nvidia-smi").args(&["--query-gpu", "temperature.gpu"]).args(&["--format", "csv,noheader"]).output()
         {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -80,7 +80,7 @@ fn get_gpu_temperature() -> DriverResult<f64> {
         }
         // Try AMD via rocm-smi
         debug!("Trying AMD rocm-smi for temperature");
-        if let Ok(output) = std::process::Command::new("rocm-smi").args(&["--showtemp"]).output() {
+        if let Ok(output) = std::process::crate::common::hidden_cmd("rocm-smi").args(&["--showtemp"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -129,7 +129,7 @@ fn get_gpu_temperature() -> DriverResult<f64> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting GPU temperature on macOS");
-        if let Ok(output) = std::process::Command::new("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
+        if let Ok(output) = std::process::crate::common::hidden_cmd("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -159,7 +159,7 @@ fn get_gpu_temperature() -> DriverResult<f64> {
 fn get_windows_gpu_temperature() -> DriverResult<f64> {
     use std::process::Command;
     debug!("Getting GPU temperature on Windows via WMI");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature | Select-Object -ExpandProperty CurrentTemperature",

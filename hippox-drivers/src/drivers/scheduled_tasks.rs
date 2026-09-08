@@ -37,6 +37,10 @@
 //!     "parameters": { "task_id": "daily_backup" }
 //! }
 //! ```
+use crate::{
+    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
+    types::{Driver, DriverParameter},
+};
 use chrono::{Datelike, Duration as ChronoDuration, Local, TimeZone};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -44,10 +48,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time;
 use tracing::{debug, info};
-use crate::{
-    DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult,
-    types::{Driver, DriverParameter},
-};
 /// Type alias for a thread-safe map storing scheduled task handles
 type SchedulerMap = Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>;
 /// Global static storage for all active scheduled tasks
@@ -523,7 +523,7 @@ impl Driver for ListScheduledTasksDriver {
 /// * `command` - The shell command to execute
 async fn execute_command(command: &str) {
     use std::process::Command;
-    let output = Command::new("sh").arg("-c").arg(command).output();
+    let output = crate::common::hidden_cmd("sh").arg("-c").arg(command).output();
     match output {
         Ok(out) => {
             if !out.stdout.is_empty() {

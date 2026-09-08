@@ -2,7 +2,7 @@
 //!
 //! This module provides cross-platform utilities for process and application management,
 //! including finding, launching, and controlling applications.
-use crate::DriverError;
+use crate::{DriverError, hidden_cmd};
 use crate::result::DriverResult;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -61,7 +61,7 @@ pub fn find_process_by_name(name: &str) -> DriverResult<Vec<ProcessInfo>> {
 /// The PID of the launched process
 pub fn launch_app(app_path: &str) -> DriverResult<u32> {
     debug!("Launching application: {}", app_path);
-    let child = match Command::new(app_path).stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
+    let child = match hidden_cmd(app_path).stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
         Ok(c) => c,
         Err(e) => {
             let err_msg = format!("Failed to launch application {}: {}", app_path, e);
@@ -83,7 +83,7 @@ pub fn launch_app(app_path: &str) -> DriverResult<u32> {
 /// The PID of the launched process
 pub fn launch_app_with_args(app_path: &str, args: &[String]) -> DriverResult<u32> {
     debug!("Launching application with args: {} {:?}", app_path, args);
-    let child = match Command::new(app_path).args(args).stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
+    let child = match hidden_cmd(app_path).args(args).stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
         Ok(c) => c,
         Err(e) => {
             let err_msg = format!("Failed to launch application with args {}: {}", app_path, e);
@@ -110,7 +110,7 @@ pub fn launch_as_admin(app_path: &str, args: &[String]) -> DriverResult<u32> {
     use std::time::Duration;
     debug!("Launching as admin: {} {:?}", app_path, args);
     // Use PowerShell's Start-Process with -Verb RunAs
-    let mut cmd = Command::new("powershell");
+    let mut cmd = hidden_cmd("powershell");
     let args_str = args.join(" ").replace("'", "\\'");
     let command = format!("Start-Process -FilePath '{}' -ArgumentList '{}' -Verb RunAs -WindowStyle Hidden", app_path, args_str);
     cmd.args(["-Command", &command]);
@@ -131,7 +131,7 @@ pub fn launch_as_admin(app_path: &str, args: &[String]) -> DriverResult<u32> {
 #[cfg(not(target_os = "windows"))]
 pub fn launch_as_admin(app_path: &str, args: &[String]) -> DriverResult<u32> {
     debug!("Launching as admin (Unix): {} {:?}", app_path, args);
-    let mut cmd = Command::new("sudo");
+    let mut cmd = hidden_cmd("sudo");
     cmd.arg(app_path);
     cmd.args(args);
     let child = match cmd.spawn() {
@@ -307,7 +307,7 @@ pub fn get_app_path(app_name: &str) -> DriverResult<String> {
             }
         }
         // Use where command
-        if let Ok(output) = Command::new("where").arg(app_name).output() {
+        if let Ok(output) = hidden_cmd("where").arg(app_name).output() {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout);
                 if let Some(first_line) = path.lines().next() {
@@ -319,7 +319,7 @@ pub fn get_app_path(app_name: &str) -> DriverResult<String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        if let Ok(output) = Command::new("which").arg(app_name).output() {
+        if let Ok(output) = hidden_cmd("which").arg(app_name).output() {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 info!("Found application via 'which': {}", path);

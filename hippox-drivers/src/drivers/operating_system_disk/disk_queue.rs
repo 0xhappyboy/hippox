@@ -160,7 +160,7 @@ fn get_windows_disk_queue(device: &str) -> DriverResult<DiskQueueInfo> {
     let mut queue_depth = 32;
     let mut avg_wait_time = 1.0;
     let mut max_wait_time = 10.0;
-    let output = Command::new("typeperf").args(&["\"\\PhysicalDisk(0 C:)\\Avg. Disk Queue Length\"", "-sc", "1"]).output();
+    let output = crate::common::hidden_cmd("typeperf").args(&["\"\\PhysicalDisk(0 C:)\\Avg. Disk Queue Length\"", "-sc", "1"]).output();
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -188,7 +188,7 @@ fn get_macos_disk_queue(device: &str) -> DriverResult<DiskQueueInfo> {
     let mut queue_depth = 16;
     let mut avg_wait_time = 2.0;
     let mut max_wait_time = 15.0;
-    let output = Command::new("iostat").args(&["-d", "-w", "1", disk_name]).output();
+    let output = crate::common::hidden_cmd("iostat").args(&["-d", "-w", "1", disk_name]).output();
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();

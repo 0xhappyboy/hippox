@@ -115,7 +115,7 @@ impl Driver for WifiExportConfigDriver {
 fn get_network_password(ssid: &str) -> Result<Option<String>, String> {
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("netsh")
+        let output = crate::common::hidden_cmd("netsh")
             .args(["wlan", "show", "profile", "name=", ssid, "key=clear"])
             .output()
             .map_err(|e| format!("Failed to get password: {}", e))?;

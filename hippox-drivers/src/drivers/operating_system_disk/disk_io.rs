@@ -176,7 +176,7 @@ fn get_windows_disk_io(device: &str, interval: Duration) -> DriverResult<DiskIoS
         avg_read_latency_ms: 0.0,
         avg_write_latency_ms: 0.0,
     };
-    let output = Command::new("typeperf")
+    let output = crate::common::hidden_cmd("typeperf")
         .args(&[
             "\"\\PhysicalDisk(0 C:)\\Disk Read Bytes/sec\"",
             "\"\\PhysicalDisk(0 C:)\\Disk Write Bytes/sec\"",
@@ -224,7 +224,7 @@ fn get_macos_disk_io(device: &str, interval: Duration) -> DriverResult<DiskIoSta
         avg_read_latency_ms: 0.0,
         avg_write_latency_ms: 0.0,
     };
-    let output = Command::new("iostat").args(&["-d", "-w", &format!("{}", interval.as_secs()), disk_name]).output();
+    let output = crate::common::hidden_cmd("iostat").args(&["-d", "-w", &format!("{}", interval.as_secs()), disk_name]).output();
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();

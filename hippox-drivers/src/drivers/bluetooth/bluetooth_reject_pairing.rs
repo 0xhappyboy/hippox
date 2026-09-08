@@ -77,7 +77,7 @@ impl Driver for BluetoothRejectPairingDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl reject {}", mac_address);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["reject", mac_address])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

@@ -45,7 +45,7 @@ impl Driver for WifiBandPreferenceGetDriver {
         let result = String::new();
         #[cfg(target_os = "windows")]
         {
-            let output = Command::new("netsh").args(["wlan", "show", "settings"]).output().map_err(|e| {
+            let output = crate::common::hidden_cmd("netsh").args(["wlan", "show", "settings"]).output().map_err(|e| {
                 debug!("Failed to get WiFi settings: {}", e);
                 return DriverError::execution(format!("Failed to get WiFi settings: {}", e));
             })?;
@@ -62,7 +62,7 @@ impl Driver for WifiBandPreferenceGetDriver {
         }
         #[cfg(target_os = "linux")]
         {
-            let output = Command::new("iw").args(["reg", "get"]).output().map_err(|e| {
+            let output = crate::common::hidden_cmd("iw").args(["reg", "get"]).output().map_err(|e| {
                 debug!("Failed to get regulatory info: {}", e);
                 return DriverError::execution(format!("Failed to get regulatory info: {}", e));
             })?;

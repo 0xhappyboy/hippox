@@ -46,7 +46,7 @@ pub fn get_mouse_position() -> DriverResult<MousePosition> {
 #[cfg(target_os = "linux")]
 pub fn get_mouse_position() -> DriverResult<MousePosition> {
     debug!("Getting mouse position on Linux");
-    let output = Command::new("xdotool")
+    let output = crate::common::hidden_cmd("xdotool")
         .args(["getmouselocation", "--shell"])
         .output()
         .map_err(|e| DriverError::execution(format!("Failed to get mouse position: {}", e)))?;
@@ -73,7 +73,7 @@ pub fn get_mouse_position() -> DriverResult<MousePosition> {
             return (item 1 of mousePos) & "," & (item 2 of mousePos)
         end tell
     "#;
-    let output = Command::new("osascript")
+    let output = crate::common::hidden_cmd("osascript")
         .args(["-e", script])
         .output()
         .map_err(|e| DriverError::execution(format!("Failed to get mouse position: {}", e)))?;
@@ -109,7 +109,7 @@ pub fn set_mouse_position(x: i32, y: i32) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn set_mouse_position(x: i32, y: i32) -> DriverResult<()> {
     debug!("Setting mouse position to ({}, {}) on Linux", x, y);
-    Command::new("xdotool")
+    crate::common::hidden_cmd("xdotool")
         .args(["mousemove", &x.to_string(), &y.to_string()])
         .output()
         .map_err(|e| DriverError::execution(format!("Failed to set mouse position: {}", e)))?;
@@ -120,7 +120,7 @@ pub fn set_mouse_position(x: i32, y: i32) -> DriverResult<()> {
 pub fn set_mouse_position(x: i32, y: i32) -> DriverResult<()> {
     debug!("Setting mouse position to ({}, {}) on macOS", x, y);
     let script = format!(r#"tell application "System Events" to set position of first process whose frontmost is true to {{{}, {}}}"#, x, y);
-    Command::new("osascript").args(["-e", &script]).output().map_err(|e| DriverError::execution(format!("Failed to set mouse position: {}", e)))?;
+    crate::common::hidden_cmd("osascript").args(["-e", &script]).output().map_err(|e| DriverError::execution(format!("Failed to set mouse position: {}", e)))?;
     info!("Mouse moved to ({}, {})", x, y);
     return Ok(());
 }
@@ -177,7 +177,7 @@ pub fn mouse_click(button: MouseButton, x: i32, y: i32) -> DriverResult<()> {
         MouseButton::Middle => "2",
         MouseButton::Right => "3",
     };
-    Command::new("xdotool").args(["click", btn]).output().map_err(|e| DriverError::execution(format!("Failed to click: {}", e)))?;
+    crate::common::hidden_cmd("xdotool").args(["click", btn]).output().map_err(|e| DriverError::execution(format!("Failed to click: {}", e)))?;
     info!("Mouse clicked at ({}, {})", x, y);
     return Ok(());
 }
@@ -191,7 +191,7 @@ pub fn mouse_click(button: MouseButton, x: i32, y: i32) -> DriverResult<()> {
         MouseButton::Middle => "click at {x, y}",
     };
     let script = format!(r#"tell application "System Events" to {}"#, click_cmd);
-    Command::new("osascript").args(["-e", &script]).output().map_err(|e| DriverError::execution(format!("Failed to click: {}", e)))?;
+    crate::common::hidden_cmd("osascript").args(["-e", &script]).output().map_err(|e| DriverError::execution(format!("Failed to click: {}", e)))?;
     info!("Mouse clicked at ({}, {})", x, y);
     return Ok(());
 }
@@ -258,7 +258,7 @@ pub fn mouse_press(button: MouseButton, x: i32, y: i32) -> DriverResult<()> {
         MouseButton::Middle => "2",
         MouseButton::Right => "3",
     };
-    Command::new("xdotool").args(["mousedown", btn]).output().map_err(|e| DriverError::execution(format!("Failed to press: {}", e)))?;
+    crate::common::hidden_cmd("xdotool").args(["mousedown", btn]).output().map_err(|e| DriverError::execution(format!("Failed to press: {}", e)))?;
     info!("Mouse pressed at ({}, {})", x, y);
     return Ok(());
 }
@@ -308,7 +308,7 @@ pub fn mouse_release(button: MouseButton, x: i32, y: i32) -> DriverResult<()> {
         MouseButton::Middle => "2",
         MouseButton::Right => "3",
     };
-    Command::new("xdotool").args(["mouseup", btn]).output().map_err(|e| DriverError::execution(format!("Failed to release: {}", e)))?;
+    crate::common::hidden_cmd("xdotool").args(["mouseup", btn]).output().map_err(|e| DriverError::execution(format!("Failed to release: {}", e)))?;
     info!("Mouse released at ({}, {})", x, y);
     return Ok(());
 }
@@ -347,7 +347,7 @@ pub fn mouse_scroll(delta: i32) -> DriverResult<()> {
     let direction = if delta > 0 { "up" } else { "down" };
     let clicks = (delta.abs() / 120).max(1);
     for _ in 0..clicks {
-        Command::new("xdotool")
+        crate::common::hidden_cmd("xdotool")
             .args(["click", if direction == "up" { "4" } else { "5" }])
             .output()
             .map_err(|e| DriverError::execution(format!("Failed to scroll: {}", e)))?;
@@ -359,7 +359,7 @@ pub fn mouse_scroll(delta: i32) -> DriverResult<()> {
 pub fn mouse_scroll(delta: i32) -> DriverResult<()> {
     debug!("Mouse scroll on macOS: delta={}", delta);
     let script = format!(r#"tell application "System Events" to scroll wheel {}"#, if delta > 0 { "up" } else { "down" });
-    Command::new("osascript").args(["-e", &script]).output().map_err(|e| DriverError::execution(format!("Failed to scroll: {}", e)))?;
+    crate::common::hidden_cmd("osascript").args(["-e", &script]).output().map_err(|e| DriverError::execution(format!("Failed to scroll: {}", e)))?;
     info!("Scrolled by {}", delta);
     return Ok(());
 }

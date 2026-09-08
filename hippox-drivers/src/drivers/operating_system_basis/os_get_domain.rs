@@ -62,7 +62,7 @@ fn get_domain() -> DriverResult<String> {
     #[cfg(target_os = "windows")]
     {
         debug!("Getting domain on Windows");
-        let output = Command::new("powershell")
+        let output = crate::common::hidden_cmd("powershell")
             .args(["-Command", "Get-CimInstance -ClassName Win32_ComputerSystem | Select-Object -ExpandProperty Domain"])
             .output();
         if let Ok(output) = output {
@@ -99,7 +99,7 @@ fn get_domain() -> DriverResult<String> {
                 }
             }
         }
-        if let Ok(output) = Command::new("hostname").arg("-d").output() {
+        if let Ok(output) = crate::common::hidden_cmd("hostname").arg("-d").output() {
             if let Ok(domain_str) = String::from_utf8(output.stdout) {
                 let domain = domain_str.trim();
                 if !domain.is_empty() {
@@ -114,7 +114,7 @@ fn get_domain() -> DriverResult<String> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting domain on macOS");
-        let output = Command::new("dsconfigad").args(["-show"]).output();
+        let output = crate::common::hidden_cmd("dsconfigad").args(["-show"]).output();
         if let Ok(output) = output {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 for line in output_str.lines() {
@@ -130,7 +130,7 @@ fn get_domain() -> DriverResult<String> {
                 }
             }
         }
-        let output = Command::new("hostname").arg("-f").output();
+        let output = crate::common::hidden_cmd("hostname").arg("-f").output();
         if let Ok(output) = output {
             if let Ok(hostname_str) = String::from_utf8(output.stdout) {
                 let fqdn = hostname_str.trim();

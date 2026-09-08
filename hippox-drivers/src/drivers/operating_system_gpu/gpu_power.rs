@@ -64,7 +64,7 @@ fn get_gpu_power() -> DriverResult<f32> {
         debug!("Getting GPU power on Linux");
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for power info");
-        if let Ok(output) = std::process::Command::new("nvidia-smi").args(&["--query-gpu", "power.draw"]).args(&["--format", "csv,noheader"]).output()
+        if let Ok(output) = crate::common::hidden_cmd("nvidia-smi").args(&["--query-gpu", "power.draw"]).args(&["--format", "csv,noheader"]).output()
         {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -79,7 +79,7 @@ fn get_gpu_power() -> DriverResult<f32> {
         }
         // Try AMD via rocm-smi
         debug!("Trying AMD rocm-smi for power info");
-        if let Ok(output) = std::process::Command::new("rocm-smi").args(&["--showpower"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("rocm-smi").args(&["--showpower"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -125,7 +125,7 @@ fn get_gpu_power() -> DriverResult<f32> {
     {
         debug!("Getting GPU power on Windows");
         use std::process::Command;
-        let output = Command::new("powershell")
+        let output = crate::common::hidden_cmd("powershell")
             .args(&["-Command", "Get-CimInstance -Namespace root/cimv2 -ClassName Win32_VideoController | Select-Object Name, AdapterRAM"])
             .output();
         #[cfg(feature = "nvml")]
@@ -148,7 +148,7 @@ fn get_gpu_power() -> DriverResult<f32> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting GPU power on macOS");
-        if let Ok(output) = std::process::Command::new("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {

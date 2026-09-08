@@ -95,7 +95,7 @@ impl Driver for OsGetOsVersionDriver {
 fn get_windows_build() -> String {
     use std::process::Command;
     debug!("Getting Windows build number");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(["-Command", "(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion').CurrentBuild"])
         .output();
     if let Ok(output) = output {
@@ -144,7 +144,7 @@ fn get_linux_pretty_name() -> String {
 fn get_macos_version() -> String {
     use std::process::Command;
     debug!("Getting macOS version");
-    let output = Command::new("sw_vers").args(["-productVersion"]).output();
+    let output = crate::common::hidden_cmd("sw_vers").args(["-productVersion"]).output();
     if let Ok(output) = output {
         if let Ok(version_str) = String::from_utf8(output.stdout) {
             let version = version_str.trim();

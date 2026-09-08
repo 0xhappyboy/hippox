@@ -77,7 +77,7 @@ impl Driver for WifiRoamingToggleDriver {
         #[cfg(target_os = "windows")]
         {
             let value = if enabled { "enable" } else { "disable" };
-            Command::new("netsh").args(["wlan", "set", "roaming", value]).output().map_err(|e| {
+            crate::common::hidden_cmd("netsh").args(["wlan", "set", "roaming", value]).output().map_err(|e| {
                 debug!("Failed to set roaming: {}", e);
                 return DriverError::execution(format!("Failed to set roaming: {}", e));
             })?;
@@ -85,7 +85,7 @@ impl Driver for WifiRoamingToggleDriver {
         #[cfg(target_os = "linux")]
         {
             let roam_value = if enabled { "1" } else { "0" };
-            Command::new("iw").args(["wlan0", "set", "power_save", roam_value]).output().map_err(|e| {
+            crate::common::hidden_cmd("iw").args(["wlan0", "set", "power_save", roam_value]).output().map_err(|e| {
                 debug!("Failed to set power save: {}", e);
                 return DriverError::execution(format!("Failed to set power save: {}", e));
             })?;

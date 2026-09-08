@@ -77,7 +77,7 @@ impl Driver for BluetoothAudioConnectDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Connecting via bluetoothctl");
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["connect", mac_address])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;
@@ -88,7 +88,7 @@ impl Driver for BluetoothAudioConnectDriver {
             }
             // Set audio profile
             debug!("Setting A2DP audio profile");
-            let _ = Command::new("pactl").args(["set-card-profile", "bluez_card.0", "a2dp-sink"]).output().ok();
+            let _ = crate::common::hidden_cmd("pactl").args(["set-card-profile", "bluez_card.0", "a2dp-sink"]).output().ok();
         }
         info!("Connected to audio device: {}", mac_address);
         Ok(format!("Connected to audio device: {}", mac_address))

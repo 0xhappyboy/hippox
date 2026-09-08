@@ -76,7 +76,8 @@ impl Driver for WifiPrioritySetDriver {
 #[cfg(target_os = "windows")]
 fn set_network_priority(ssids: &[String]) -> Result<(), String> {
     // Windows uses profile priority via XML
-    let output = Command::new("netsh").args(["wlan", "show", "profiles"]).output().map_err(|e| format!("Failed to list profiles: {}", e))?;
+    let output =
+        crate::common::hidden_cmd("netsh").args(["wlan", "show", "profiles"]).output().map_err(|e| format!("Failed to list profiles: {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut current_profiles: Vec<String> = Vec::new();
     for line in stdout.lines() {
@@ -92,7 +93,7 @@ fn set_network_priority(ssids: &[String]) -> Result<(), String> {
     // Set priority by reordering profiles
     for (priority, ssid) in ssids.iter().enumerate() {
         if current_profiles.contains(ssid) {
-            Command::new("netsh")
+            crate::common::hidden_cmd("netsh")
                 .args(["wlan", "set", "profile", "order", "name=", ssid, "priority=", &priority.to_string()])
                 .output()
                 .map_err(|e| format!("Failed to set priority for {}: {}", ssid, e))?;
@@ -106,7 +107,7 @@ fn set_network_priority(ssids: &[String]) -> Result<(), String> {
     for (priority, ssid) in ssids.iter().enumerate() {
         let priority_value = (ssids.len() - priority) * 10;
         // Find connection name (might be different from SSID)
-        let output = Command::new("nmcli")
+        let output = crate::common::hidden_cmd("nmcli")
             .args(["-t", "-f", "NAME,TYPE", "connection", "show"])
             .output()
             .map_err(|e| format!("Failed to list connections: {}", e))?;
@@ -116,7 +117,7 @@ fn set_network_priority(ssids: &[String]) -> Result<(), String> {
             if parts.len() >= 2 && parts[1] == "802-11-wireless" {
                 let conn_name = parts[0];
                 if conn_name.contains(ssid) || ssid.contains(conn_name) {
-                    Command::new("nmcli")
+                    crate::common::hidden_cmd("nmcli")
                         .args(["connection", "modify", conn_name, "connection.autoconnect-priority", &priority_value.to_string()])
                         .output()
                         .map_err(|e| format!("Failed to modify priority: {}", e))?;
@@ -137,7 +138,7 @@ fn set_network_priority(ssids: &[String]) -> Result<(), String> {
         new_order.push(ssid.as_str());
     }
     // Add any existing networks not in priority list at the end
-    let output = Command::new("networksetup")
+    let output = crate::common::hidden_cmd("networksetup")
         .args(["-listpreferredwirelessnetworks", &service_name])
         .output()
         .map_err(|e| format!("Failed to list preferred networks: {}", e))?;
@@ -151,11 +152,11 @@ fn set_network_priority(ssids: &[String]) -> Result<(), String> {
     // Remove all existing preferred networks
     for line in stdout.lines().skip(1) {
         let ssid = line.trim_start_matches('*').trim();
-        let _ = Command::new("networksetup").args(["-removepreferredwirelessnetwork", &service_name, ssid]).output();
+        let _ = crate::common::hidden_cmd("networksetup").args(["-removepreferredwirelessnetwork", &service_name, ssid]).output();
     }
     // Add networks in new priority order
     for ssid in new_order {
-        Command::new("networksetup")
+        crate::common::hidden_cmd("networksetup")
             .args(["-addpreferredwirelessnetwork", &service_name, ssid, "0"])
             .output()
             .map_err(|e| format!("Failed to add preferred network: {}", e))?;
@@ -164,8 +165,10 @@ fn set_network_priority(ssids: &[String]) -> Result<(), String> {
 }
 #[cfg(target_os = "macos")]
 fn get_wifi_service_name() -> Result<String, String> {
-    let output =
-        Command::new("networksetup").args(["-listallhardwareports"]).output().map_err(|e| format!("Failed to list hardware ports: {}", e))?;
+    let output = crate::common::hidden_cmd("networksetup")
+        .args(["-listallhardwareports"])
+        .output()
+        .map_err(|e| format!("Failed to list hardware ports: {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
     for (i, line) in lines.iter().enumerate() {

@@ -84,7 +84,7 @@ fn get_gpu_clock() -> DriverResult<GpuClockInfo> {
         let mut boost = None;
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for clock info");
-        if let Ok(output) = std::process::Command::new("nvidia-smi")
+        if let Ok(output) = crate::common::hidden_cmd("nvidia-smi")
             .args(&["--query-gpu", "clocks.current.graphics,clocks.current.memory,clocks.max.graphics"])
             .args(&["--format", "csv,noheader"])
             .output()
@@ -108,7 +108,7 @@ fn get_gpu_clock() -> DriverResult<GpuClockInfo> {
         // Try AMD via rocm-smi
         if core == 0 {
             debug!("Trying AMD rocm-smi for clock info");
-            if let Ok(output) = std::process::Command::new("rocm-smi").args(&["--showclock"]).output() {
+            if let Ok(output) = crate::common::hidden_cmd("rocm-smi").args(&["--showclock"]).output() {
                 if output.status.success() {
                     if let Ok(output_str) = String::from_utf8(output.stdout) {
                         for line in output_str.lines() {
@@ -189,7 +189,7 @@ fn get_windows_gpu_clock() -> DriverResult<GpuClockInfo> {
     use std::process::Command;
     debug!("Getting GPU clock on Windows via nvidia-smi");
     // Try NVIDIA via nvidia-smi (Windows also has nvidia-smi)
-    if let Ok(output) = Command::new("nvidia-smi")
+    if let Ok(output) = crate::common::hidden_cmd("nvidia-smi")
         .args(&["--query-gpu", "clocks.current.graphics,clocks.current.memory,clocks.max.graphics"])
         .args(&["--format", "csv,noheader"])
         .output()
@@ -226,7 +226,7 @@ fn get_windows_gpu_clock() -> DriverResult<GpuClockInfo> {
     }
     // Try PowerShell WMI
     debug!("Trying PowerShell WMI for clock info on Windows");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-CimInstance -Namespace root/cimv2 -ClassName Win32_VideoController | Select-Object Name, CurrentHorizontalResolution, CurrentVerticalResolution, AdapterRAM"
@@ -249,7 +249,7 @@ fn get_macos_gpu_clock() -> DriverResult<GpuClockInfo> {
     use std::process::Command;
     debug!("Getting GPU clock on macOS via system_profiler");
     // Try system_profiler
-    let output = Command::new("system_profiler").args(&["SPDisplaysDataType"]).output();
+    let output = crate::common::hidden_cmd("system_profiler").args(&["SPDisplaysDataType"]).output();
     if let Ok(output) = output {
         if output.status.success() {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -265,7 +265,7 @@ fn get_macos_gpu_clock() -> DriverResult<GpuClockInfo> {
     }
     // Try IOKit via sysctl
     debug!("Trying sysctl for clock info on macOS");
-    let output = Command::new("sysctl").args(&["-n", "hw.gpu.core_frequency"]).output();
+    let output = crate::common::hidden_cmd("sysctl").args(&["-n", "hw.gpu.core_frequency"]).output();
     if let Ok(output) = output {
         if output.status.success() {
             if let Ok(output_str) = String::from_utf8(output.stdout) {

@@ -97,7 +97,7 @@ Errors: No"#
 fn get_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
     #[cfg(target_os = "linux")]
     {
-        if let Ok(output) = Command::new("smartctl").args(&["-a", device]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("smartctl").args(&["-a", device]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     let mut health = 100.0;
@@ -189,7 +189,7 @@ fn get_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
 #[cfg(target_os = "windows")]
 fn get_windows_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
     use std::process::Command;
-    let output = Command::new("powershell").args(&["-Command", &format!("smartctl -a '{}'", device)]).output();
+    let output = crate::common::hidden_cmd("powershell").args(&["-Command", &format!("smartctl -a '{}'", device)]).output();
     let mut health = 100.0;
     let mut temp = 0.0;
     let mut power_on = 0;
@@ -239,7 +239,7 @@ fn get_windows_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
 #[cfg(target_os = "macos")]
 fn get_macos_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
     use std::process::Command;
-    let output = Command::new("smartctl").args(&["-a", device]).output();
+    let output = crate::common::hidden_cmd("smartctl").args(&["-a", device]).output();
     let mut health = 100.0;
     let mut temp = 0.0;
     let mut power_on = 0;

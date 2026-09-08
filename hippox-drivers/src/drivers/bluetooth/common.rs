@@ -83,7 +83,7 @@ pub struct BluetoothCharacteristic {
 #[cfg(target_os = "windows")]
 pub fn get_adapter_status() -> DriverResult<BluetoothAdapterStatus> {
     debug!("Getting adapter status on Windows");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(["-Command", "Get-PnpDevice -Class Bluetooth | Select-Object Status, FriendlyName"])
         .output()
         .map_err(|e| {
@@ -115,7 +115,7 @@ pub fn get_adapter_status() -> DriverResult<BluetoothAdapterStatus> {
 #[cfg(target_os = "linux")]
 pub fn get_adapter_status() -> DriverResult<BluetoothAdapterStatus> {
     debug!("Getting adapter status on Linux");
-    let output = Command::new("bluetoothctl").args(["show"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("bluetoothctl").args(["show"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -164,7 +164,7 @@ pub fn get_adapter_status() -> DriverResult<BluetoothAdapterStatus> {
 #[cfg(target_os = "macos")]
 pub fn get_adapter_status() -> DriverResult<BluetoothAdapterStatus> {
     debug!("Getting adapter status on macOS");
-    let output = Command::new("system_profiler").args(["SPBluetoothDataType"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("system_profiler").args(["SPBluetoothDataType"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute system_profiler: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -201,7 +201,7 @@ pub fn get_mac_address() -> DriverResult<String> {
     debug!("Getting Bluetooth MAC address");
     #[cfg(target_os = "linux")]
     {
-        let output = Command::new("bluetoothctl").args(["show"]).output().map_err(|e| {
+        let output = crate::common::hidden_cmd("bluetoothctl").args(["show"]).output().map_err(|e| {
             let err_msg = format!("Failed to execute bluetoothctl: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
@@ -219,7 +219,7 @@ pub fn get_mac_address() -> DriverResult<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("getmac").output().map_err(|e| {
+        let output = crate::common::hidden_cmd("getmac").output().map_err(|e| {
             let err_msg = format!("Failed to execute getmac: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
@@ -238,7 +238,7 @@ pub fn get_mac_address() -> DriverResult<String> {
     }
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("system_profiler").args(["SPBluetoothDataType"]).output().map_err(|e| {
+        let output = crate::common::hidden_cmd("system_profiler").args(["SPBluetoothDataType"]).output().map_err(|e| {
             let err_msg = format!("Failed to execute system_profiler: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
@@ -263,7 +263,7 @@ pub fn get_mac_address() -> DriverResult<String> {
 #[cfg(target_os = "linux")]
 pub fn bluetooth_on() -> DriverResult<()> {
     debug!("Turning Bluetooth on (Linux)");
-    Command::new("bluetoothctl").args(["power", "on"]).output().map_err(|e| {
+    crate::common::hidden_cmd("bluetoothctl").args(["power", "on"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -274,7 +274,7 @@ pub fn bluetooth_on() -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 pub fn bluetooth_on() -> DriverResult<()> {
     debug!("Turning Bluetooth on (Windows)");
-    Command::new("powershell").args(["-Command", "Enable-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue"]).output().map_err(|e| {
+    crate::common::hidden_cmd("powershell").args(["-Command", "Enable-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute PowerShell: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -285,7 +285,7 @@ pub fn bluetooth_on() -> DriverResult<()> {
 #[cfg(target_os = "macos")]
 pub fn bluetooth_on() -> DriverResult<()> {
     debug!("Turning Bluetooth on (macOS)");
-    let output = Command::new("blueutil").args(["--power", "1"]).output();
+    let output = crate::common::hidden_cmd("blueutil").args(["--power", "1"]).output();
     if output.is_err() {
         let err_msg = "blueutil not installed. Run: brew install blueutil".to_string();
         warn!("{}", err_msg);
@@ -300,7 +300,7 @@ pub fn bluetooth_on() -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn bluetooth_off() -> DriverResult<()> {
     debug!("Turning Bluetooth off (Linux)");
-    Command::new("bluetoothctl").args(["power", "off"]).output().map_err(|e| {
+    crate::common::hidden_cmd("bluetoothctl").args(["power", "off"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -311,7 +311,7 @@ pub fn bluetooth_off() -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 pub fn bluetooth_off() -> DriverResult<()> {
     debug!("Turning Bluetooth off (Windows)");
-    Command::new("powershell").args(["-Command", "Disable-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue"]).output().map_err(|e| {
+    crate::common::hidden_cmd("powershell").args(["-Command", "Disable-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute PowerShell: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -322,7 +322,7 @@ pub fn bluetooth_off() -> DriverResult<()> {
 #[cfg(target_os = "macos")]
 pub fn bluetooth_off() -> DriverResult<()> {
     debug!("Turning Bluetooth off (macOS)");
-    let output = Command::new("blueutil").args(["--power", "0"]).output();
+    let output = crate::common::hidden_cmd("blueutil").args(["--power", "0"]).output();
     if output.is_err() {
         let err_msg = "blueutil not installed. Run: brew install blueutil".to_string();
         warn!("{}", err_msg);
@@ -340,11 +340,11 @@ pub fn scan_devices() -> DriverResult<Vec<BluetoothDevice>> {
     debug!("Starting Bluetooth scan (Linux)");
     // Start scan
     debug!("Starting discovery scan");
-    let _ = Command::new("bluetoothctl").args(["scan", "on"]).output();
+    let _ = crate::common::hidden_cmd("bluetoothctl").args(["scan", "on"]).output();
     // Wait for scan results
     debug!("Waiting 5 seconds for scan results");
     std::thread::sleep(std::time::Duration::from_secs(5));
-    let output = Command::new("bluetoothctl").args(["devices"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("bluetoothctl").args(["devices"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -371,14 +371,14 @@ pub fn scan_devices() -> DriverResult<Vec<BluetoothDevice>> {
     }
     // Stop scan
     debug!("Stopping discovery scan");
-    let _ = Command::new("bluetoothctl").args(["scan", "off"]).output();
+    let _ = crate::common::hidden_cmd("bluetoothctl").args(["scan", "off"]).output();
     info!("Scan complete, found {} devices", devices.len());
     return Ok(devices);
 }
 #[cfg(target_os = "windows")]
 pub fn scan_devices() -> DriverResult<Vec<BluetoothDevice>> {
     debug!("Starting Bluetooth scan (Windows)");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(["-Command", "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName, InstanceId"])
         .output()
         .map_err(|e| {
@@ -410,7 +410,7 @@ pub fn scan_devices() -> DriverResult<Vec<BluetoothDevice>> {
 #[cfg(target_os = "macos")]
 pub fn scan_devices() -> DriverResult<Vec<BluetoothDevice>> {
     debug!("Starting Bluetooth scan (macOS)");
-    let output = Command::new("system_profiler").args(["SPBluetoothDataType"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("system_profiler").args(["SPBluetoothDataType"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute system_profiler: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -466,7 +466,7 @@ pub fn scan_devices() -> DriverResult<Vec<BluetoothDevice>> {
 #[cfg(target_os = "linux")]
 pub fn pair_device(mac_address: &str) -> DriverResult<()> {
     debug!("Pairing with device: {}", mac_address);
-    Command::new("bluetoothctl").args(["pair", mac_address]).output().map_err(|e| {
+    crate::common::hidden_cmd("bluetoothctl").args(["pair", mac_address]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -488,7 +488,7 @@ pub fn pair_device(mac_address: &str) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn unpair_device(mac_address: &str) -> DriverResult<()> {
     debug!("Unpairing device: {}", mac_address);
-    Command::new("bluetoothctl").args(["remove", mac_address]).output().map_err(|e| {
+    crate::common::hidden_cmd("bluetoothctl").args(["remove", mac_address]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -509,7 +509,7 @@ pub fn unpair_device(mac_address: &str) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn list_paired_devices() -> DriverResult<Vec<BluetoothDevice>> {
     debug!("Listing paired devices (Linux)");
-    let output = Command::new("bluetoothctl").args(["paired-devices"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("bluetoothctl").args(["paired-devices"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -540,7 +540,7 @@ pub fn list_paired_devices() -> DriverResult<Vec<BluetoothDevice>> {
 #[cfg(target_os = "windows")]
 pub fn list_paired_devices() -> DriverResult<Vec<BluetoothDevice>> {
     debug!("Listing paired devices (Windows)");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(["-Command", "Get-PnpDevice -Class Bluetooth | Where-Object {$_.FriendlyName -notlike '*Radio*'} | Select-Object FriendlyName, Status"])
         .output()
         .map_err(|e| {
@@ -582,7 +582,7 @@ pub fn list_paired_devices() -> DriverResult<Vec<BluetoothDevice>> {
 #[cfg(target_os = "linux")]
 pub fn connect_device(mac_address: &str) -> DriverResult<()> {
     debug!("Connecting to device: {}", mac_address);
-    Command::new("bluetoothctl").args(["connect", mac_address]).output().map_err(|e| {
+    crate::common::hidden_cmd("bluetoothctl").args(["connect", mac_address]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -604,7 +604,7 @@ pub fn connect_device(mac_address: &str) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn disconnect_device(mac_address: &str) -> DriverResult<()> {
     debug!("Disconnecting device: {}", mac_address);
-    Command::new("bluetoothctl").args(["disconnect", mac_address]).output().map_err(|e| {
+    crate::common::hidden_cmd("bluetoothctl").args(["disconnect", mac_address]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -629,21 +629,21 @@ pub fn set_discoverable(discoverable: bool, timeout: Option<u32>) -> DriverResul
     if discoverable {
         if let Some(t) = timeout {
             debug!("Setting discoverable timeout to {}s", t);
-            Command::new("bluetoothctl").args(["discoverable-timeout", &t.to_string()]).output().map_err(|e| {
+            crate::common::hidden_cmd("bluetoothctl").args(["discoverable-timeout", &t.to_string()]).output().map_err(|e| {
                 let err_msg = format!("Failed to set discoverable timeout: {}", e);
                 warn!("{}", err_msg);
                 return DriverError::execution(err_msg);
             })?;
         }
         debug!("Turning discoverable on");
-        Command::new("bluetoothctl").args(["discoverable", "on"]).output().map_err(|e| {
+        crate::common::hidden_cmd("bluetoothctl").args(["discoverable", "on"]).output().map_err(|e| {
             let err_msg = format!("Failed to enable discoverable: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
         })?;
     } else {
         debug!("Turning discoverable off");
-        Command::new("bluetoothctl").args(["discoverable", "off"]).output().map_err(|e| {
+        crate::common::hidden_cmd("bluetoothctl").args(["discoverable", "off"]).output().map_err(|e| {
             let err_msg = format!("Failed to disable discoverable: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
@@ -667,7 +667,7 @@ pub fn set_discoverable(discoverable: bool, timeout: Option<u32>) -> DriverResul
 #[cfg(target_os = "linux")]
 pub fn set_device_name(name: &str) -> DriverResult<()> {
     debug!("Setting device name to: {}", name);
-    Command::new("bluetoothctl").args(["name", name]).output().map_err(|e| {
+    crate::common::hidden_cmd("bluetoothctl").args(["name", name]).output().map_err(|e| {
         let err_msg = format!("Failed to execute bluetoothctl: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -700,7 +700,7 @@ pub fn get_connected_devices() -> DriverResult<Vec<BluetoothDevice>> {
 #[cfg(target_os = "linux")]
 pub fn send_file(mac_address: &str, file_path: &str) -> DriverResult<()> {
     debug!("Sending file {} to {}", file_path, mac_address);
-    let output = Command::new("obexftp").args(["-b", mac_address, "-p", file_path]).output();
+    let output = crate::common::hidden_cmd("obexftp").args(["-b", mac_address, "-p", file_path]).output();
     if output.is_err() {
         let err_msg = "obexftp not installed. Please install obexftp package".to_string();
         warn!("{}", err_msg);

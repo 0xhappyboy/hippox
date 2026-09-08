@@ -85,7 +85,7 @@ fn get_gpu_memory() -> DriverResult<GpuMemoryInfo> {
         debug!("Getting GPU memory on Linux");
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for memory info");
-        if let Ok(output) = std::process::Command::new("nvidia-smi")
+        if let Ok(output) = crate::common::hidden_cmd("nvidia-smi")
             .args(&["--query-gpu", "memory.total,memory.used,memory.free"])
             .args(&["--format", "csv,noheader"])
             .output()
@@ -112,7 +112,7 @@ fn get_gpu_memory() -> DriverResult<GpuMemoryInfo> {
         }
         // Try AMD GPU
         debug!("Trying AMD rocm-smi for memory info");
-        if let Ok(output) = std::process::Command::new("rocm-smi").args(&["--showmeminfo", "vram"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("rocm-smi").args(&["--showmeminfo", "vram"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     let mut total = 0;
@@ -196,7 +196,7 @@ fn get_gpu_memory() -> DriverResult<GpuMemoryInfo> {
 fn get_windows_gpu_memory() -> DriverResult<GpuMemoryInfo> {
     use std::process::Command;
     debug!("Getting GPU memory on Windows via PowerShell WMI");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&["-Command", "Get-CimInstance -Namespace root/cimv2 -ClassName Win32_VideoController | Select-Object Name, AdapterRAM"])
         .output();
     if let Ok(output) = output {

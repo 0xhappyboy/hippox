@@ -77,7 +77,7 @@ impl Driver for BluetoothHidConnectDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl connect {}", mac_address);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["connect", mac_address])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

@@ -63,7 +63,7 @@ fn get_default_browser() -> DriverResult<(String, String)> {
     #[cfg(target_os = "windows")]
     {
         debug!("Getting default browser on Windows");
-        let output = Command::new("powershell")
+        let output = crate::common::hidden_cmd("powershell")
             .args([
                 "-Command",
                 "Get-ItemProperty 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice' | Select-Object -ExpandProperty Progid"
@@ -73,7 +73,7 @@ fn get_default_browser() -> DriverResult<(String, String)> {
             if let Ok(progid_str) = String::from_utf8(output.stdout) {
                 let progid = progid_str.trim();
                 if !progid.is_empty() {
-                    let output2 = Command::new("powershell")
+                    let output2 = crate::common::hidden_cmd("powershell")
                         .args(["-Command", &format!("(Get-ItemProperty 'HKCR:\\{}\\shell\\open\\command').'(Default)'", progid)])
                         .output();
                     if let Ok(output2) = output2 {
@@ -94,13 +94,13 @@ fn get_default_browser() -> DriverResult<(String, String)> {
     #[cfg(target_os = "linux")]
     {
         debug!("Getting default browser on Linux");
-        let output = Command::new("xdg-settings").args(["get", "default-web-browser"]).output();
+        let output = crate::common::hidden_cmd("xdg-settings").args(["get", "default-web-browser"]).output();
         if let Ok(output) = output {
             if let Ok(browser_str) = String::from_utf8(output.stdout) {
                 let browser = browser_str.trim();
                 if !browser.is_empty() {
                     let name = browser.to_string();
-                    let output2 = Command::new("which").args([browser]).output();
+                    let output2 = crate::common::hidden_cmd("which").args([browser]).output();
                     if let Ok(output2) = output2 {
                         if let Ok(path_str) = String::from_utf8(output2.stdout) {
                             let path = path_str.trim();
@@ -117,7 +117,7 @@ fn get_default_browser() -> DriverResult<(String, String)> {
         }
         let browsers = ["google-chrome", "chromium", "firefox", "brave", "opera"];
         for browser in browsers {
-            let output = Command::new("which").args([browser]).output();
+            let output = crate::common::hidden_cmd("which").args([browser]).output();
             if let Ok(output) = output {
                 if let Ok(path_str) = String::from_utf8(output.stdout) {
                     let path = path_str.trim();
@@ -134,7 +134,7 @@ fn get_default_browser() -> DriverResult<(String, String)> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting default browser on macOS");
-        let output = Command::new("defaults").args(["read", "com.apple.LaunchServices", "LSHandlers"]).output();
+        let output = crate::common::hidden_cmd("defaults").args(["read", "com.apple.LaunchServices", "LSHandlers"]).output();
         if let Ok(output) = output {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 for line in output_str.lines() {
@@ -153,7 +153,7 @@ fn get_default_browser() -> DriverResult<(String, String)> {
                 }
             }
         }
-        let output = Command::new("open").args(["-R", "http://"]).output();
+        let output = crate::common::hidden_cmd("open").args(["-R", "http://"]).output();
         if let Ok(output) = output {
             if let Ok(output_str) = String::from_utf8(output.stderr) {
                 for line in output_str.lines() {

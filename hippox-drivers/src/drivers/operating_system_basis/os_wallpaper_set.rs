@@ -79,7 +79,7 @@ impl Driver for OsWallpaperSetDriver {
 #[cfg(target_os = "windows")]
 fn set_wallpaper(path: &str) -> DriverResult<()> {
     debug!("Setting wallpaper on Windows");
-    let _ = Command::new("powershell")
+    let _ = crate::common::hidden_cmd("powershell")
         .args([
             "-Command",
             &format!("Set-ItemProperty -Path 'HKCU:\\Control Panel\\Desktop' -Name Wallpaper -Value '{}'; RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters", path)
@@ -91,10 +91,10 @@ fn set_wallpaper(path: &str) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 fn set_wallpaper(path: &str) -> DriverResult<()> {
     debug!("Setting wallpaper on Linux");
-    let _ = Command::new("gsettings").args(["set", "org.gnome.desktop.background", "picture-uri", &format!("file://{}", path)]).output();
-    let _ = Command::new("gsettings").args(["set", "org.gnome.desktop.background", "picture-uri-dark", &format!("file://{}", path)]).output();
-    let _ = Command::new("feh").args(["--bg-scale", path]).output();
-    let _ = Command::new("nitrogen").args(["--set-scaled", path]).output();
+    let _ = crate::common::hidden_cmd("gsettings").args(["set", "org.gnome.desktop.background", "picture-uri", &format!("file://{}", path)]).output();
+    let _ = crate::common::hidden_cmd("gsettings").args(["set", "org.gnome.desktop.background", "picture-uri-dark", &format!("file://{}", path)]).output();
+    let _ = crate::common::hidden_cmd("feh").args(["--bg-scale", path]).output();
+    let _ = crate::common::hidden_cmd("nitrogen").args(["--set-scaled", path]).output();
     return Ok(());
 }
 /// Sets the wallpaper on macOS
@@ -102,7 +102,7 @@ fn set_wallpaper(path: &str) -> DriverResult<()> {
 fn set_wallpaper(path: &str) -> DriverResult<()> {
     debug!("Setting wallpaper on macOS");
     let _ =
-        Command::new("osascript").args(["-e", &format!("tell application \"Finder\" to set desktop picture to POSIX file \"{}\"", path)]).output();
+        crate::common::hidden_cmd("osascript").args(["-e", &format!("tell application \"Finder\" to set desktop picture to POSIX file \"{}\"", path)]).output();
     return Ok(());
 }
 /// Sets the wallpaper on unsupported platforms

@@ -105,14 +105,14 @@ impl Driver for PingDriver {
         let packet_size = parameters.get("packet_size").and_then(|v| v.as_u64()).unwrap_or(56) as usize;
         info!("Ping: target={}, count={}, timeout={}s, packet_size={}", target, count, timeout_secs, packet_size);
         let mut cmd = if cfg!(target_os = "windows") {
-            let mut cmd = std::process::Command::new("ping");
+            let mut cmd = crate::common::hidden_cmd("ping");
             cmd.arg("-n").arg(count.to_string());
             cmd.arg("-w").arg((timeout_secs * 1000).to_string());
             cmd.arg("-l").arg(packet_size.to_string());
             cmd.arg(target);
             cmd
         } else {
-            let mut cmd = std::process::Command::new("ping");
+            let mut cmd = crate::common::hidden_cmd("ping");
             cmd.arg("-c").arg(count.to_string());
             cmd.arg("-W").arg(timeout_secs.to_string());
             cmd.arg("-s").arg(packet_size.to_string());

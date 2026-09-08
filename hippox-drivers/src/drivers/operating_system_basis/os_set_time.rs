@@ -68,7 +68,7 @@ impl Driver for OsSetTimeDriver {
         #[cfg(target_os = "windows")]
         {
             debug!("Setting time on Windows");
-            let output = Command::new("powershell").args(["-Command", &format!("Set-Date -Date '{}'", datetime)]).output();
+            let output = crate::common::hidden_cmd("powershell").args(["-Command", &format!("Set-Date -Date '{}'", datetime)]).output();
             if let Ok(output) = output {
                 if output.status.success() {
                     info!("System time set successfully on Windows");
@@ -80,7 +80,7 @@ impl Driver for OsSetTimeDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Setting time on Linux");
-            let output = Command::new("sudo").args(["date", "-s", datetime]).output();
+            let output = crate::common::hidden_cmd("sudo").args(["date", "-s", datetime]).output();
             if let Ok(output) = output {
                 if output.status.success() {
                     info!("System time set successfully on Linux");
@@ -92,7 +92,7 @@ impl Driver for OsSetTimeDriver {
         #[cfg(target_os = "macos")]
         {
             debug!("Setting time on macOS");
-            let output = Command::new("sudo").args(["date", &format!("{}", datetime)]).output();
+            let output = crate::common::hidden_cmd("sudo").args(["date", &format!("{}", datetime)]).output();
             if let Ok(output) = output {
                 if output.status.success() {
                     info!("System time set successfully on macOS");

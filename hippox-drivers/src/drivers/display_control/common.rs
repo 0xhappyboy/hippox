@@ -48,7 +48,7 @@ pub fn list_displays() -> DriverResult<Vec<DisplayInfo>> {
     {
         debug!("Using Windows PowerShell to enumerate displays");
         // Use PowerShell to get display info
-        let output = Command::new("powershell")
+        let output = crate::common::hidden_cmd("powershell")
             .args(["-Command", "Get-WmiObject -Class Win32_DesktopMonitor | Select-Object Name, ScreenWidth, ScreenHeight, DeviceID"])
             .output();
         if let Ok(output) = output {
@@ -81,7 +81,7 @@ pub fn list_displays() -> DriverResult<Vec<DisplayInfo>> {
     {
         debug!("Using macOS system_profiler to enumerate displays");
         // Use system_profiler on macOS
-        let output = Command::new("system_profiler").args(["SPDisplaysDataType"]).output();
+        let output = crate::common::hidden_cmd("system_profiler").args(["SPDisplaysDataType"]).output();
         if let Ok(output) = output {
             if let Ok(info) = String::from_utf8(output.stdout) {
                 let mut current_display = DisplayInfo {
@@ -133,7 +133,7 @@ pub fn list_displays() -> DriverResult<Vec<DisplayInfo>> {
     {
         debug!("Using Linux xrandr to enumerate displays");
         // Use xrandr on Linux
-        let output = Command::new("xrandr").arg("--current").output();
+        let output = crate::common::hidden_cmd("xrandr").arg("--current").output();
         if let Ok(output) = output {
             if let Ok(info) = String::from_utf8(output.stdout) {
                 for (i, line) in info.lines().enumerate() {
@@ -254,20 +254,20 @@ pub fn set_resolution(width: u32, height: u32, display_id: Option<u32>) -> Drive
     {
         debug!("Using Windows methods to set resolution");
         // Method 1: Use DisplaySwitch.exe for basic display modes
-        let _ = Command::new("DisplaySwitch.exe").arg("/extend").output();
+        let _ = crate::common::hidden_cmd("DisplaySwitch.exe").arg("/extend").output();
         // Method 2: Use PowerShell with .NET to get display info (not changing resolution)
         // Note: Actually changing resolution on Windows requires Windows API or third-party tools
         // Method 3: Try using nircmd if available (third-party tool)
-        let _ = Command::new("nircmd").args(["setdisplay", &width.to_string(), &height.to_string(), "32"]).output();
+        let _ = crate::common::hidden_cmd("nircmd").args(["setdisplay", &width.to_string(), &height.to_string(), "32"]).output();
         // Method 4: Use QRes utility (small third-party tool)
-        let _ = Command::new("QRes.exe").args(["/x", &width.to_string(), "/y", &height.to_string()]).output();
+        let _ = crate::common::hidden_cmd("QRes.exe").args(["/x", &width.to_string(), "/y", &height.to_string()]).output();
         info!("Resolution set request completed on Windows");
     }
     #[cfg(target_os = "macos")]
     {
         debug!("Using macOS displayplacer to set resolution");
         // Use displayplacer if available
-        let _ = Command::new("displayplacer").args(["res", &format!("{}x{}", width, height)]).output();
+        let _ = crate::common::hidden_cmd("displayplacer").args(["res", &format!("{}x{}", width, height)]).output();
         info!("Resolution set request completed on macOS");
     }
     #[cfg(target_os = "linux")]
@@ -278,7 +278,7 @@ pub fn set_resolution(width: u32, height: u32, display_id: Option<u32>) -> Drive
         let display_name = displays.iter().find(|d| d.is_primary).map(|d| d.name.as_str());
         if let Some(name) = display_name {
             // First check if mode exists
-            let _ = Command::new("xrandr").args(["--output", name, "--mode", &format!("{}x{}", width, height)]).output();
+            let _ = crate::common::hidden_cmd("xrandr").args(["--output", name, "--mode", &format!("{}x{}", width, height)]).output();
             info!("Resolution set request completed on Linux for display {}", name);
         } else {
             warn!("No display found to set resolution");
@@ -306,7 +306,7 @@ pub fn get_scale(display_id: Option<u32>) -> DriverResult<f64> {
     {
         debug!("Getting Windows DPI scaling from registry");
         // Get DPI scaling from registry
-        let output = Command::new("powershell").args(["-Command", "(Get-ItemProperty 'HKCU:\\Control Panel\\Desktop').LogPixels"]).output();
+        let output = crate::common::hidden_cmd("powershell").args(["-Command", "(Get-ItemProperty 'HKCU:\\Control Panel\\Desktop').LogPixels"]).output();
         if let Ok(output) = output {
             if let Ok(scale_str) = String::from_utf8(output.stdout) {
                 if let Ok(dpi) = scale_str.trim().parse::<u32>() {
@@ -345,7 +345,7 @@ pub fn get_orientation(display_id: Option<u32>) -> DriverResult<String> {
     #[cfg(target_os = "linux")]
     {
         debug!("Getting Linux orientation from xrandr");
-        let output = Command::new("xrandr").arg("--current").output();
+        let output = crate::common::hidden_cmd("xrandr").arg("--current").output();
         if let Ok(output) = output {
             if let Ok(info) = String::from_utf8(output.stdout) {
                 for line in info.lines() {
@@ -395,7 +395,7 @@ pub fn set_orientation(orientation: &str, display_id: Option<u32>) -> DriverResu
             "portrait_flipped" => 3,
             _ => 0,
         };
-        let _ = Command::new("powershell").args(["-Command", &format!("Set-DisplayOrientation -Orientation {}", orient_num)]).output();
+        let _ = crate::common::hidden_cmd("powershell").args(["-Command", &format!("Set-DisplayOrientation -Orientation {}", orient_num)]).output();
         info!("Windows orientation set request completed");
     }
     #[cfg(target_os = "linux")]
@@ -411,7 +411,7 @@ pub fn set_orientation(orientation: &str, display_id: Option<u32>) -> DriverResu
         let displays = list_displays()?;
         let display_name = displays.iter().find(|d| d.is_primary).map(|d| d.name.as_str());
         if let Some(name) = display_name {
-            let _ = Command::new("xrandr").args(["--output", name, "--rotate", transform]).output();
+            let _ = crate::common::hidden_cmd("xrandr").args(["--output", name, "--rotate", transform]).output();
             info!("Linux orientation set request completed for display {}", name);
         } else {
             warn!("No display found to set orientation");
@@ -457,7 +457,7 @@ pub fn get_brightness() -> DriverResult<u32> {
     #[cfg(target_os = "windows")]
     {
         debug!("Getting Windows brightness via WMI");
-        let output = Command::new("powershell")
+        let output = crate::common::hidden_cmd("powershell")
             .args(["-Command", "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness).CurrentBrightness"])
             .output();
         if let Ok(output) = output {
@@ -473,7 +473,7 @@ pub fn get_brightness() -> DriverResult<u32> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting macOS brightness via brightness command");
-        let output = Command::new("brightness").arg("-l").output();
+        let output = crate::common::hidden_cmd("brightness").arg("-l").output();
         if let Ok(output) = output {
             if let Ok(bright_str) = String::from_utf8(output.stdout) {
                 if let Some(value) = bright_str.split_whitespace().last() {
@@ -490,7 +490,7 @@ pub fn get_brightness() -> DriverResult<u32> {
     #[cfg(target_os = "linux")]
     {
         debug!("Getting Linux brightness via xbacklight and brightnessctl");
-        let output = Command::new("xbacklight").arg("-get").output();
+        let output = crate::common::hidden_cmd("xbacklight").arg("-get").output();
         if let Ok(output) = output {
             if let Ok(bright_str) = String::from_utf8(output.stdout) {
                 if let Ok(bright) = bright_str.trim().parse::<f64>() {
@@ -500,7 +500,7 @@ pub fn get_brightness() -> DriverResult<u32> {
                 }
             }
         }
-        let output = Command::new("brightnessctl").arg("get").output();
+        let output = crate::common::hidden_cmd("brightnessctl").arg("get").output();
         if let Ok(output) = output {
             if let Ok(bright_str) = String::from_utf8(output.stdout) {
                 if let Ok(bright) = bright_str.trim().parse::<u32>() {
@@ -534,7 +534,7 @@ pub fn set_brightness(brightness: u32) -> DriverResult<()> {
     #[cfg(target_os = "windows")]
     {
         debug!("Setting Windows brightness via WMI");
-        let _ = Command::new("powershell")
+        let _ = crate::common::hidden_cmd("powershell")
             .args(["-Command", &format!("(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{})", brightness)])
             .output();
         info!("Windows brightness set to {}%", brightness);
@@ -543,16 +543,16 @@ pub fn set_brightness(brightness: u32) -> DriverResult<()> {
     {
         debug!("Setting macOS brightness via brightness command");
         let value = brightness as f64 / 100.0;
-        let _ = Command::new("brightness").arg(&format!("{}", value)).output();
+        let _ = crate::common::hidden_cmd("brightness").arg(&format!("{}", value)).output();
         info!("macOS brightness set to {}%", brightness);
     }
     #[cfg(target_os = "linux")]
     {
         debug!("Setting Linux brightness via xbacklight and brightnessctl");
-        let _ = Command::new("xbacklight").args(["-set", &brightness.to_string()]).output();
+        let _ = crate::common::hidden_cmd("xbacklight").args(["-set", &brightness.to_string()]).output();
         let max = 255;
         let value = (brightness * max / 100).to_string();
-        let _ = Command::new("brightnessctl").args(["set", &value]).output();
+        let _ = crate::common::hidden_cmd("brightnessctl").args(["set", &value]).output();
         info!("Linux brightness set to {}%", brightness);
     }
     info!("Brightness set to {}%", brightness);

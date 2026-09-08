@@ -79,18 +79,23 @@ impl Driver for WifiHotspotCreateDriver {
         }
         #[cfg(target_os = "windows")]
         {
-            Command::new("netsh").args(["wlan", "set", "hostednetwork", "mode=allow", "ssid=", ssid, "key=", password]).output().map_err(|e| {
-                debug!("Failed to set hostednetwork: {}", e);
-                return DriverError::execution(format!("Failed to set hostednetwork: {}", e));
-            })?;
-            Command::new("netsh").args(["wlan", "start", "hostednetwork"]).output().map_err(|e| {
+            crate::common::hidden_cmd("netsh")
+                .args(["wlan", "set", "hostednetwork", "mode=allow", "ssid=", ssid, "key=", password])
+                .output()
+                .map_err(|e| {
+                    debug!("Failed to set hostednetwork: {}", e);
+                    return DriverError::execution(format!("Failed to set hostednetwork: {}", e));
+                })?;
+            crate::common::hidden_cmd("netsh").args(["wlan", "start", "hostednetwork"]).output().map_err(|e| {
                 debug!("Failed to start hostednetwork: {}", e);
                 return DriverError::execution(format!("Failed to start hostednetwork: {}", e));
             })?;
         }
         #[cfg(target_os = "linux")]
         {
-            let output = Command::new("nmcli").args(["device", "wifi", "hotspot", "ifname", "wlan0", "ssid", ssid, "password", password]).output();
+            let output = crate::common::hidden_cmd("nmcli")
+                .args(["device", "wifi", "hotspot", "ifname", "wlan0", "ssid", ssid, "password", password])
+                .output();
             if output.is_err() {
                 debug!("Hotspot creation requires 'nmcli' or 'create_ap' tool");
                 return Err(DriverError::execution("Hotspot creation requires 'nmcli' or 'create_ap' tool"));

@@ -129,13 +129,13 @@ fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
         fs::write(&scaling_setspeed_path, freq_khz.to_string()).map_err(|e| DriverError::execution(format!("Failed to set frequency: {}", e)))?;
         return Ok(());
     }
-    let output = std::process::Command::new("cpufreq-set").args(&["-f", &freq_khz.to_string()]).output();
+    let output = crate::common::hidden_cmd("cpufreq-set").args(&["-f", &freq_khz.to_string()]).output();
     if let Ok(output) = output {
         if output.status.success() {
             return Ok(());
         }
     }
-    let output = std::process::Command::new("sudo").args(&["cpufreq-set", "-f", &freq_khz.to_string()]).output();
+    let output = crate::common::hidden_cmd("sudo").args(&["cpufreq-set", "-f", &freq_khz.to_string()]).output();
     if let Ok(output) = output {
         if output.status.success() {
             return Ok(());
@@ -146,7 +146,7 @@ fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
     use std::process::Command;
-    let output = Command::new("powercfg")
+    let output = crate::common::hidden_cmd("powercfg")
         .args(&["/getactivescheme"])
         .output()
         .map_err(|e| DriverError::execution(format!("Failed to get power scheme: {}", e)))?;
@@ -154,7 +154,7 @@ fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
         if let Ok(output_str) = String::from_utf8(output.stdout) {
             for line in output_str.lines() {
                 if let Some(guid) = line.split_whitespace().find(|s| s.contains('{') && s.contains('}')) {
-                    let _ = Command::new("powercfg")
+                    let _ = crate::common::hidden_cmd("powercfg")
                         .args(&[
                             "/setacvalueindex",
                             guid,
@@ -163,7 +163,7 @@ fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
                             &freq_mhz.to_string(),
                         ])
                         .output();
-                    let _ = Command::new("powercfg")
+                    let _ = crate::common::hidden_cmd("powercfg")
                         .args(&[
                             "/setdcvalueindex",
                             guid,
@@ -172,7 +172,7 @@ fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
                             &freq_mhz.to_string(),
                         ])
                         .output();
-                    let _ = Command::new("powercfg").args(&["/setactive", guid]).output();
+                    let _ = crate::common::hidden_cmd("powercfg").args(&["/setactive", guid]).output();
                     return Ok(());
                 }
             }
@@ -183,7 +183,7 @@ fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
 #[cfg(target_os = "macos")]
 fn set_frequency(freq_mhz: u64) -> DriverResult<()> {
     use std::process::Command;
-    let output = Command::new("sudo").args(&["pmset", "-a", "cpu_clock", &freq_mhz.to_string()]).output();
+    let output = crate::common::hidden_cmd("sudo").args(&["pmset", "-a", "cpu_clock", &freq_mhz.to_string()]).output();
     if let Ok(output) = output {
         if output.status.success() {
             return Ok(());

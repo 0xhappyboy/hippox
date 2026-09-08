@@ -118,14 +118,14 @@ fn check_trim(device: &str) -> DriverResult<String> {
 fn trigger_trim(device: &str) -> DriverResult<String> {
     #[cfg(target_os = "linux")]
     {
-        if let Ok(output) = Command::new("sudo").args(&["fstrim", "-v", device]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("sudo").args(&["fstrim", "-v", device]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     return Ok(format!("TRIM completed successfully:\n{}", output_str));
                 }
             }
         }
-        if let Ok(output) = Command::new("fstrim").args(&["-v", device]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("fstrim").args(&["-v", device]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     return Ok(format!("TRIM completed successfully:\n{}", output_str));
@@ -137,7 +137,7 @@ fn trigger_trim(device: &str) -> DriverResult<String> {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 && parts[0] == device {
                     let mount_point = parts[1];
-                    if let Ok(output) = Command::new("sudo").args(&["fstrim", "-v", mount_point]).output() {
+                    if let Ok(output) = crate::common::hidden_cmd("sudo").args(&["fstrim", "-v", mount_point]).output() {
                         if output.status.success() {
                             if let Ok(output_str) = String::from_utf8(output.stdout) {
                                 return Ok(format!("TRIM completed successfully:\n{}", output_str));

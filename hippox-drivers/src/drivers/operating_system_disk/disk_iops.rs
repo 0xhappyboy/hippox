@@ -148,7 +148,7 @@ fn get_windows_disk_iops(device: &str, interval: Duration) -> DriverResult<DiskI
     use std::process::Command;
     let mut read_iops = 0;
     let mut write_iops = 0;
-    let output = Command::new("typeperf")
+    let output = crate::common::hidden_cmd("typeperf")
         .args(&["\"\\PhysicalDisk(0 C:)\\Disk Reads/sec\"", "\"\\PhysicalDisk(0 C:)\\Disk Writes/sec\"", "-sc", "1"])
         .output();
     if let Ok(output) = output {
@@ -177,7 +177,7 @@ fn get_macos_disk_iops(device: &str, interval: Duration) -> DriverResult<DiskIop
     let disk_name = device.trim_start_matches("/dev/");
     let mut read_iops = 0;
     let mut write_iops = 0;
-    let output = Command::new("iostat").args(&["-d", "-w", &format!("{}", interval.as_secs()), disk_name]).output();
+    let output = crate::common::hidden_cmd("iostat").args(&["-d", "-w", &format!("{}", interval.as_secs()), disk_name]).output();
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();

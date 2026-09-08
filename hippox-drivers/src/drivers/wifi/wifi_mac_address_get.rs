@@ -63,7 +63,8 @@ impl Driver for WifiMacAddressGetDriver {
 fn get_mac_address(interface: &str) -> Result<String, String> {
     #[cfg(target_os = "linux")]
     {
-        let output = Command::new("ip").args(["link", "show", interface]).output().map_err(|e| format!("Failed to get interface: {}", e))?;
+        let output =
+            crate::common::hidden_cmd("ip").args(["link", "show", interface]).output().map_err(|e| format!("Failed to get interface: {}", e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
             if line.contains("link/ether") {
@@ -76,7 +77,7 @@ fn get_mac_address(interface: &str) -> Result<String, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("getmac").output().map_err(|e| format!("Failed to get MAC: {}", e))?;
+        let output = crate::common::hidden_cmd("getmac").output().map_err(|e| format!("Failed to get MAC: {}", e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
             if line.contains("Wi-Fi") || line.contains("WLAN") {
@@ -89,7 +90,7 @@ fn get_mac_address(interface: &str) -> Result<String, String> {
     }
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("ifconfig").args([interface]).output().map_err(|e| format!("Failed to get interface: {}", e))?;
+        let output = crate::common::hidden_cmd("ifconfig").args([interface]).output().map_err(|e| format!("Failed to get interface: {}", e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
             if line.contains("ether") {

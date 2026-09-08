@@ -64,7 +64,7 @@ fn get_timezone() -> DriverResult<String> {
     #[cfg(target_os = "windows")]
     {
         debug!("Getting timezone on Windows");
-        let output = Command::new("powershell").args(["-Command", "(Get-TimeZone).Id"]).output();
+        let output = crate::common::hidden_cmd("powershell").args(["-Command", "(Get-TimeZone).Id"]).output();
         if let Ok(output) = output {
             if let Ok(tz_str) = String::from_utf8(output.stdout) {
                 let tz = tz_str.trim();
@@ -101,7 +101,7 @@ fn get_timezone() -> DriverResult<String> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting timezone on macOS");
-        let output = Command::new("systemsetup").args(["-gettimezone"]).output();
+        let output = crate::common::hidden_cmd("systemsetup").args(["-gettimezone"]).output();
         if let Ok(output) = output {
             if let Ok(tz_str) = String::from_utf8(output.stdout) {
                 if let Some(tz) = tz_str.split(':').nth(1) {

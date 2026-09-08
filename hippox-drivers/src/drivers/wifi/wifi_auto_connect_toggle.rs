@@ -73,15 +73,16 @@ impl Driver for WifiAutoConnectToggleDriver {
         {
             let value = if enabled { "yes" } else { "no" };
             if let Some(ssid) = _ssid {
-                Command::new("netsh").args(["wlan", "set", "profile", "parameter", "name=", ssid, "connectionmode=", value]).output().map_err(
-                    |e| {
+                crate::common::hidden_cmd("netsh")
+                    .args(["wlan", "set", "profile", "parameter", "name=", ssid, "connectionmode=", value])
+                    .output()
+                    .map_err(|e| {
                         debug!("Failed to set auto-connect for {}: {}", ssid, e);
                         return DriverError::execution(format!("Failed to set auto-connect: {}", e));
-                    },
-                )?;
+                    })?;
             } else {
                 // For all profiles
-                let output = Command::new("netsh").args(["wlan", "show", "profiles"]).output().map_err(|e| {
+                let output = crate::common::hidden_cmd("netsh").args(["wlan", "show", "profiles"]).output().map_err(|e| {
                     debug!("Failed to list profiles: {}", e);
                     return DriverError::execution(format!("Failed to list profiles: {}", e));
                 })?;
@@ -91,7 +92,7 @@ impl Driver for WifiAutoConnectToggleDriver {
                         if let Some(profile) = line.split(':').nth(1) {
                             let profile = profile.trim();
                             if !profile.is_empty() {
-                                let _ = Command::new("netsh")
+                                let _ = crate::common::hidden_cmd("netsh")
                                     .args(["wlan", "set", "profile", "parameter", "name=", profile, "connectionmode=", value])
                                     .output();
                             }
@@ -104,19 +105,23 @@ impl Driver for WifiAutoConnectToggleDriver {
         {
             let value = if enabled { "yes" } else { "no" };
             if let Some(ssid) = _ssid {
-                Command::new("nmcli").args(["connection", "modify", ssid, "802-11-wireless.mode", "infrastructure"]).output().map_err(|e| {
-                    debug!("Failed to modify connection mode for {}: {}", ssid, e);
-                    return DriverError::execution(format!("Failed to modify connection: {}", e));
-                })?;
-                Command::new("nmcli").args(["connection", "modify", ssid, "connection.autoconnect", value]).output().map_err(|e| {
+                crate::common::hidden_cmd("nmcli").args(["connection", "modify", ssid, "802-11-wireless.mode", "infrastructure"]).output().map_err(
+                    |e| {
+                        debug!("Failed to modify connection mode for {}: {}", ssid, e);
+                        return DriverError::execution(format!("Failed to modify connection: {}", e));
+                    },
+                )?;
+                crate::common::hidden_cmd("nmcli").args(["connection", "modify", ssid, "connection.autoconnect", value]).output().map_err(|e| {
                     debug!("Failed to set autoconnect for {}: {}", ssid, e);
                     return DriverError::execution(format!("Failed to set autoconnect: {}", e));
                 })?;
             } else {
-                Command::new("nmcli").args(["networking", "connectivity", if enabled { "on" } else { "off" }]).output().map_err(|e| {
-                    debug!("Failed to set networking connectivity: {}", e);
-                    return DriverError::execution(format!("Failed to set connectivity: {}", e));
-                })?;
+                crate::common::hidden_cmd("nmcli").args(["networking", "connectivity", if enabled { "on" } else { "off" }]).output().map_err(
+                    |e| {
+                        debug!("Failed to set networking connectivity: {}", e);
+                        return DriverError::execution(format!("Failed to set connectivity: {}", e));
+                    },
+                )?;
             }
         }
         let status = if enabled { "enabled" } else { "disabled" };

@@ -77,7 +77,7 @@ impl Driver for BluetoothDeviceInfoDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl info {}", mac_address);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["info", mac_address])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

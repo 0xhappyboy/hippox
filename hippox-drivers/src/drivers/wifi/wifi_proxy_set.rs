@@ -147,12 +147,12 @@ fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, pa
         _ => return Err(format!("Unsupported proxy type: {}", proxy_type)),
     };
     // Set proxy via netsh
-    Command::new("netsh")
+    crate::common::hidden_cmd("netsh")
         .args(["winhttp", "set", "proxy", &proxy_url, &format!("bypass-list=\"{}\"", bypass_list)])
         .output()
         .map_err(|e| format!("Failed to set proxy: {}", e))?;
     // Set via registry for system-wide proxy
-    Command::new("reg")
+    crate::common::hidden_cmd("reg")
         .args([
             "add",
             "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
@@ -166,7 +166,7 @@ fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, pa
         ])
         .output()
         .map_err(|e| format!("Failed to set registry: {}", e))?;
-    Command::new("reg")
+    crate::common::hidden_cmd("reg")
         .args([
             "add",
             "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
@@ -182,7 +182,7 @@ fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, pa
         .map_err(|e| format!("Failed to set registry: {}", e))?;
     if let Some(user) = username {
         if let Some(pass) = password {
-            Command::new("reg")
+            crate::common::hidden_cmd("reg")
                 .args([
                     "add",
                     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
@@ -196,7 +196,7 @@ fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, pa
                 ])
                 .output()
                 .map_err(|e| format!("Failed to set registry: {}", e))?;
-            Command::new("reg")
+            crate::common::hidden_cmd("reg")
                 .args([
                     "add",
                     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
@@ -218,38 +218,38 @@ fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, pa
 fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, password: Option<&str>, bypass_list: &str) -> Result<(), String> {
     let auth = if let (Some(user), Some(pass)) = (username, password) { format!("{}:{}@", user, pass) } else { String::new() };
     // Set environment variables via gsettings
-    Command::new("gsettings")
+    crate::common::hidden_cmd("gsettings")
         .args(["set", "org.gnome.system.proxy", "mode", "manual"])
         .output()
         .map_err(|e| format!("Failed to set proxy mode: {}", e))?;
-    Command::new("gsettings")
+    crate::common::hidden_cmd("gsettings")
         .args(["set", "org.gnome.system.proxy.http", "host", host])
         .output()
         .map_err(|e| format!("Failed to set http host: {}", e))?;
-    Command::new("gsettings")
+    crate::common::hidden_cmd("gsettings")
         .args(["set", "org.gnome.system.proxy.http", "port", &port.to_string()])
         .output()
         .map_err(|e| format!("Failed to set http port: {}", e))?;
-    Command::new("gsettings")
+    crate::common::hidden_cmd("gsettings")
         .args(["set", "org.gnome.system.proxy.https", "host", host])
         .output()
         .map_err(|e| format!("Failed to set https host: {}", e))?;
-    Command::new("gsettings")
+    crate::common::hidden_cmd("gsettings")
         .args(["set", "org.gnome.system.proxy.https", "port", &port.to_string()])
         .output()
         .map_err(|e| format!("Failed to set https port: {}", e))?;
     if proxy_type == "socks5" {
-        Command::new("gsettings")
+        crate::common::hidden_cmd("gsettings")
             .args(["set", "org.gnome.system.proxy.socks", "host", host])
             .output()
             .map_err(|e| format!("Failed to set socks host: {}", e))?;
-        Command::new("gsettings")
+        crate::common::hidden_cmd("gsettings")
             .args(["set", "org.gnome.system.proxy.socks", "port", &port.to_string()])
             .output()
             .map_err(|e| format!("Failed to set socks port: {}", e))?;
     }
     let bypass_array = format!("['{}']", bypass_list.replace(",", "', '"));
-    Command::new("gsettings")
+    crate::common::hidden_cmd("gsettings")
         .args(["set", "org.gnome.system.proxy", "ignore-hosts", &bypass_array])
         .output()
         .map_err(|e| format!("Failed to set bypass list: {}", e))?;
@@ -264,21 +264,21 @@ fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, pa
         "socks5" => "socksfirewallproxy",
         _ => return Err(format!("Unsupported proxy type: {}", proxy_type)),
     };
-    Command::new("networksetup")
+    crate::common::hidden_cmd("networksetup")
         .args(["-set", proxy_cmd, &service_name, host, &port.to_string()])
         .output()
         .map_err(|e| format!("Failed to set proxy: {}", e))?;
     if let (Some(user), Some(pass)) = (username, password) {
-        Command::new("networksetup")
+        crate::common::hidden_cmd("networksetup")
             .args(["-set", &format!("{}auth", proxy_cmd), &service_name, user, pass])
             .output()
             .map_err(|e| format!("Failed to set proxy auth: {}", e))?;
     }
-    Command::new("networksetup")
+    crate::common::hidden_cmd("networksetup")
         .args(["-setproxybypassdomains", &service_name, &bypass_list.replace(',', " ")])
         .output()
         .map_err(|e| format!("Failed to set bypass domains: {}", e))?;
-    Command::new("networksetup")
+    crate::common::hidden_cmd("networksetup")
         .args(["-set", &format!("{}state", proxy_cmd), &service_name, "on"])
         .output()
         .map_err(|e| format!("Failed to enable proxy: {}", e))?;
@@ -286,8 +286,8 @@ fn set_proxy(proxy_type: &str, host: &str, port: u64, username: Option<&str>, pa
 }
 #[cfg(target_os = "windows")]
 fn disable_proxy() -> Result<(), String> {
-    Command::new("netsh").args(["winhttp", "reset", "proxy"]).output().map_err(|e| format!("Failed to reset proxy: {}", e))?;
-    Command::new("reg")
+    crate::common::hidden_cmd("netsh").args(["winhttp", "reset", "proxy"]).output().map_err(|e| format!("Failed to reset proxy: {}", e))?;
+    crate::common::hidden_cmd("reg")
         .args([
             "add",
             "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
@@ -305,7 +305,7 @@ fn disable_proxy() -> Result<(), String> {
 }
 #[cfg(target_os = "linux")]
 fn disable_proxy() -> Result<(), String> {
-    Command::new("gsettings")
+    crate::common::hidden_cmd("gsettings")
         .args(["set", "org.gnome.system.proxy", "mode", "none"])
         .output()
         .map_err(|e| format!("Failed to disable proxy: {}", e))?;
@@ -314,15 +314,15 @@ fn disable_proxy() -> Result<(), String> {
 #[cfg(target_os = "macos")]
 fn disable_proxy() -> Result<(), String> {
     let service_name = get_wifi_service_name_macos()?;
-    Command::new("networksetup")
+    crate::common::hidden_cmd("networksetup")
         .args(["-setwebproxystate", &service_name, "off"])
         .output()
         .map_err(|e| format!("Failed to disable web proxy: {}", e))?;
-    Command::new("networksetup")
+    crate::common::hidden_cmd("networksetup")
         .args(["-setsecurewebproxystate", &service_name, "off"])
         .output()
         .map_err(|e| format!("Failed to disable secure web proxy: {}", e))?;
-    Command::new("networksetup")
+    crate::common::hidden_cmd("networksetup")
         .args(["-setsocksfirewallproxystate", &service_name, "off"])
         .output()
         .map_err(|e| format!("Failed to disable socks proxy: {}", e))?;
@@ -330,8 +330,10 @@ fn disable_proxy() -> Result<(), String> {
 }
 #[cfg(target_os = "macos")]
 fn get_wifi_service_name_macos() -> Result<String, String> {
-    let output =
-        Command::new("networksetup").args(["-listallhardwareports"]).output().map_err(|e| format!("Failed to list hardware ports: {}", e))?;
+    let output = crate::common::hidden_cmd("networksetup")
+        .args(["-listallhardwareports"])
+        .output()
+        .map_err(|e| format!("Failed to list hardware ports: {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut current_device = String::new();
     for line in stdout.lines() {

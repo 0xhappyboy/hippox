@@ -66,13 +66,15 @@ impl Driver for WindowControlGetSelectedDriver {
         #[cfg(target_os = "macos")]
         {
             debug!("Copying selected text on macOS via Cmd+C");
-            let _ = Command::new("osascript").args(["-e", "tell application \"System Events\" to keystroke \"c\" using {command down}"]).output();
+            let _ = crate::common::hidden_cmd("osascript")
+                .args(["-e", "tell application \"System Events\" to keystroke \"c\" using {command down}"])
+                .output();
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
         #[cfg(target_os = "linux")]
         {
             debug!("Copying selected text on Linux via Ctrl+C");
-            let _ = Command::new("xdotool").args(["key", "ctrl+c"]).output();
+            let _ = crate::common::hidden_cmd("xdotool").args(["key", "ctrl+c"]).output();
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
         // Get clipboard content
@@ -82,7 +84,7 @@ impl Driver for WindowControlGetSelectedDriver {
             #[cfg(target_os = "linux")]
             {
                 debug!("Trying primary selection on Linux");
-                let output = Command::new("xclip").args(["-o", "-selection", "primary"]).output();
+                let output = crate::common::hidden_cmd("xclip").args(["-o", "-selection", "primary"]).output();
                 if let Ok(output) = output {
                     if let Ok(selected) = String::from_utf8(output.stdout) {
                         if !selected.is_empty() {

@@ -62,7 +62,7 @@ fn get_wallpaper_path() -> DriverResult<String> {
     #[cfg(target_os = "windows")]
     {
         debug!("Getting wallpaper path on Windows");
-        let output = Command::new("powershell").args(["-Command", "(Get-ItemProperty 'HKCU:\\Control Panel\\Desktop').Wallpaper"]).output();
+        let output = crate::common::hidden_cmd("powershell").args(["-Command", "(Get-ItemProperty 'HKCU:\\Control Panel\\Desktop').Wallpaper"]).output();
         if let Ok(output) = output {
             if let Ok(path_str) = String::from_utf8(output.stdout) {
                 let path = path_str.trim();
@@ -78,7 +78,7 @@ fn get_wallpaper_path() -> DriverResult<String> {
     #[cfg(target_os = "linux")]
     {
         debug!("Getting wallpaper path on Linux");
-        let output = Command::new("gsettings").args(["get", "org.gnome.desktop.background", "picture-uri"]).output();
+        let output = crate::common::hidden_cmd("gsettings").args(["get", "org.gnome.desktop.background", "picture-uri"]).output();
         if let Ok(output) = output {
             if let Ok(path_str) = String::from_utf8(output.stdout) {
                 let path = path_str.trim().trim_matches('\'').trim_matches('"');
@@ -92,7 +92,7 @@ fn get_wallpaper_path() -> DriverResult<String> {
                 }
             }
         }
-        let output = Command::new("xfconf-query").args(["-c", "xfdesktop", "-p", "/backdrop/screen0/monitor0/image-path"]).output();
+        let output = crate::common::hidden_cmd("xfconf-query").args(["-c", "xfdesktop", "-p", "/backdrop/screen0/monitor0/image-path"]).output();
         if let Ok(output) = output {
             if let Ok(path_str) = String::from_utf8(output.stdout) {
                 let path = path_str.trim();
@@ -125,7 +125,7 @@ fn get_wallpaper_path() -> DriverResult<String> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting wallpaper path on macOS");
-        let output = Command::new("osascript").args(["-e", "tell application \"Finder\" to get desktop picture as POSIX file"]).output();
+        let output = crate::common::hidden_cmd("osascript").args(["-e", "tell application \"Finder\" to get desktop picture as POSIX file"]).output();
         if let Ok(output) = output {
             if let Ok(path_str) = String::from_utf8(output.stdout) {
                 let path = path_str.trim();

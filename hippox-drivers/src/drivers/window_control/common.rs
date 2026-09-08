@@ -39,28 +39,19 @@ pub fn find_window(title: Option<&str>, process: Option<&str>) -> DriverResult<u
     let windows = list_windows()?;
     if let Some(title_match) = title {
         let title_lower = title_match.to_lowercase();
-        if let Some(w) = windows
-            .iter()
-            .find(|w| w.title.to_lowercase().contains(&title_lower))
-        {
+        if let Some(w) = windows.iter().find(|w| w.title.to_lowercase().contains(&title_lower)) {
             info!("Found window by title: {} (ID: {})", w.title, w.id);
             return Ok(w.id);
         }
     }
     if let Some(process_match) = process {
         let process_lower = process_match.to_lowercase();
-        if let Some(w) = windows
-            .iter()
-            .find(|w| w.process_name.to_lowercase().contains(&process_lower))
-        {
+        if let Some(w) = windows.iter().find(|w| w.process_name.to_lowercase().contains(&process_lower)) {
             info!("Found window by process: {} (ID: {})", w.process_name, w.id);
             return Ok(w.id);
         }
     }
-    Err(DriverError::execution(format!(
-        "Window not found: title={:?}, process={:?}",
-        title, process
-    )))
+    Err(DriverError::execution(format!("Window not found: title={:?}, process={:?}", title, process)))
 }
 // Helper function to convert u64 to HWND (Windows only)
 #[cfg(target_os = "windows")]
@@ -73,9 +64,7 @@ mod windows_impl {
     use tracing::{debug, info};
     use windows::Win32::Foundation::{BOOL, CloseHandle, HWND, LPARAM, RECT};
     use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-    };
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
     use windows::Win32::UI::WindowsAndMessaging::*;
     pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
         debug!("Listing windows on Windows");
@@ -117,8 +106,7 @@ mod windows_impl {
     }
     fn get_process_name(pid: u32) -> String {
         unsafe {
-            let handle_result =
-                OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid);
+            let handle_result = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid);
             match handle_result {
                 Ok(handle) => {
                     let mut name_buf = [0u16; 260];
@@ -136,12 +124,7 @@ mod windows_impl {
             let mut rect: RECT = std::mem::zeroed();
             let hwnd = u64_to_hwnd(window_id);
             let _ = GetWindowRect(hwnd, &mut rect);
-            let result = Rect {
-                x: rect.left,
-                y: rect.top,
-                width: (rect.right - rect.left) as u32,
-                height: (rect.bottom - rect.top) as u32,
-            };
+            let result = Rect { x: rect.left, y: rect.top, width: (rect.right - rect.left) as u32, height: (rect.bottom - rect.top) as u32 };
             info!("Window rect: x={}, y={}, w={}, h={}", result.x, result.y, result.width, result.height);
             Ok(result)
         }
@@ -179,9 +162,7 @@ mod windows_impl {
             let hwnd = u64_to_hwnd(window_id);
             let mut pid: u32 = 0;
             let _ = GetWindowThreadProcessId(hwnd, Some(&mut pid));
-            use windows::Win32::System::Threading::{
-                OpenProcess, PROCESS_TERMINATE, TerminateProcess,
-            };
+            use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
             if let Ok(handle) = OpenProcess(PROCESS_TERMINATE, false, pid) {
                 let _ = TerminateProcess(handle, 1);
                 let _ = CloseHandle(handle);
@@ -209,55 +190,25 @@ mod windows_impl {
 #[cfg(target_os = "macos")]
 mod macos_impl {
     use super::*;
-    use core_graphics::window::{
-        CGWindowListCopyWindowInfo, CGWindowListOption,
-    };
+    use core_graphics::window::{CGWindowListCopyWindowInfo, CGWindowListOption};
     use tracing::{debug, info};
     pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
         debug!("Listing windows on macOS");
         let mut windows = Vec::new();
-        let window_info = unsafe {
-            CGWindowListCopyWindowInfo(CGWindowListOption::kCGWindowListOptionAll, 0)
-        };
+        let window_info = unsafe { CGWindowListCopyWindowInfo(CGWindowListOption::kCGWindowListOptionAll, 0) };
         if let Some(info_array) = window_info {
             for window in info_array.iter() {
                 let dict = window;
                 let window_id: Option<u64> = dict.get("kCGWindowNumber").and_then(|v| v.as_u64());
-                let title: String = dict
-                    .get("kCGWindowName")
-                    .and_then(|v| v.as_string())
-                    .unwrap_or("")
-                    .to_string();
-                let pid: u32 = dict
-                    .get("kCGWindowOwnerPID")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as u32;
-                let process_name: String = dict
-                    .get("kCGWindowOwnerName")
-                    .and_then(|v| v.as_string())
-                    .unwrap_or("")
-                    .to_string();
+                let title: String = dict.get("kCGWindowName").and_then(|v| v.as_string()).unwrap_or("").to_string();
+                let pid: u32 = dict.get("kCGWindowOwnerPID").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                let process_name: String = dict.get("kCGWindowOwnerName").and_then(|v| v.as_string()).unwrap_or("").to_string();
                 let bounds = dict.get("kCGWindowBounds").and_then(|v| v.as_dictionary());
-                let x: i32 = bounds
-                    .and_then(|b| b.get("X"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0) as i32;
-                let y: i32 = bounds
-                    .and_then(|b| b.get("Y"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0) as i32;
-                let width: u32 = bounds
-                    .and_then(|b| b.get("Width"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0) as u32;
-                let height: u32 = bounds
-                    .and_then(|b| b.get("Height"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0) as u32;
-                let is_visible: bool = dict
-                    .get("kCGWindowIsOnscreen")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) == 1;
+                let x: i32 = bounds.and_then(|b| b.get("X")).and_then(|v| v.as_f64()).unwrap_or(0.0) as i32;
+                let y: i32 = bounds.and_then(|b| b.get("Y")).and_then(|v| v.as_f64()).unwrap_or(0.0) as i32;
+                let width: u32 = bounds.and_then(|b| b.get("Width")).and_then(|v| v.as_f64()).unwrap_or(0.0) as u32;
+                let height: u32 = bounds.and_then(|b| b.get("Height")).and_then(|v| v.as_f64()).unwrap_or(0.0) as u32;
+                let is_visible: bool = dict.get("kCGWindowIsOnscreen").and_then(|v| v.as_u64()).unwrap_or(0) == 1;
                 if let Some(id) = window_id {
                     windows.push(WindowInfo {
                         id,
@@ -281,14 +232,8 @@ mod macos_impl {
     pub fn get_window_rect(window_id: u64) -> DriverResult<Rect> {
         debug!("Getting window rect on macOS: ID={}", window_id);
         let windows = list_windows()?;
-        let window = windows.iter().find(|w| w.id == window_id)
-            .ok_or_else(|| DriverError::execution(format!("Window {} not found", window_id)))?;
-        Ok(Rect {
-            x: window.x,
-            y: window.y,
-            width: window.width,
-            height: window.height,
-        })
+        let window = windows.iter().find(|w| w.id == window_id).ok_or_else(|| DriverError::execution(format!("Window {} not found", window_id)))?;
+        Ok(Rect { x: window.x, y: window.y, width: window.width, height: window.height })
     }
     pub fn set_window_pos(_window_id: u64, _x: i32, _y: i32, _width: u32, _height: u32) -> DriverResult<()> {
         debug!("Setting window position on macOS (not implemented)");
@@ -305,10 +250,8 @@ mod macos_impl {
     pub fn kill_window(window_id: u64) -> DriverResult<()> {
         debug!("Killing window on macOS: ID={}", window_id);
         let windows = list_windows()?;
-        let window = windows.iter().find(|w| w.id == window_id)
-            .ok_or_else(|| DriverError::execution(format!("Window {} not found", window_id)))?;
-        use std::process::Command;
-        let status = Command::new("kill")
+        let window = windows.iter().find(|w| w.id == window_id).ok_or_else(|| DriverError::execution(format!("Window {} not found", window_id)))?;
+        let status = crate::common::hidden_cmd("kill")
             .arg("-9")
             .arg(window.pid.to_string())
             .status()
@@ -347,7 +290,7 @@ mod linux_impl {
     use tracing::{debug, info};
     pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
         debug!("Listing windows on Linux");
-        let output = Command::new("xdotool")
+        let output = crate::common::hidden_cmd("xdotool")
             .args(["search", "--name", ".*"])
             .output()
             .map_err(|e| DriverError::execution(format!("Failed to list windows: {}", e)))?;
@@ -360,20 +303,10 @@ mod linux_impl {
             }
             let id = id_str.parse::<u64>().unwrap_or(0);
             // Get window title
-            let title_output = Command::new("xdotool")
-                .args(["getwindowname", id_str])
-                .output()
-                .ok();
-            let title = title_output
-                .and_then(|o| String::from_utf8(o.stdout).ok())
-                .unwrap_or_default()
-                .trim()
-                .to_string();
+            let title_output = crate::common::hidden_cmd("xdotool").args(["getwindowname", id_str]).output().ok();
+            let title = title_output.and_then(|o| String::from_utf8(o.stdout).ok()).unwrap_or_default().trim().to_string();
             // Get window geometry
-            let geom_output = Command::new("xdotool")
-                .args(["getwindowgeometry", id_str])
-                .output()
-                .ok();
+            let geom_output = crate::common::hidden_cmd("xdotool").args(["getwindowgeometry", id_str]).output().ok();
             let mut x = 0;
             let mut y = 0;
             let mut width: u32 = 0;
@@ -421,7 +354,7 @@ mod linux_impl {
     }
     pub fn get_window_rect(window_id: u64) -> DriverResult<Rect> {
         debug!("Getting window rect on Linux: ID={}", window_id);
-        let output = Command::new("xdotool")
+        let output = crate::common::hidden_cmd("xdotool")
             .args(["getwindowgeometry", &window_id.to_string()])
             .output()
             .map_err(|e| DriverError::execution(format!("Failed to get window geometry: {}", e)))?;
@@ -455,11 +388,11 @@ mod linux_impl {
     }
     pub fn set_window_pos(window_id: u64, x: i32, y: i32, width: u32, height: u32) -> DriverResult<()> {
         debug!("Setting window position on Linux: ID={}, x={}, y={}, w={}, h={}", window_id, x, y, width, height);
-        Command::new("xdotool")
+        crate::common::hidden_cmd("xdotool")
             .args(["windowmove", &window_id.to_string(), &x.to_string(), &y.to_string()])
             .status()
             .map_err(|e| DriverError::execution(format!("Failed to move window: {}", e)))?;
-        Command::new("xdotool")
+        crate::common::hidden_cmd("xdotool")
             .args(["windowsize", &window_id.to_string(), &width.to_string(), &height.to_string()])
             .status()
             .map_err(|e| DriverError::execution(format!("Failed to resize window: {}", e)))?;
@@ -469,17 +402,17 @@ mod linux_impl {
     pub fn show_window(window_id: u64, cmd: u32) -> DriverResult<()> {
         debug!("Showing window on Linux: ID={}, cmd={}", window_id, cmd);
         match cmd {
-            3 | 9 => { // Maximize or Restore
-                Command::new("xdotool")
+            3 | 9 => {
+                // Maximize or Restore
+                crate::common::hidden_cmd("xdotool")
                     .args(["windowactivate", &window_id.to_string()])
                     .status()
                     .map_err(|e| DriverError::execution(format!("Failed to activate window: {}", e)))?;
-                let _ = Command::new("xdotool")
-                    .args(["windowsize", &window_id.to_string(), "100%", "100%"])
-                    .status();
+                let _ = crate::common::hidden_cmd("xdotool").args(["windowsize", &window_id.to_string(), "100%", "100%"]).status();
             }
-            6 => { // Minimize
-                Command::new("xdotool")
+            6 => {
+                // Minimize
+                crate::common::hidden_cmd("xdotool")
                     .args(["windowminimize", &window_id.to_string()])
                     .status()
                     .map_err(|e| DriverError::execution(format!("Failed to minimize window: {}", e)))?;
@@ -491,7 +424,7 @@ mod linux_impl {
     }
     pub fn close_window(window_id: u64) -> DriverResult<()> {
         debug!("Closing window on Linux: ID={}", window_id);
-        Command::new("xdotool")
+        crate::common::hidden_cmd("xdotool")
             .args(["windowclose", &window_id.to_string()])
             .status()
             .map_err(|e| DriverError::execution(format!("Failed to close window: {}", e)))?;
@@ -500,7 +433,7 @@ mod linux_impl {
     }
     pub fn kill_window(window_id: u64) -> DriverResult<()> {
         debug!("Killing window on Linux: ID={}", window_id);
-        Command::new("xdotool")
+        crate::common::hidden_cmd("xdotool")
             .args(["windowkill", &window_id.to_string()])
             .status()
             .map_err(|e| DriverError::execution(format!("Failed to kill window: {}", e)))?;
@@ -509,7 +442,7 @@ mod linux_impl {
     }
     pub fn set_foreground_window(window_id: u64) -> DriverResult<()> {
         debug!("Setting foreground window on Linux: ID={}", window_id);
-        Command::new("xdotool")
+        crate::common::hidden_cmd("xdotool")
             .args(["windowactivate", &window_id.to_string()])
             .status()
             .map_err(|e| DriverError::execution(format!("Failed to activate window: {}", e)))?;
@@ -518,7 +451,7 @@ mod linux_impl {
     }
     pub fn get_focus_window() -> DriverResult<u64> {
         debug!("Getting focused window on Linux");
-        let output = Command::new("xdotool")
+        let output = crate::common::hidden_cmd("xdotool")
             .args(["getactivewindow"])
             .output()
             .map_err(|e| DriverError::execution(format!("Failed to get active window: {}", e)))?;
@@ -528,12 +461,12 @@ mod linux_impl {
         Ok(id)
     }
 }
-#[cfg(target_os = "windows")]
-pub use windows_impl::*;
-#[cfg(target_os = "macos")]
-pub use macos_impl::*;
 #[cfg(target_os = "linux")]
 pub use linux_impl::*;
+#[cfg(target_os = "macos")]
+pub use macos_impl::*;
+#[cfg(target_os = "windows")]
+pub use windows_impl::*;
 
 use crate::{DriverError, DriverResult};
 pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
@@ -564,8 +497,7 @@ pub fn show_window(window_id: u64, cmd: u32) -> DriverResult<()> {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::SHOW_WINDOW_CMD;
-        let cmd_i32 = cmd.try_into()
-            .map_err(|_| DriverError::execution(format!("Invalid SHOW_WINDOW_CMD value: {}", cmd)))?;
+        let cmd_i32 = cmd.try_into().map_err(|_| DriverError::execution(format!("Invalid SHOW_WINDOW_CMD value: {}", cmd)))?;
         return windows_impl::show_window(window_id, SHOW_WINDOW_CMD(cmd_i32));
     }
     #[cfg(target_os = "macos")]

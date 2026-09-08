@@ -77,7 +77,7 @@ impl Driver for BluetoothAudioDisconnectDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Disconnecting via bluetoothctl");
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["disconnect", mac_address])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

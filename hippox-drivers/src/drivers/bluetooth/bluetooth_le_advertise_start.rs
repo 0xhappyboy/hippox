@@ -85,7 +85,7 @@ impl Driver for BluetoothLeAdvertiseStartDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl advertise on");
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["advertise", "on"])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;
@@ -96,7 +96,7 @@ impl Driver for BluetoothLeAdvertiseStartDriver {
             }
             if let Some(uuid) = service_uuid {
                 debug!("Setting advertise service: {}", uuid);
-                let _ = Command::new("bluetoothctl").args(["advertise", "service", uuid]).output().ok();
+                let _ = crate::common::hidden_cmd("bluetoothctl").args(["advertise", "service", uuid]).output().ok();
             }
         }
         info!("BLE advertising started");

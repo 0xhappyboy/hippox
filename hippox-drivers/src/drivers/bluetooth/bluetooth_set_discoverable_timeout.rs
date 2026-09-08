@@ -77,7 +77,7 @@ impl Driver for BluetoothSetDiscoverableTimeoutDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl discoverable-timeout {}", timeout);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["discoverable-timeout", &timeout.to_string()])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

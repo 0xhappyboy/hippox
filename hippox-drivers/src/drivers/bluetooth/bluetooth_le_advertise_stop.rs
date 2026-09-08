@@ -71,7 +71,7 @@ impl Driver for BluetoothLeAdvertiseStopDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl advertise off");
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["advertise", "off"])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

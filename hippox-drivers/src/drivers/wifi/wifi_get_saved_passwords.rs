@@ -59,7 +59,7 @@ impl Driver for WifiGetSavedPasswordsDriver {
         #[cfg(target_os = "windows")]
         {
             if let Some(ssid) = specific_ssid {
-                let output = Command::new("netsh").args(["wlan", "show", "profile", "name=", ssid, "key=clear"]).output().map_err(|e| {
+                let output = crate::common::hidden_cmd("netsh").args(["wlan", "show", "profile", "name=", ssid, "key=clear"]).output().map_err(|e| {
                     debug!("Failed to get password for {}: {}", ssid, e);
                     return DriverError::execution(format!("Failed to get password: {}", e));
                 })?;
@@ -82,7 +82,7 @@ impl Driver for WifiGetSavedPasswordsDriver {
                 })?;
                 for network in networks {
                     let output =
-                        Command::new("netsh").args(["wlan", "show", "profile", "name=", &network.ssid, "key=clear"]).output().map_err(|e| {
+                        crate::common::hidden_cmd("netsh").args(["wlan", "show", "profile", "name=", &network.ssid, "key=clear"]).output().map_err(|e| {
                             debug!("Failed to get password for {}: {}", network.ssid, e);
                             return DriverError::execution(format!("Failed to get password: {}", e));
                         })?;

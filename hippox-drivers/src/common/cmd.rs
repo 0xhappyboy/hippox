@@ -4,12 +4,27 @@
 //! No business logic, no specific tools (docker/kubectl/etc.), just command execution.
 use crate::DriverError;
 use crate::result::DriverResult;
-use std::collections::HashMap;
+use std::{collections::HashMap, process::Stdio};
 use std::io::Write;
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::time::Duration;
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+pub fn hidden_cmd(program: &str) -> Command {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new(program);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new(program)
+    }
+}
 /// Command execution options
 #[derive(Debug, Clone, Default)]
 pub struct ExecOptions {
@@ -88,7 +103,7 @@ impl ExecResult {
 pub fn exec(program: &str, args: &[&str], opts: Option<ExecOptions>) -> DriverResult<ExecResult> {
     debug!("Executing command: {} with {:?} args", program, args);
     let opts = opts.unwrap_or_default();
-    let mut cmd = Command::new(program);
+    let mut cmd = hidden_cmd(program);
     cmd.args(args);
     if let Some(dir) = opts.cwd {
         cmd.current_dir(dir.clone());
@@ -163,7 +178,7 @@ pub async fn exec_async(program: &str, args: &[&str], opts: Option<ExecOptions>)
     info!("Async command timeout: {}s", timeout_secs);
     let result = timeout(Duration::from_secs(timeout_secs), async move {
         tokio::task::spawn_blocking(move || {
-            let mut cmd = Command::new(&program_owned);
+            let mut cmd = hidden_cmd(&program_owned);
             cmd.args(&args_owned);
             if let Some(dir) = cwd {
                 cmd.current_dir(dir);
@@ -239,7 +254,7 @@ pub fn exec_check(program: &str, args: &[&str]) -> bool {
 pub fn exec_with_stdin(program: &str, args: &[&str], stdin_content: &str, opts: Option<ExecOptions>) -> DriverResult<ExecResult> {
     debug!("Executing with stdin: {}", program);
     let opts = opts.unwrap_or_default();
-    let mut cmd = Command::new(program);
+    let mut cmd = hidden_cmd(program);
     cmd.args(args);
     cmd.stdin(Stdio::piped());
     if let Some(dir) = opts.cwd {
@@ -300,7 +315,7 @@ pub async fn exec_with_stdin_async(program: &str, args: &[&str], stdin_content: 
     info!("Async stdin command timeout: {}s", timeout_secs);
     let result = timeout(Duration::from_secs(timeout_secs), async move {
         tokio::task::spawn_blocking(move || {
-            let mut cmd = Command::new(&program_owned);
+            let mut cmd = hidden_cmd(&program_owned);
             cmd.args(&args_owned);
             cmd.stdin(Stdio::piped());
             if let Some(dir) = cwd {

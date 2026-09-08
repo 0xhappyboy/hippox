@@ -80,7 +80,7 @@ impl Driver for WifiBandPreferenceSetDriver {
                 "auto" => "0",
                 _ => "0",
             };
-            Command::new("netsh").args(["wlan", "set", "allowexplicitcreds", "band=", band_code]).output().map_err(|e| {
+            crate::common::hidden_cmd("netsh").args(["wlan", "set", "allowexplicitcreds", "band=", band_code]).output().map_err(|e| {
                 debug!("Failed to set band preference: {}", e);
                 return DriverError::execution(format!("Failed to set band preference: {}", e));
             })?;
@@ -93,7 +93,7 @@ impl Driver for WifiBandPreferenceSetDriver {
                 "auto" => "any",
                 _ => "any",
             };
-            Command::new("iw").args(["reg", "set", band_value]).output().map_err(|e| {
+            crate::common::hidden_cmd("iw").args(["reg", "set", band_value]).output().map_err(|e| {
                 debug!("Failed to set regulatory band: {}", e);
                 return DriverError::execution(format!("Failed to set regulatory band: {}", e));
             })?;

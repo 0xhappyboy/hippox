@@ -79,7 +79,7 @@ impl Driver for WifiSetInterfacePowerDriver {
                     return Err(DriverError::invalid_enum_value("mode", mode, vec!["performance".to_string(), "powersave".to_string()]));
                 }
             };
-            Command::new("iwconfig").args([interface, "power", power_value]).output().map_err(|e| {
+            crate::common::hidden_cmd("iwconfig").args([interface, "power", power_value]).output().map_err(|e| {
                 debug!("Failed to set power mode: {}", e);
                 return DriverError::execution(format!("Failed to set power mode: {}", e));
             })?;
@@ -94,7 +94,7 @@ impl Driver for WifiSetInterfacePowerDriver {
                     return Err(DriverError::invalid_enum_value("mode", mode, vec!["performance".to_string(), "powersave".to_string()]));
                 }
             };
-            Command::new("powercfg").args(["/setactive", scheme]).output().map_err(|e| {
+            crate::common::hidden_cmd("powercfg").args(["/setactive", scheme]).output().map_err(|e| {
                 debug!("Failed to set power scheme: {}", e);
                 return DriverError::execution(format!("Failed to set power scheme: {}", e));
             })?;

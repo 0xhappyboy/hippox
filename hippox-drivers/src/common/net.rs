@@ -414,8 +414,7 @@ pub fn get_network_connections() -> DriverResult<Vec<HashMap<String, String>>> {
     }
     #[cfg(target_os = "macos")]
     {
-        use std::process::Command;
-        let output = match Command::new("netstat").args(["-n", "-t"]).output() {
+        let output = match hidden_cmd("netstat").args(["-n", "-t"]).output() {
             Ok(o) => o,
             Err(e) => {
                 let err_msg = format!("Failed to execute netstat: {}", e);

@@ -84,7 +84,7 @@ fn get_gpu_processes() -> DriverResult<Vec<GpuProcessInfo>> {
         debug!("Getting GPU processes on Linux");
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for GPU processes");
-        if let Ok(output) = std::process::Command::new("nvidia-smi")
+        if let Ok(output) = crate::common::hidden_cmd("nvidia-smi")
             .args(&["--query-compute-apps", "pid,used_gpu_memory,process_name"])
             .args(&["--format", "csv,noheader"])
             .output()
@@ -107,7 +107,7 @@ fn get_gpu_processes() -> DriverResult<Vec<GpuProcessInfo>> {
         // Try AMD via rocm-smi
         if processes.is_empty() {
             debug!("Trying AMD rocm-smi for GPU processes");
-            if let Ok(output) = std::process::Command::new("rocm-smi").args(&["--showpid", "--showprocesses"]).output() {
+            if let Ok(output) = crate::common::hidden_cmd("rocm-smi").args(&["--showpid", "--showprocesses"]).output() {
                 if output.status.success() {
                     if let Ok(output_str) = String::from_utf8(output.stdout) {
                         let mut current_pid: Option<u32> = None;
@@ -163,7 +163,7 @@ fn get_gpu_processes() -> DriverResult<Vec<GpuProcessInfo>> {
     {
         debug!("Getting GPU processes on macOS");
         // macOS: Try using powermetrics
-        if let Ok(output) = std::process::Command::new("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -180,7 +180,7 @@ fn get_gpu_processes() -> DriverResult<Vec<GpuProcessInfo>> {
             }
         }
         // Also try via system_profiler
-        if let Ok(output) = std::process::Command::new("system_profiler").args(&["SPDisplaysDataType"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("system_profiler").args(&["SPDisplaysDataType"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -208,7 +208,7 @@ fn get_windows_gpu_processes() -> DriverResult<Vec<GpuProcessInfo>> {
     debug!("Getting GPU processes on Windows via nvidia-smi");
     // Try NVIDIA via nvidia-smi
     if let Ok(output) =
-        Command::new("nvidia-smi").args(&["--query-compute-apps", "pid,used_gpu_memory,process_name"]).args(&["--format", "csv,noheader"]).output()
+        crate::common::hidden_cmd("nvidia-smi").args(&["--query-compute-apps", "pid,used_gpu_memory,process_name"]).args(&["--format", "csv,noheader"]).output()
     {
         if output.status.success() {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -257,7 +257,7 @@ fn get_windows_gpu_processes() -> DriverResult<Vec<GpuProcessInfo>> {
     }
     // Try PowerShell WMI
     debug!("Trying PowerShell WMI for GPU processes on Windows");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-CimInstance -Namespace root/cimv2 -ClassName Win32_PerfFormattedData_GPUPerformanceCounters | Select-Object Name, GPUUsage, GPUAvailableMemory, GPUCommittedMemory"

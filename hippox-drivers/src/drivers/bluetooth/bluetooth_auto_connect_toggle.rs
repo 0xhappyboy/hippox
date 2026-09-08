@@ -94,7 +94,7 @@ impl Driver for BluetoothAutoConnectToggleDriver {
         {
             let action = if enabled { "trust" } else { "untrust" };
             debug!("Executing bluetoothctl {} {}", action, mac_address);
-            let output = Command::new("bluetoothctl")
+            let output = hidden_cmd("bluetoothctl")
                 .args([action, mac_address])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

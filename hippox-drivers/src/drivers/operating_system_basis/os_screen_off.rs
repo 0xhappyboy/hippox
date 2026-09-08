@@ -55,7 +55,7 @@ impl Driver for OsScreenOffDriver {
         #[cfg(target_os = "windows")]
         {
             debug!("Turning off screen on Windows");
-            let _ = Command::new("powershell")
+            let _ = crate::common::hidden_cmd("powershell")
                 .args([
                     "-Command",
                     "(Add-Type -MemberDefinition '[DllImport(\"user32.dll\")] public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name 'WinAPI' -Namespace WinAPI)::SendMessage(0xffff, 0x0112, 0xF170, 2)"
@@ -66,13 +66,13 @@ impl Driver for OsScreenOffDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Turning off screen on Linux");
-            let _ = Command::new("xset").args(["dpms", "force", "off"]).output();
+            let _ = crate::common::hidden_cmd("xset").args(["dpms", "force", "off"]).output();
             info!("Display turned off on Linux");
         }
         #[cfg(target_os = "macos")]
         {
             debug!("Turning off screen on macOS");
-            let _ = Command::new("pmset").args(["displaysleepnow"]).output();
+            let _ = crate::common::hidden_cmd("pmset").args(["displaysleepnow"]).output();
             info!("Display turned off on macOS");
         }
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]

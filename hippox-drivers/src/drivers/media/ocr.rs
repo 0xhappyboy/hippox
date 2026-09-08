@@ -1,13 +1,13 @@
 //! OCR (Optical Character Recognition) driver module
 //!
 //! This module provides functionality to extract text from images using Tesseract OCR.
-use serde_json::{Value, json};
-use std::collections::HashMap;
-use tracing::{debug, info};
 use crate::{
     DriverCallback, DriverCategory, DriverContext, DriverError, DriverResult, file_exists,
     types::{Driver, DriverParameter},
 };
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use tracing::{debug, info};
 /// Driver for OCR text extraction from images
 #[derive(Debug)]
 pub struct OcrDriver;
@@ -107,7 +107,7 @@ impl Driver for OcrDriver {
         // Run Tesseract OCR
         #[cfg(not(target_os = "windows"))]
         {
-            let output = std::process::Command::new("tesseract")
+            let output = crate::common::hidden_cmd("tesseract")
                 .args([path, "stdout", "-l", language])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Tesseract not found: {}. Please install Tesseract OCR.", e)))?;
@@ -129,7 +129,7 @@ impl Driver for OcrDriver {
         }
         #[cfg(target_os = "windows")]
         {
-            let output = std::process::Command::new("tesseract")
+            let output = crate::common::hidden_cmd("tesseract")
                 .args([path, "stdout", "-l", language])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Tesseract not found: {}", e)))?;

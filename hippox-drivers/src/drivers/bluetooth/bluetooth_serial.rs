@@ -104,7 +104,7 @@ impl Driver for BluetoothSerialDriver {
             let device_path = "/dev/rfcomm0";
             debug!("Binding RFCOMM to {}", device_path);
             // Bind RFCOMM if not already bound
-            let bind_output = Command::new("rfcomm").args(["bind", "0", mac_address]).output();
+            let bind_output = crate::common::hidden_cmd("rfcomm").args(["bind", "0", mac_address]).output();
             if let Ok(output) = bind_output {
                 if !output.status.success() {
                     let stderr = String::from_utf8_lossy(&output.stderr);

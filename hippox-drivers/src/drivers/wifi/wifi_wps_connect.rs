@@ -56,14 +56,14 @@ impl Driver for WifiWpsConnectDriver {
         let timeout = parameters.get("timeout_secs").and_then(|v| v.as_u64()).unwrap_or(120);
         #[cfg(target_os = "windows")]
         {
-            Command::new("netsh").args(["wlan", "wps", "start", "pin"]).output().map_err(|e| {
+            crate::common::hidden_cmd("netsh").args(["wlan", "wps", "start", "pin"]).output().map_err(|e| {
                 debug!("Failed to start WPS: {}", e);
                 return DriverError::execution(format!("Failed to start WPS: {}", e));
             })?;
         }
         #[cfg(target_os = "linux")]
         {
-            let output = Command::new("wpa_cli").args(["wps_pbc"]).output();
+            let output = crate::common::hidden_cmd("wpa_cli").args(["wps_pbc"]).output();
             if output.is_err() {
                 debug!("WPS not supported. Ensure wpa_supplicant is running.");
                 return Err(DriverError::execution("WPS not supported. Ensure wpa_supplicant is running."));

@@ -50,7 +50,7 @@ pub struct WiFiQualityAnalysis {
 #[cfg(target_os = "windows")]
 pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
     debug!("Getting WiFi status on Windows");
-    let output = Command::new("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute netsh: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -105,7 +105,7 @@ pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
         }
     }
     // Get IP address
-    let ip_output = Command::new("ipconfig").output().map_err(|e| {
+    let ip_output = crate::common::hidden_cmd("ipconfig").output().map_err(|e| {
         let err_msg = format!("Failed to execute ipconfig: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -132,7 +132,7 @@ pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
 #[cfg(target_os = "linux")]
 pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
     debug!("Getting WiFi status on Linux");
-    let output = Command::new("iwgetid").arg("-r").output();
+    let output = crate::common::hidden_cmd("iwgetid").arg("-r").output();
     let mut status = WiFiStatus {
         connected: false,
         ssid: None,
@@ -151,7 +151,7 @@ pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
         }
     }
     // Get IP address
-    let ip_output = Command::new("hostname").arg("-I").output();
+    let ip_output = crate::common::hidden_cmd("hostname").arg("-I").output();
     if let Ok(output) = ip_output {
         let ips = String::from_utf8_lossy(&output.stdout);
         status.ip_address = ips.split_whitespace().next().map(|s| s.to_string());
@@ -164,7 +164,7 @@ pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
 pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
     debug!("Getting WiFi status on macOS");
     let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
-    let output = Command::new(airport_path).arg("-I").output().map_err(|e| {
+    let output = crate::common::hidden_cmd(airport_path).arg("-I").output().map_err(|e| {
         let err_msg = format!("Failed to execute airport command: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -212,7 +212,7 @@ pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
         }
     }
     // Get IP address
-    let ip_output = Command::new("ifconfig").arg("en0").output().map_err(|e| {
+    let ip_output = crate::common::hidden_cmd("ifconfig").arg("en0").output().map_err(|e| {
         let err_msg = format!("Failed to execute ifconfig: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -234,8 +234,8 @@ pub fn get_wifi_status() -> DriverResult<WiFiStatus> {
 pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
     debug!("Scanning WiFi networks on Windows");
     // First, run a scan
-    let _ = Command::new("netsh").args(["wlan", "show", "networks", "mode=bssid"]).output();
-    let output = Command::new("netsh").args(["wlan", "show", "networks", "mode=bssid"]).output().map_err(|e| {
+    let _ = crate::common::hidden_cmd("netsh").args(["wlan", "show", "networks", "mode=bssid"]).output();
+    let output = crate::common::hidden_cmd("netsh").args(["wlan", "show", "networks", "mode=bssid"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute netsh: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -313,7 +313,7 @@ pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
 #[cfg(target_os = "linux")]
 pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
     debug!("Scanning WiFi networks on Linux");
-    let output = Command::new("nmcli").args(["dev", "wifi", "list"]).output();
+    let output = crate::common::hidden_cmd("nmcli").args(["dev", "wifi", "list"]).output();
     if let Ok(output) = output {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut networks = Vec::new();
@@ -348,7 +348,7 @@ pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
 pub fn scan_wifi_networks() -> DriverResult<Vec<WiFiNetwork>> {
     debug!("Scanning WiFi networks on macOS");
     let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
-    let output = Command::new(airport_path).args(["-s"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd(airport_path).args(["-s"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute airport command: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -445,12 +445,12 @@ pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
         return DriverError::io(err_msg);
     })?;
     let profile_path_str = profile_path.to_str().unwrap();
-    Command::new("netsh").args(["wlan", "add", "profile", "filename=", profile_path_str]).output().map_err(|e| {
+    crate::common::hidden_cmd("netsh").args(["wlan", "add", "profile", "filename=", profile_path_str]).output().map_err(|e| {
         let err_msg = format!("Failed to add profile: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
     })?;
-    Command::new("netsh").args(["wlan", "connect", "name=", ssid]).output().map_err(|e| {
+    crate::common::hidden_cmd("netsh").args(["wlan", "connect", "name=", ssid]).output().map_err(|e| {
         let err_msg = format!("Failed to connect: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -464,13 +464,13 @@ pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
 pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
     debug!("Connecting to WiFi network: {}", ssid);
     if let Some(pwd) = password {
-        Command::new("nmcli").args(["dev", "wifi", "connect", ssid, "password", pwd]).output().map_err(|e| {
+        crate::common::hidden_cmd("nmcli").args(["dev", "wifi", "connect", ssid, "password", pwd]).output().map_err(|e| {
             let err_msg = format!("Failed to connect to WiFi: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
         })?;
     } else {
-        Command::new("nmcli").args(["dev", "wifi", "connect", ssid]).output().map_err(|e| {
+        crate::common::hidden_cmd("nmcli").args(["dev", "wifi", "connect", ssid]).output().map_err(|e| {
             let err_msg = format!("Failed to connect to WiFi: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
@@ -485,13 +485,13 @@ pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
     debug!("Connecting to WiFi network: {}", ssid);
     let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
     if let Some(pwd) = password {
-        Command::new(airport_path).args(["--associate=", ssid, "--password=", pwd]).output().map_err(|e| {
+        crate::common::hidden_cmd(airport_path).args(["--associate=", ssid, "--password=", pwd]).output().map_err(|e| {
             let err_msg = format!("Failed to connect to WiFi: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
         })?;
     } else {
-        Command::new(airport_path).args(["--associate=", ssid]).output().map_err(|e| {
+        crate::common::hidden_cmd(airport_path).args(["--associate=", ssid]).output().map_err(|e| {
             let err_msg = format!("Failed to connect to WiFi: {}", e);
             warn!("{}", err_msg);
             return DriverError::execution(err_msg);
@@ -504,7 +504,7 @@ pub fn connect_wifi(ssid: &str, password: Option<&str>) -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 pub fn disconnect_wifi() -> DriverResult<()> {
     debug!("Disconnecting from WiFi on Windows");
-    Command::new("netsh").args(["wlan", "disconnect"]).output().map_err(|e| {
+    crate::common::hidden_cmd("netsh").args(["wlan", "disconnect"]).output().map_err(|e| {
         let err_msg = format!("Failed to disconnect: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -515,7 +515,7 @@ pub fn disconnect_wifi() -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn disconnect_wifi() -> DriverResult<()> {
     debug!("Disconnecting from WiFi on Linux");
-    Command::new("nmcli").args(["dev", "disconnect", "wlan0"]).output().map_err(|e| {
+    crate::common::hidden_cmd("nmcli").args(["dev", "disconnect", "wlan0"]).output().map_err(|e| {
         let err_msg = format!("Failed to disconnect: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -526,12 +526,12 @@ pub fn disconnect_wifi() -> DriverResult<()> {
 #[cfg(target_os = "macos")]
 pub fn disconnect_wifi() -> DriverResult<()> {
     debug!("Disconnecting from WiFi on macOS");
-    Command::new("networksetup").args(["-setairportpower", "en0", "off"]).output().map_err(|e| {
+    crate::common::hidden_cmd("networksetup").args(["-setairportpower", "en0", "off"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi off: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
     })?;
-    Command::new("networksetup").args(["-setairportpower", "en0", "on"]).output().map_err(|e| {
+    crate::common::hidden_cmd("networksetup").args(["-setairportpower", "en0", "on"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi on: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -543,7 +543,7 @@ pub fn disconnect_wifi() -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
     debug!("Forgetting WiFi network: {}", ssid);
-    Command::new("netsh").args(["wlan", "delete", "profile", "name=", ssid]).output().map_err(|e| {
+    crate::common::hidden_cmd("netsh").args(["wlan", "delete", "profile", "name=", ssid]).output().map_err(|e| {
         let err_msg = format!("Failed to forget WiFi network: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -554,7 +554,7 @@ pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
     debug!("Forgetting WiFi network: {}", ssid);
-    Command::new("nmcli").args(["connection", "delete", ssid]).output().map_err(|e| {
+    crate::common::hidden_cmd("nmcli").args(["connection", "delete", ssid]).output().map_err(|e| {
         let err_msg = format!("Failed to forget WiFi network: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -565,7 +565,7 @@ pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
 #[cfg(target_os = "macos")]
 pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
     debug!("Forgetting WiFi network: {}", ssid);
-    Command::new("networksetup").args(["-removepreferredwirelessnetwork", "en0", ssid]).output().map_err(|e| {
+    crate::common::hidden_cmd("networksetup").args(["-removepreferredwirelessnetwork", "en0", ssid]).output().map_err(|e| {
         let err_msg = format!("Failed to forget WiFi network: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -577,7 +577,7 @@ pub fn forget_wifi(ssid: &str) -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 pub fn wifi_on() -> DriverResult<()> {
     debug!("Turning WiFi on on Windows");
-    Command::new("netsh").args(["interface", "set", "interface", "name=\"Wi-Fi\"", "admin=ENABLED"]).output().map_err(|e| {
+    crate::common::hidden_cmd("netsh").args(["interface", "set", "interface", "name=\"Wi-Fi\"", "admin=ENABLED"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi on: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -588,7 +588,7 @@ pub fn wifi_on() -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn wifi_on() -> DriverResult<()> {
     debug!("Turning WiFi on on Linux");
-    Command::new("nmcli").args(["radio", "wifi", "on"]).output().map_err(|e| {
+    crate::common::hidden_cmd("nmcli").args(["radio", "wifi", "on"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi on: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -599,7 +599,7 @@ pub fn wifi_on() -> DriverResult<()> {
 #[cfg(target_os = "macos")]
 pub fn wifi_on() -> DriverResult<()> {
     debug!("Turning WiFi on on macOS");
-    Command::new("networksetup").args(["-setairportpower", "en0", "on"]).output().map_err(|e| {
+    crate::common::hidden_cmd("networksetup").args(["-setairportpower", "en0", "on"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi on: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -611,7 +611,7 @@ pub fn wifi_on() -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 pub fn wifi_off() -> DriverResult<()> {
     debug!("Turning WiFi off on Windows");
-    Command::new("netsh").args(["interface", "set", "interface", "name=\"Wi-Fi\"", "admin=DISABLED"]).output().map_err(|e| {
+    crate::common::hidden_cmd("netsh").args(["interface", "set", "interface", "name=\"Wi-Fi\"", "admin=DISABLED"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi off: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -622,7 +622,7 @@ pub fn wifi_off() -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn wifi_off() -> DriverResult<()> {
     debug!("Turning WiFi off on Linux");
-    Command::new("nmcli").args(["radio", "wifi", "off"]).output().map_err(|e| {
+    crate::common::hidden_cmd("nmcli").args(["radio", "wifi", "off"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi off: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -633,7 +633,7 @@ pub fn wifi_off() -> DriverResult<()> {
 #[cfg(target_os = "macos")]
 pub fn wifi_off() -> DriverResult<()> {
     debug!("Turning WiFi off on macOS");
-    Command::new("networksetup").args(["-setairportpower", "en0", "off"]).output().map_err(|e| {
+    crate::common::hidden_cmd("networksetup").args(["-setairportpower", "en0", "off"]).output().map_err(|e| {
         let err_msg = format!("Failed to turn WiFi off: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -645,7 +645,7 @@ pub fn wifi_off() -> DriverResult<()> {
 #[cfg(target_os = "windows")]
 pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
     debug!("Listing saved networks on Windows");
-    let output = Command::new("netsh").args(["wlan", "show", "profiles"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("netsh").args(["wlan", "show", "profiles"]).output().map_err(|e| {
         let err_msg = format!("Failed to list saved networks: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -676,7 +676,7 @@ pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
 #[cfg(target_os = "linux")]
 pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
     debug!("Listing saved networks on Linux");
-    let output = Command::new("nmcli").args(["connection", "show"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("nmcli").args(["connection", "show"]).output().map_err(|e| {
         let err_msg = format!("Failed to list saved networks: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -706,7 +706,7 @@ pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
 #[cfg(target_os = "macos")]
 pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
     debug!("Listing saved networks on macOS");
-    let output = Command::new("networksetup").args(["-listpreferredwirelessnetworks", "en0"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("networksetup").args(["-listpreferredwirelessnetworks", "en0"]).output().map_err(|e| {
         let err_msg = format!("Failed to list saved networks: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -737,7 +737,7 @@ pub fn list_saved_networks() -> DriverResult<Vec<WiFiNetwork>> {
 #[cfg(target_os = "windows")]
 pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
     debug!("Listing WiFi interfaces on Windows");
-    let output = Command::new("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| {
         let err_msg = format!("Failed to list interfaces: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -762,7 +762,7 @@ pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
 #[cfg(target_os = "linux")]
 pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
     debug!("Listing WiFi interfaces on Linux");
-    let output = Command::new("iwconfig").output().map_err(|e| {
+    let output = crate::common::hidden_cmd("iwconfig").output().map_err(|e| {
         let err_msg = format!("Failed to execute iwconfig: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -789,7 +789,7 @@ pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
 #[cfg(target_os = "macos")]
 pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
     debug!("Listing WiFi interfaces on macOS");
-    let output = Command::new("networksetup").args(["-listallhardwareports"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("networksetup").args(["-listallhardwareports"]).output().map_err(|e| {
         let err_msg = format!("Failed to list interfaces: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -820,7 +820,7 @@ pub fn list_interfaces() -> DriverResult<Vec<WiFiInterface>> {
 /// Ping gateway
 pub fn ping_gateway(gateway: &str) -> DriverResult<(bool, u64)> {
     debug!("Pinging gateway: {}", gateway);
-    let output = Command::new("ping").args(["-n", "4", "-w", "3", gateway]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("ping").args(["-n", "4", "-w", "3", gateway]).output().map_err(|e| {
         let err_msg = format!("Failed to execute ping: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -844,7 +844,7 @@ pub fn ping_gateway(gateway: &str) -> DriverResult<(bool, u64)> {
 #[cfg(target_os = "windows")]
 pub fn get_default_gateway() -> DriverResult<String> {
     debug!("Getting default gateway on Windows");
-    let output = Command::new("ipconfig").output().map_err(|e| {
+    let output = crate::common::hidden_cmd("ipconfig").output().map_err(|e| {
         let err_msg = format!("Failed to execute ipconfig: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -867,7 +867,7 @@ pub fn get_default_gateway() -> DriverResult<String> {
 #[cfg(target_os = "linux")]
 pub fn get_default_gateway() -> DriverResult<String> {
     debug!("Getting default gateway on Linux");
-    let output = Command::new("ip").args(["route", "show", "default"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("ip").args(["route", "show", "default"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute ip: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);
@@ -885,7 +885,7 @@ pub fn get_default_gateway() -> DriverResult<String> {
 #[cfg(target_os = "macos")]
 pub fn get_default_gateway() -> DriverResult<String> {
     debug!("Getting default gateway on macOS");
-    let output = Command::new("netstat").args(["-rn"]).output().map_err(|e| {
+    let output = crate::common::hidden_cmd("netstat").args(["-rn"]).output().map_err(|e| {
         let err_msg = format!("Failed to execute netstat: {}", e);
         warn!("{}", err_msg);
         return DriverError::execution(err_msg);

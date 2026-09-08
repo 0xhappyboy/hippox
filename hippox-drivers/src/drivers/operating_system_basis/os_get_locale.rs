@@ -69,7 +69,7 @@ fn get_locale() -> DriverResult<LocaleInfo> {
     #[cfg(target_os = "windows")]
     {
         debug!("Getting locale on Windows");
-        let output = Command::new("powershell").args(["-Command", "Get-Culture | Select-Object Name, DisplayName, LCID"]).output();
+        let output = crate::common::hidden_cmd("powershell").args(["-Command", "Get-Culture | Select-Object Name, DisplayName, LCID"]).output();
         if let Ok(output) = output {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 for line in output_str.lines() {
@@ -100,7 +100,7 @@ fn get_locale() -> DriverResult<LocaleInfo> {
                 }
             }
         }
-        if let Ok(output) = Command::new("locale").arg("-a").output() {
+        if let Ok(output) = crate::common::hidden_cmd("locale").arg("-a").output() {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 for line in output_str.lines() {
                     if line.contains("en_US.utf8") || line.contains("en_US.UTF-8") {
@@ -132,7 +132,7 @@ fn get_locale() -> DriverResult<LocaleInfo> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting locale on macOS");
-        let output = Command::new("defaults").args(["read", "-g", "AppleLocale"]).output();
+        let output = crate::common::hidden_cmd("defaults").args(["read", "-g", "AppleLocale"]).output();
         if let Ok(output) = output {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 let lang = output_str.trim().trim_matches('"');
@@ -142,7 +142,7 @@ fn get_locale() -> DriverResult<LocaleInfo> {
                 }
             }
         }
-        let output = Command::new("system_profiler").args(["SPSoftwareDataType"]).output();
+        let output = crate::common::hidden_cmd("system_profiler").args(["SPSoftwareDataType"]).output();
         if let Ok(output) = output {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 for line in output_str.lines() {

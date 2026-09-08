@@ -65,7 +65,7 @@ fn get_gpu_usage() -> DriverResult<f32> {
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for usage");
         if let Ok(output) =
-            std::process::Command::new("nvidia-smi").args(&["--query-gpu", "utilization.gpu"]).args(&["--format", "csv,noheader"]).output()
+            crate::common::hidden_cmd("nvidia-smi").args(&["--query-gpu", "utilization.gpu"]).args(&["--format", "csv,noheader"]).output()
         {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -80,7 +80,7 @@ fn get_gpu_usage() -> DriverResult<f32> {
         }
         // Try AMD via radeontop
         debug!("Trying AMD radeontop for usage");
-        if let Ok(output) = std::process::Command::new("radeontop").args(&["--dump", "1"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("radeontop").args(&["--dump", "1"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -120,7 +120,7 @@ fn get_gpu_usage() -> DriverResult<f32> {
         }
         // Try AMD via rocm-smi
         debug!("Trying AMD rocm-smi for usage");
-        if let Ok(output) = std::process::Command::new("rocm-smi").args(&["--showuse"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("rocm-smi").args(&["--showuse"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -147,7 +147,7 @@ fn get_gpu_usage() -> DriverResult<f32> {
     #[cfg(target_os = "macos")]
     {
         debug!("Getting GPU usage on macOS");
-        if let Ok(output) = std::process::Command::new("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("sudo").args(&["powermetrics", "-n", "1", "--samplers", "gpu_power"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -177,7 +177,7 @@ fn get_gpu_usage() -> DriverResult<f32> {
 fn get_windows_gpu_usage() -> DriverResult<f32> {
     use std::process::Command;
     debug!("Getting GPU usage on Windows via WMI");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-CimInstance -Namespace root/cimv2 -ClassName Win32_PerfFormattedData_GPUPerformanceCounters | Select-Object -ExpandProperty GPUUsage"

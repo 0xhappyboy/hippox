@@ -93,7 +93,7 @@ impl Driver for BluetoothBleReadDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl get-value {} {}", mac_address, characteristic_uuid);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["get-value", mac_address, characteristic_uuid])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

@@ -44,14 +44,14 @@ impl Driver for WifiHotspotStopDriver {
         debug!("Executing wifi_hotspot_stop driver");
         #[cfg(target_os = "windows")]
         {
-            Command::new("netsh").args(["wlan", "stop", "hostednetwork"]).output().map_err(|e| {
+            crate::common::hidden_cmd("netsh").args(["wlan", "stop", "hostednetwork"]).output().map_err(|e| {
                 debug!("Failed to stop hostednetwork: {}", e);
                 return DriverError::execution(format!("Failed to stop hostednetwork: {}", e));
             })?;
         }
         #[cfg(target_os = "linux")]
         {
-            let _ = Command::new("nmcli").args(["connection", "down", "Hotspot"]).output();
+            let _ = crate::common::hidden_cmd("nmcli").args(["connection", "down", "Hotspot"]).output();
         }
         info!("Hotspot stopped");
         return Ok("Hotspot stopped".to_string());

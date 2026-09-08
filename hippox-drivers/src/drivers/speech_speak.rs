@@ -195,7 +195,7 @@ fn speak_windows(text: &str, voice: &str, rate: i64, volume: i64, style: &str, a
     } else {
         cmd_script.push_str(&format!("$synth.Speak('{}'); ", escaped_text));
     }
-    let mut cmd = Command::new("powershell");
+    let mut cmd = crate::common::hidden_cmd("powershell");
     cmd.args(&["-Command", &cmd_script]);
     if async_mode {
         cmd.spawn().map_err(|e| DriverError::execution(format!("Failed to spawn PowerShell: {}", e)))?;
@@ -213,7 +213,7 @@ fn speak_windows(text: &str, voice: &str, rate: i64, volume: i64, style: &str, a
 fn speak_macos(text: &str, voice: &str, rate: i64, volume: i64, async_mode: bool) -> DriverResult<()> {
     use std::process::Command;
     debug!("Speaking on macOS with 'say' command");
-    let mut cmd = Command::new("say");
+    let mut cmd = crate::common::hidden_cmd("say");
     if voice != "default" {
         cmd.arg("-v").arg(voice);
     }
@@ -224,7 +224,7 @@ fn speak_macos(text: &str, voice: &str, rate: i64, volume: i64, async_mode: bool
     }
     if volume != 100 {
         let volume_clamped = volume.clamp(0, 100);
-        let _ = Command::new("osascript").args(&["-e", &format!("set volume output volume {}", volume_clamped)]).output();
+        let _ = crate::common::hidden_cmd("osascript").args(&["-e", &format!("set volume output volume {}", volume_clamped)]).output();
     }
     cmd.arg(text);
     if async_mode {
@@ -238,7 +238,7 @@ fn speak_macos(text: &str, voice: &str, rate: i64, volume: i64, async_mode: bool
     }
     // Restore volume if changed
     if volume != 100 {
-        let _ = Command::new("osascript").args(&["-e", "set volume output volume 100"]).output();
+        let _ = crate::common::hidden_cmd("osascript").args(&["-e", "set volume output volume 100"]).output();
     }
     info!("Speech completed on macOS");
     return Ok(());
@@ -249,9 +249,9 @@ fn speak_linux(text: &str, voice: &str, rate: i64, volume: i64, async_mode: bool
     debug!("Speaking on Linux");
     let mut cmd = None;
     // Try espeak-ng first
-    if Command::new("espeak-ng").arg("--version").output().is_ok() {
+    if crate::common::hidden_cmd("espeak-ng").arg("--version").output().is_ok() {
         debug!("Using espeak-ng for speech");
-        let mut c = Command::new("espeak-ng");
+        let mut c = crate::common::hidden_cmd("espeak-ng");
         if voice != "default" {
             c.arg("-v").arg(voice);
         }
@@ -269,9 +269,9 @@ fn speak_linux(text: &str, voice: &str, rate: i64, volume: i64, async_mode: bool
         cmd = Some(c);
     }
     // Try espeak (legacy)
-    else if Command::new("espeak").arg("--version").output().is_ok() {
+    else if crate::common::hidden_cmd("espeak").arg("--version").output().is_ok() {
         debug!("Using espeak for speech");
-        let mut c = Command::new("espeak");
+        let mut c = crate::common::hidden_cmd("espeak");
         if voice != "default" {
             c.arg("-v").arg(voice);
         }
@@ -289,9 +289,9 @@ fn speak_linux(text: &str, voice: &str, rate: i64, volume: i64, async_mode: bool
         cmd = Some(c);
     }
     // Try spd-say (speech-dispatcher)
-    else if Command::new("spd-say").arg("--version").output().is_ok() {
+    else if crate::common::hidden_cmd("spd-say").arg("--version").output().is_ok() {
         debug!("Using spd-say for speech");
-        let mut c = Command::new("spd-say");
+        let mut c = crate::common::hidden_cmd("spd-say");
         if rate != 0 {
             let rate_clamped = rate.clamp(-100, 100);
             c.arg("-r").arg(rate_clamped.to_string());

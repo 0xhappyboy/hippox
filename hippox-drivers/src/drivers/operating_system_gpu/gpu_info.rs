@@ -110,7 +110,7 @@ fn detect_gpus() -> DriverResult<Vec<GpuInfo>> {
         let mut gpus = Vec::new();
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for GPU detection");
-        if let Ok(output) = std::process::Command::new("nvidia-smi")
+        if let Ok(output) = crate::common::hidden_cmd("nvidia-smi")
             .args(&["--query-gpu", "name,driver_version,memory.total,memory.type,pcie.link.gen.current,pcie.link.width.current,bios_version,serial"])
             .args(&["--format", "csv,noheader"])
             .output()
@@ -141,7 +141,7 @@ fn detect_gpus() -> DriverResult<Vec<GpuInfo>> {
         if gpus.is_empty() {
             debug!("Trying AMD rocm-smi for GPU detection");
             if let Ok(output) =
-                std::process::Command::new("rocm-smi").args(&["--showproductname", "--showdriverversion", "--showmeminfo", "vram"]).output()
+                crate::common::hidden_cmd("rocm-smi").args(&["--showproductname", "--showdriverversion", "--showmeminfo", "vram"]).output()
             {
                 if output.status.success() {
                     if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -188,7 +188,7 @@ fn detect_gpus() -> DriverResult<Vec<GpuInfo>> {
         // Try AMD via lspci
         if gpus.is_empty() {
             debug!("Trying lspci for AMD GPU detection");
-            if let Ok(output) = std::process::Command::new("lspci")
+            if let Ok(output) = crate::common::hidden_cmd("lspci")
                 .args(&["-v", "-nn", "-d", "1002:"]) // AMD PCI vendor ID
                 .output()
             {
@@ -219,7 +219,7 @@ fn detect_gpus() -> DriverResult<Vec<GpuInfo>> {
         // Try Intel via lspci
         if gpus.is_empty() {
             debug!("Trying lspci for Intel GPU detection");
-            if let Ok(output) = std::process::Command::new("lspci")
+            if let Ok(output) = crate::common::hidden_cmd("lspci")
                 .args(&["-v", "-nn", "-d", "8086:"]) // Intel PCI vendor ID
                 .output()
             {
@@ -272,7 +272,7 @@ fn detect_gpus() -> DriverResult<Vec<GpuInfo>> {
     {
         debug!("Detecting GPUs on macOS");
         let mut gpus = Vec::new();
-        if let Ok(output) = std::process::Command::new("system_profiler").args(&["SPDisplaysDataType", "-json"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("system_profiler").args(&["SPDisplaysDataType", "-json"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
@@ -350,7 +350,7 @@ fn get_windows_gpus() -> DriverResult<Vec<GpuInfo>> {
     use std::process::Command;
     debug!("Getting GPU info on Windows via PowerShell WMI");
     let mut gpus = Vec::new();
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-CimInstance -Namespace root/cimv2 -ClassName Win32_VideoController | Select-Object Name, DriverVersion, AdapterRAM, VideoProcessor, VideoModeDescription"

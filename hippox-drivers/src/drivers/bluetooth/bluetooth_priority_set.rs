@@ -81,7 +81,7 @@ impl Driver for BluetoothPrioritySetDriver {
             for (priority, mac) in priority_list.iter().enumerate() {
                 if let Some(mac_str) = mac.as_str() {
                     debug!("Setting trust for {} (priority {})", mac_str, priority);
-                    let _ = Command::new("bluetoothctl").args(["trust", mac_str]).output().ok();
+                    let _ = crate::common::hidden_cmd("bluetoothctl").args(["trust", mac_str]).output().ok();
                 }
             }
         }

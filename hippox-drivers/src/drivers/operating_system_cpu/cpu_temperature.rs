@@ -97,7 +97,7 @@ fn get_cpu_temperature() -> DriverResult<f64> {
     }
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("sysctl").args(&["-n", "hw.sensors.cpu0.temperature"]).output();
+        let output = crate::common::hidden_cmd("sysctl").args(&["-n", "hw.sensors.cpu0.temperature"]).output();
         if let Ok(output) = output {
             if let Ok(temp_str) = String::from_utf8(output.stdout) {
                 if let Ok(temp) = temp_str.trim().parse::<f64>() {
@@ -106,7 +106,7 @@ fn get_cpu_temperature() -> DriverResult<f64> {
                 }
             }
         }
-        let output = Command::new("sudo").args(&["powermetrics", "-n", "1"]).output();
+        let output = crate::common::hidden_cmd("sudo").args(&["powermetrics", "-n", "1"]).output();
         if let Ok(output) = output {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 for line in output_str.lines() {
@@ -132,7 +132,7 @@ fn get_cpu_temperature() -> DriverResult<f64> {
 fn get_windows_temp_via_powershell() -> DriverResult<f64> {
     use std::process::Command;
     debug!("Getting CPU temperature via PowerShell on Windows");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature | Select-Object -ExpandProperty CurrentTemperature",

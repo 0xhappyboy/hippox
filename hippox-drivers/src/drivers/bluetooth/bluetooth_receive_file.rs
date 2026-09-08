@@ -93,8 +93,8 @@ impl Driver for BluetoothReceiveFileDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Setting up Bluetooth agent");
-            let _ = Command::new("bluetoothctl").args(["agent", "on"]).output();
-            let _ = Command::new("bluetoothctl").args(["default-agent"]).output();
+            let _ = crate::common::hidden_cmd("bluetoothctl").args(["agent", "on"]).output();
+            let _ = crate::common::hidden_cmd("bluetoothctl").args(["default-agent"]).output();
         }
         info!("Ready to receive files in '{}' for {} seconds", save_directory, timeout);
         Ok(format!("Ready to receive files in '{}' for {} seconds", save_directory, timeout))

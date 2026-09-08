@@ -85,15 +85,15 @@ impl Driver for WifiMacAddressSetDriver {
         #[cfg(target_os = "linux")]
         {
             // Bring interface down, change MAC, bring up
-            Command::new("sudo").args(["ip", "link", "set", interface, "down"]).output().map_err(|e| {
+            crate::common::hidden_cmd("sudo").args(["ip", "link", "set", interface, "down"]).output().map_err(|e| {
                 debug!("Failed to bring interface down: {}", e);
                 return DriverError::execution(format!("Failed to bring interface down: {}", e));
             })?;
-            Command::new("sudo").args(["ip", "link", "set", interface, "address", &new_mac]).output().map_err(|e| {
+            crate::common::hidden_cmd("sudo").args(["ip", "link", "set", interface, "address", &new_mac]).output().map_err(|e| {
                 debug!("Failed to set MAC address: {}", e);
                 return DriverError::execution(format!("Failed to set MAC address: {}", e));
             })?;
-            Command::new("sudo").args(["ip", "link", "set", interface, "up"]).output().map_err(|e| {
+            crate::common::hidden_cmd("sudo").args(["ip", "link", "set", interface, "up"]).output().map_err(|e| {
                 debug!("Failed to bring interface up: {}", e);
                 return DriverError::execution(format!("Failed to bring interface up: {}", e));
             })?;
@@ -105,7 +105,7 @@ impl Driver for WifiMacAddressSetDriver {
         }
         #[cfg(target_os = "macos")]
         {
-            Command::new("sudo").args(["ifconfig", interface, "ether", &new_mac]).output().map_err(|e| {
+            crate::common::hidden_cmd("sudo").args(["ifconfig", interface, "ether", &new_mac]).output().map_err(|e| {
                 debug!("Failed to set MAC address: {}", e);
                 return DriverError::execution(format!("Failed to set MAC address: {}", e));
             })?;

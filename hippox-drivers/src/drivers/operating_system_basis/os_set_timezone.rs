@@ -68,7 +68,7 @@ impl Driver for OsSetTimezoneDriver {
         #[cfg(target_os = "windows")]
         {
             debug!("Setting timezone on Windows");
-            let output = Command::new("powershell").args(["-Command", &format!("Set-TimeZone -Id '{}'", timezone)]).output();
+            let output = crate::common::hidden_cmd("powershell").args(["-Command", &format!("Set-TimeZone -Id '{}'", timezone)]).output();
             if let Ok(output) = output {
                 if output.status.success() {
                     info!("Timezone set successfully on Windows");
@@ -80,7 +80,7 @@ impl Driver for OsSetTimezoneDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Setting timezone on Linux");
-            let output = Command::new("sudo").args(["timedatectl", "set-timezone", timezone]).output();
+            let output = crate::common::hidden_cmd("sudo").args(["timedatectl", "set-timezone", timezone]).output();
             if let Ok(output) = output {
                 if output.status.success() {
                     info!("Timezone set successfully on Linux");
@@ -92,7 +92,7 @@ impl Driver for OsSetTimezoneDriver {
         #[cfg(target_os = "macos")]
         {
             debug!("Setting timezone on macOS");
-            let output = Command::new("sudo").args(["systemsetup", "-settimezone", timezone]).output();
+            let output = crate::common::hidden_cmd("sudo").args(["systemsetup", "-settimezone", timezone]).output();
             if let Ok(output) = output {
                 if output.status.success() {
                     info!("Timezone set successfully on macOS");

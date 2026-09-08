@@ -77,7 +77,7 @@ impl Driver for BluetoothConfirmPinDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl pin {}", pin);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["pin", pin])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

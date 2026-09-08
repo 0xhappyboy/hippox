@@ -55,19 +55,19 @@ impl Driver for OsScreenOnDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Turning on screen on Linux");
-            let _ = Command::new("xset").args(["dpms", "force", "on"]).output();
+            let _ = crate::common::hidden_cmd("xset").args(["dpms", "force", "on"]).output();
             info!("Display turned on on Linux");
         }
         #[cfg(target_os = "macos")]
         {
             debug!("Turning on screen on macOS");
-            let _ = Command::new("caffeinate").args(["-u", "-t", "1"]).output();
+            let _ = crate::common::hidden_cmd("caffeinate").args(["-u", "-t", "1"]).output();
             info!("Display turned on on macOS");
         }
         #[cfg(target_os = "windows")]
         {
             debug!("Turning on screen on Windows");
-            let _ = Command::new("powershell")
+            let _ = crate::common::hidden_cmd("powershell")
                 .args([
                     "-Command",
                     "(Add-Type -MemberDefinition '[DllImport(\"user32.dll\")] public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name 'WinAPI' -Namespace WinAPI)::SendMessage(0xffff, 0x0112, 0xF170, -1)"

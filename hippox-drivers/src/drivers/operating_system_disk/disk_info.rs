@@ -155,7 +155,7 @@ fn get_disk_info() -> DriverResult<Vec<DiskInfo>> {
     }
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = Command::new("system_profiler").args(&["SPStorageDataType", "-json"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("system_profiler").args(&["SPStorageDataType", "-json"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
@@ -198,7 +198,7 @@ fn get_disk_info() -> DriverResult<Vec<DiskInfo>> {
 fn get_windows_disks() -> DriverResult<Vec<DiskInfo>> {
     use std::process::Command;
     let mut disks = Vec::new();
-    let output = Command::new("wmic").args(&["diskdrive", "get", "Name,Model,SerialNumber,InterfaceType,MediaType,Size"]).output();
+    let output = crate::common::hidden_cmd("wmic").args(&["diskdrive", "get", "Name,Model,SerialNumber,InterfaceType,MediaType,Size"]).output();
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -243,7 +243,7 @@ fn get_windows_disks() -> DriverResult<Vec<DiskInfo>> {
         }
     }
     if disks.is_empty() {
-        let output = Command::new("powershell")
+        let output = crate::common::hidden_cmd("powershell")
             .args(&["-Command", "Get-PhysicalDisk | Select-Object FriendlyName, SerialNumber, MediaType, Size, BusType"])
             .output();
         if let Ok(output) = output {

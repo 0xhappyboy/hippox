@@ -64,7 +64,7 @@ fn get_gpu_fan_speed() -> DriverResult<f32> {
         debug!("Getting GPU fan speed on Linux");
         // Try NVIDIA
         debug!("Trying NVIDIA nvidia-smi for fan speed");
-        if let Ok(output) = std::process::Command::new("nvidia-smi").args(&["--query-gpu", "fan.speed"]).args(&["--format", "csv,noheader"]).output()
+        if let Ok(output) = crate::common::hidden_cmd("nvidia-smi").args(&["--query-gpu", "fan.speed"]).args(&["--format", "csv,noheader"]).output()
         {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -128,7 +128,7 @@ fn get_gpu_fan_speed() -> DriverResult<f32> {
     {
         debug!("Getting GPU fan speed on macOS");
         // macOS: Try SMC via istats
-        if let Ok(output) = std::process::Command::new("istats").args(&["fan", "speed"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("istats").args(&["fan", "speed"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -147,7 +147,7 @@ fn get_gpu_fan_speed() -> DriverResult<f32> {
             }
         }
         // Try via smc command
-        if let Ok(output) = std::process::Command::new("smc").args(&["-f"]).output() {
+        if let Ok(output) = crate::common::hidden_cmd("smc").args(&["-f"]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
                     for line in output_str.lines() {
@@ -179,7 +179,7 @@ fn get_windows_gpu_fan_speed() -> DriverResult<f32> {
     use std::process::Command;
     debug!("Getting GPU fan speed on Windows via nvidia-smi");
     // Try NVIDIA via nvidia-smi
-    if let Ok(output) = Command::new("nvidia-smi").args(&["--query-gpu", "fan.speed"]).args(&["--format", "csv,noheader"]).output() {
+    if let Ok(output) = crate::common::hidden_cmd("nvidia-smi").args(&["--query-gpu", "fan.speed"]).args(&["--format", "csv,noheader"]).output() {
         if output.status.success() {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 if let Some(line) = output_str.lines().next() {
@@ -207,21 +207,21 @@ fn get_windows_gpu_fan_speed() -> DriverResult<f32> {
     }
     // Try WMI via PowerShell
     debug!("Trying PowerShell WMI for fan speed on Windows");
-    let output = Command::new("powershell")
+    let output = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature | Select-Object -ExpandProperty CurrentTemperature",
         ])
         .output();
     // Also try OpenHardwareMonitor WMI
-    let output_ohm = Command::new("powershell")
+    let output_ohm = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-WmiObject -Namespace root/OpenHardwareMonitor -Class Sensor | Where-Object {$_.SensorType -eq 'Fan'} | Select-Object -ExpandProperty Value"
         ])
         .output();
     // Try LibreHardwareMonitor WMI
-    let output_lhm = Command::new("powershell")
+    let output_lhm = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-WmiObject -Namespace root/LibreHardwareMonitor -Class Sensor | Where-Object {$_.SensorType -eq 'Fan'} | Select-Object -ExpandProperty Value"
@@ -264,7 +264,7 @@ fn get_windows_gpu_fan_speed() -> DriverResult<f32> {
         }
     }
     // Try via HWiNFO WMI if available
-    let output_hwinfo = Command::new("powershell")
+    let output_hwinfo = crate::common::hidden_cmd("powershell")
         .args(&[
             "-Command",
             "Get-WmiObject -Namespace root/HWiNFO -Class Sensor | Where-Object {$_.SensorType -eq 'Fan'} | Select-Object -ExpandProperty Value",

@@ -222,7 +222,7 @@ pub fn send_key_press(key_code: u16) -> DriverResult<()> {
             return Ok(());
         }
     };
-    let output = Command::new("xdotool").args(["key", key_name]).output();
+    let output = crate::common::hidden_cmd("xdotool").args(["key", key_name]).output();
     if let Err(e) = output {
         let err_msg = format!("Failed to send key press: {}", e);
         warn!("{}", err_msg);
@@ -243,7 +243,7 @@ pub fn send_key_down(key_code: u16) -> DriverResult<()> {
             return Ok(());
         }
     };
-    let output = Command::new("xdotool").args(["keydown", key_name]).output();
+    let output = crate::common::hidden_cmd("xdotool").args(["keydown", key_name]).output();
     if let Err(e) = output {
         let err_msg = format!("Failed to send key down: {}", e);
         warn!("{}", err_msg);
@@ -264,7 +264,7 @@ pub fn send_key_up(key_code: u16) -> DriverResult<()> {
             return Ok(());
         }
     };
-    let output = Command::new("xdotool").args(["keyup", key_name]).output();
+    let output = crate::common::hidden_cmd("xdotool").args(["keyup", key_name]).output();
     if let Err(e) = output {
         let err_msg = format!("Failed to send key up: {}", e);
         warn!("{}", err_msg);
@@ -314,7 +314,7 @@ pub fn send_key_press(key_code: u16) -> DriverResult<()> {
         }
     };
     let script = format!(r#"tell application "System Events" to keystroke "{}""#, key_name);
-    let output = Command::new("osascript").args(["-e", &script]).output();
+    let output = crate::common::hidden_cmd("osascript").args(["-e", &script]).output();
     if let Err(e) = output {
         let err_msg = format!("Failed to send key press: {}", e);
         warn!("{}", err_msg);
@@ -406,7 +406,7 @@ pub fn set_modifier_state(modifier: &str, down: bool) -> DriverResult<()> {
     };
     if !key_name.is_empty() {
         let cmd = if down { "keydown" } else { "keyup" };
-        let output = Command::new("xdotool").args([cmd, key_name]).output();
+        let output = crate::common::hidden_cmd("xdotool").args([cmd, key_name]).output();
         if let Err(e) = output {
             let err_msg = format!("Failed to set modifier state: {}", e);
             warn!("{}", err_msg);
@@ -490,7 +490,7 @@ pub fn type_text(text: &str) -> DriverResult<()> {
 #[cfg(target_os = "linux")]
 pub fn type_text(text: &str) -> DriverResult<()> {
     debug!("Typing text (Linux): {}", text);
-    let output = Command::new("xdotool").args(["type", "--clearmodifiers", text]).output();
+    let output = crate::common::hidden_cmd("xdotool").args(["type", "--clearmodifiers", text]).output();
     if let Err(e) = output {
         let err_msg = format!("Failed to type text: {}", e);
         warn!("{}", err_msg);
@@ -504,7 +504,7 @@ pub fn type_text(text: &str) -> DriverResult<()> {
     debug!("Typing text (macOS): {}", text);
     let escaped = text.replace("\\", "\\\\").replace("\"", "\\\"");
     let script = format!(r#"tell application "System Events" to keystroke "{}""#, escaped);
-    let output = Command::new("osascript").args(["-e", &script]).output();
+    let output = crate::common::hidden_cmd("osascript").args(["-e", &script]).output();
     if let Err(e) = output {
         let err_msg = format!("Failed to type text: {}", e);
         warn!("{}", err_msg);

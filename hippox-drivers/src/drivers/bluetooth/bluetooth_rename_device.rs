@@ -93,7 +93,7 @@ impl Driver for BluetoothRenameDeviceDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Executing bluetoothctl set-alias {} {}", mac_address, name);
-            let output = Command::new("bluetoothctl")
+            let output = crate::common::hidden_cmd("bluetoothctl")
                 .args(["set-alias", mac_address, name])
                 .output()
                 .map_err(|e| DriverError::execution(format!("Failed to execute bluetoothctl: {}", e)))?;

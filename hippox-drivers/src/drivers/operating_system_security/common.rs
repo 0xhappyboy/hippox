@@ -779,7 +779,7 @@ pub fn check_account_security(username: &str) -> AccountSecurityResult {
     }
     #[cfg(windows)]
     {
-        let cmd = std::process::Command::new("powershell")
+        let cmd = crate::common::hidden_cmd("powershell")
             .args(&["-Command", &format!("Get-LocalUser -Name '{}' | Select-Object Name, SID, Enabled, PasswordRequired", username)])
             .output();
         if let Ok(output) = cmd {
@@ -863,7 +863,7 @@ pub fn check_network_shares() -> Vec<ShareInfo> {
     let mut shares = Vec::new();
     #[cfg(target_os = "windows")]
     {
-        let cmd = std::process::Command::new("net").args(&["share"]).output();
+        let cmd = crate::common::hidden_cmd("net").args(&["share"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines().skip(4) {
@@ -893,7 +893,7 @@ pub fn check_network_shares() -> Vec<ShareInfo> {
     #[cfg(not(target_os = "windows"))]
     {
         // Check NFS exports
-        let cmd = std::process::Command::new("sh").args(&["-c", "test -f /etc/exports && cat /etc/exports"]).output();
+        let cmd = crate::common::hidden_cmd("sh").args(&["-c", "test -f /etc/exports && cat /etc/exports"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -918,7 +918,7 @@ pub fn check_network_shares() -> Vec<ShareInfo> {
             }
         }
         // Check Samba shares
-        let cmd = std::process::Command::new("sh").args(&["-c", "test -f /etc/samba/smb.conf && grep -E '^\\[.*\\]$' /etc/samba/smb.conf"]).output();
+        let cmd = crate::common::hidden_cmd("sh").args(&["-c", "test -f /etc/samba/smb.conf && grep -E '^\\[.*\\]$' /etc/samba/smb.conf"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -947,7 +947,7 @@ pub fn query_system_logs(filter: &str, max_entries: usize) -> LogQueryResult {
     let mut entries = Vec::new();
     #[cfg(not(target_os = "windows"))]
     {
-        let cmd = std::process::Command::new("journalctl").args(&["-n", &max_entries.to_string()]).output();
+        let cmd = crate::common::hidden_cmd("journalctl").args(&["-n", &max_entries.to_string()]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -971,7 +971,7 @@ pub fn query_system_logs(filter: &str, max_entries: usize) -> LogQueryResult {
     }
     #[cfg(target_os = "windows")]
     {
-        let cmd = std::process::Command::new("powershell")
+        let cmd = crate::common::hidden_cmd("powershell")
             .args(&[
                 "-Command",
                 &format!(
@@ -1005,7 +1005,7 @@ pub fn analyze_security_logs(time_range_hours: u64) -> Vec<String> {
     let mut findings = Vec::new();
     #[cfg(not(target_os = "windows"))]
     {
-        let cmd = std::process::Command::new("journalctl").args(&["--since", &format!("{} hours ago", time_range_hours)]).output();
+        let cmd = crate::common::hidden_cmd("journalctl").args(&["--since", &format!("{} hours ago", time_range_hours)]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             let lines: Vec<&str> = output_str.lines().collect();
@@ -1070,7 +1070,7 @@ pub fn check_persistence_mechanisms() -> Vec<PersistenceEntry> {
                 });
             }
         }
-        let cmd = std::process::Command::new("sh").args(&["-c", "crontab -l 2>/dev/null"]).output();
+        let cmd = crate::common::hidden_cmd("sh").args(&["-c", "crontab -l 2>/dev/null"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1091,7 +1091,7 @@ pub fn check_persistence_mechanisms() -> Vec<PersistenceEntry> {
     }
     #[cfg(target_os = "windows")]
     {
-        let cmd = std::process::Command::new("reg").args(&["query", "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"]).output();
+        let cmd = crate::common::hidden_cmd("reg").args(&["query", "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1127,7 +1127,7 @@ pub fn check_privilege_escalation() -> Vec<PrivilegeEscalationResult> {
             ("Docker socket", "test -S /var/run/docker.sock"),
         ];
         for (name, cmd) in checks {
-            let output = std::process::Command::new("sh").args(&["-c", cmd]).output();
+            let output = crate::common::hidden_cmd("sh").args(&["-c", cmd]).output();
             if let Ok(output) = output {
                 let output_str = String::from_utf8_lossy(&output.stdout);
                 let vulnerable = !output_str.is_empty() && !output_str.contains("not allowed");
@@ -1153,7 +1153,7 @@ pub fn check_privilege_escalation() -> Vec<PrivilegeEscalationResult> {
             ("UAC Status", "reg query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"),
         ];
         for (name, cmd) in checks {
-            let output = std::process::Command::new("cmd").args(&["/C", cmd]).output();
+            let output = crate::common::hidden_cmd("cmd").args(&["/C", cmd]).output();
             if let Ok(output) = output {
                 let output_str = String::from_utf8_lossy(&output.stdout);
                 results.push(PrivilegeEscalationResult {
@@ -1176,7 +1176,7 @@ pub fn check_patch_status() -> PatchScanResult {
     let mut patches = Vec::new();
     #[cfg(not(target_os = "windows"))]
     {
-        let cmd = std::process::Command::new("sh")
+        let cmd = crate::common::hidden_cmd("sh")
             .args(&["-c", "apt list --upgradable 2>/dev/null || yum check-update 2>/dev/null || dnf check-update 2>/dev/null"])
             .output();
         if let Ok(output) = cmd {
@@ -1209,7 +1209,7 @@ pub fn check_patch_status() -> PatchScanResult {
     }
     #[cfg(target_os = "windows")]
     {
-        let cmd = std::process::Command::new("powershell").args(&["-Command", "Get-WindowsUpdate -IsInstalled | Select-Object -First 20"]).output();
+        let cmd = crate::common::hidden_cmd("powershell").args(&["-Command", "Get-WindowsUpdate -IsInstalled | Select-Object -First 20"]).output();
         if let Ok(output) = cmd {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
@@ -1237,7 +1237,7 @@ pub fn check_patch_status() -> PatchScanResult {
 #[cfg(target_os = "windows")]
 pub fn monitor_registry_key(path: &str) -> RegistryKeyInfo {
     debug!("Monitoring registry key: {}", path);
-    let cmd = std::process::Command::new("reg").args(&["query", path]).output();
+    let cmd = crate::common::hidden_cmd("reg").args(&["query", path]).output();
     let mut issues = Vec::new();
     let name = path.split('\\').last().unwrap_or(path);
     if let Ok(output) = cmd {

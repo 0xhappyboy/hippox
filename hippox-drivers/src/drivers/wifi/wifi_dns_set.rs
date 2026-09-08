@@ -78,29 +78,33 @@ impl Driver for WifiDnsSetDriver {
                 return DriverError::execution(format!("Failed to get WiFi interface: {}", e));
             })?;
             if let Some(secondary) = secondary_dns {
-                Command::new("netsh").args(["interface", "ip", "set", "dns", &interface_name, "static", primary_dns]).output().map_err(|e| {
-                    debug!("Failed to set primary DNS: {}", e);
-                    return DriverError::execution(format!("Failed to set primary DNS: {}", e));
-                })?;
-                Command::new("netsh").args(["interface", "ip", "add", "dns", &interface_name, secondary]).output().map_err(|e| {
+                crate::common::hidden_cmd("netsh").args(["interface", "ip", "set", "dns", &interface_name, "static", primary_dns]).output().map_err(
+                    |e| {
+                        debug!("Failed to set primary DNS: {}", e);
+                        return DriverError::execution(format!("Failed to set primary DNS: {}", e));
+                    },
+                )?;
+                crate::common::hidden_cmd("netsh").args(["interface", "ip", "add", "dns", &interface_name, secondary]).output().map_err(|e| {
                     debug!("Failed to add secondary DNS: {}", e);
                     return DriverError::execution(format!("Failed to add secondary DNS: {}", e));
                 })?;
             } else {
-                Command::new("netsh").args(["interface", "ip", "set", "dns", &interface_name, "static", primary_dns]).output().map_err(|e| {
-                    debug!("Failed to set primary DNS: {}", e);
-                    return DriverError::execution(format!("Failed to set primary DNS: {}", e));
-                })?;
+                crate::common::hidden_cmd("netsh").args(["interface", "ip", "set", "dns", &interface_name, "static", primary_dns]).output().map_err(
+                    |e| {
+                        debug!("Failed to set primary DNS: {}", e);
+                        return DriverError::execution(format!("Failed to set primary DNS: {}", e));
+                    },
+                )?;
             }
         }
         #[cfg(target_os = "linux")]
         {
             let dns_string = if let Some(secondary) = secondary_dns { format!("{} {}", primary_dns, secondary) } else { primary_dns.to_string() };
-            Command::new("nmcli").args(["connection", "modify", "Wired", "ipv4.dns", &dns_string]).output().map_err(|e| {
+            crate::common::hidden_cmd("nmcli").args(["connection", "modify", "Wired", "ipv4.dns", &dns_string]).output().map_err(|e| {
                 debug!("Failed to modify DNS: {}", e);
                 return DriverError::execution(format!("Failed to modify DNS: {}", e));
             })?;
-            Command::new("nmcli").args(["connection", "up", "Wired"]).output().map_err(|e| {
+            crate::common::hidden_cmd("nmcli").args(["connection", "up", "Wired"]).output().map_err(|e| {
                 debug!("Failed to restart connection: {}", e);
                 return DriverError::execution(format!("Failed to restart connection: {}", e));
             })?;
@@ -112,7 +116,8 @@ impl Driver for WifiDnsSetDriver {
 }
 #[cfg(target_os = "windows")]
 fn get_wifi_interface_name() -> Result<String, String> {
-    let output = Command::new("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| format!("Failed to get interface: {}", e))?;
+    let output =
+        crate::common::hidden_cmd("netsh").args(["wlan", "show", "interfaces"]).output().map_err(|e| format!("Failed to get interface: {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in stdout.lines() {
         if line.contains("名称") || line.contains("Name") {
