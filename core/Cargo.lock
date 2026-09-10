@@ -3223,7 +3223,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hippox"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3246,9 +3246,9 @@ dependencies = [
 
 [[package]]
 name = "hippox-drivers"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64e52c4f8a9703b732c6635ffe9173eacf9d5313ff8be0a76908ab17792daa57"
+checksum = "ed4c9abfc7a43d051a852116757d00ddfaa07b7cef7171d29181c3a91bc96c22"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -3290,6 +3290,7 @@ dependencies = [
  "md5",
  "nix 0.31.3",
  "objc2",
+ "objc2-foundation",
  "once_cell",
  "password-hash 0.6.1",
  "pbkdf2 0.13.0",
