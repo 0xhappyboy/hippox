@@ -364,14 +364,21 @@ pub mod platform {
     pub fn list_processes() -> DriverResult<Vec<super::ProcessInfo>> {
         use libproc::bsd_info::BSDInfo;
         use libproc::proc_pid::{PidInfo, pidinfo};
-        use libproc::processes::pids;
+        use libproc::processes::{self, ProcFilter};
         debug!("Listing processes on macOS");
-        let pids = pids();
+        let pids = match processes::pids_by_type(ProcFilter::All) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_msg = format!("Failed to list PIDs: {}", e);
+                warn!("{}", err_msg);
+                return Err(DriverError::io(err_msg));
+            }
+        };
         let mut processes = Vec::new();
         for pid in pids {
             if let Ok(bsd_info) = pidinfo::<BSDInfo>(pid as i32, 0) {
                 // pbi_name is a C char array ([i8; 32]); convert to u8 before string conversion
-                let name_bytes: Vec<u8> = bsd_info.pbi_name.iter().map(|&c| c as u8).collect();
+                let name_bytes: Vec<u8> = bsd_info.pbi_name.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
                 let name = String::from_utf8_lossy(&name_bytes).to_string();
                 processes.push(super::ProcessInfo { pid, name: name.trim_end_matches('\0').to_string(), parent_pid: Some(bsd_info.pbi_ppid as u32) });
             }

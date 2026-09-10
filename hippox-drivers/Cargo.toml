@@ -1,6 +1,6 @@
 [package]
 name = "hippox-drivers"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛All indivisible atomic driver units in Hippox."
@@ -132,6 +132,7 @@ libproc = "0.14.11"
 core-graphics = "0.25.0"
 objc2 = "0.6.4"
 mach2 = "0.7.0"
+core-foundation = "0.10.1"
 
 [features]
 default = [
