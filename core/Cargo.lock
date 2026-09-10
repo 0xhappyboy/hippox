@@ -3223,7 +3223,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hippox"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3246,9 +3246,9 @@ dependencies = [
 
 [[package]]
 name = "hippox-drivers"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caf4778621d75ba44dded5f6dcaffb6958ce2ff25f34b8557abdfef0fd6bfb36"
+checksum = "a28bd859b3629015b4ced31bb21dd5bb3a459f26cf23769824cb7fba202c7012"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -3264,6 +3264,7 @@ dependencies = [
  "cbc 0.2.1",
  "chrono",
  "clipboard-win",
+ "core-foundation 0.10.1",
  "core-graphics",
  "cron",
  "csv",
