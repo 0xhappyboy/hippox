@@ -1,6 +1,6 @@
 [package]
 name = "hippox"
-version = "0.6.9"
+version = "0.7.0"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛A reliable, autonomous LLM runtime and skill orchestration engine, Capable of processing natural language and automatically executing OS-native atomic skills, fundamentally enabling the LLM to truly take over the computer."
@@ -25,7 +25,7 @@ tracing = "0.1.44"
 toml = "1.1.2"
 regex = "1.12.4"
 chrono = "0.4.45"
-hippox-drivers = "0.4.2"
+hippox-drivers = "0.4.3"
 
 [dev-dependencies]
 tempfile = "3.27.0"
