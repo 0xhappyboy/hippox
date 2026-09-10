@@ -3223,7 +3223,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hippox-drivers"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -3265,6 +3265,7 @@ dependencies = [
  "md5",
  "nix 0.31.3",
  "objc2",
+ "objc2-foundation",
  "once_cell",
  "password-hash 0.6.1",
  "pbkdf2 0.13.0",

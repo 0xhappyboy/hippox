@@ -191,60 +191,51 @@ mod windows_impl {
 #[cfg(target_os = "macos")]
 mod macos_impl {
     use super::*;
-    use core_foundation::array::{CFArray, CFArrayRef};
-    use core_foundation::base::TCFType;
-    use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
-    use core_foundation::number::CFNumber;
-    use core_foundation::string::CFString;
     use core_graphics::window::CGWindowListCopyWindowInfo;
-    use std::ffi::c_void;
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSArray, NSDictionary, NSNumber, NSString};
     use tracing::{debug, info};
     pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
         debug!("Listing windows on macOS");
         let mut windows = Vec::new();
-        // kCGWindowListOptionAll == 0; returns a raw *const __CFArray pointer
-        let window_info: CFArrayRef = unsafe { CGWindowListCopyWindowInfo(0, 0) };
+        // kCGWindowListOptionAll == 0; returns a raw *const CFArrayRef pointer.
+        let window_info = unsafe { CGWindowListCopyWindowInfo(0, 0) };
         if !window_info.is_null() {
-            // Wrap the raw CFArray pointer so we can iterate it safely
-            let info_array = unsafe { CFArray::<*const c_void>::wrap_under_get_rule(window_info) };
-            for window in info_array.iter() {
-                // Each element is a CFDictionaryRef; wrap it as CFDictionary
-                let dict: CFDictionary = unsafe { CFDictionary::wrap_under_get_rule(*window as CFDictionaryRef) };
-                let window_id: Option<u64> =
-                    dict.find(CFString::new("kCGWindowNumber")).and_then(|v| v.downcast::<CFNumber>()).and_then(|n| n.to_i64()).map(|n| n as u64);
-                let title: String =
-                    dict.find(CFString::new("kCGWindowName")).and_then(|v| v.downcast::<CFString>()).map(|s| s.to_string()).unwrap_or_default();
-                let pid: u32 =
-                    dict.find(CFString::new("kCGWindowOwnerPID")).and_then(|v| v.downcast::<CFNumber>()).and_then(|n| n.to_i64()).unwrap_or(0) as u32;
-                let process_name: String =
-                    dict.find(CFString::new("kCGWindowOwnerName")).and_then(|v| v.downcast::<CFString>()).map(|s| s.to_string()).unwrap_or_default();
-                let bounds: Option<CFDictionary> = dict.find(CFString::new("kCGWindowBounds")).and_then(|v| v.downcast::<CFDictionary>());
-                let x: i32 = bounds
-                    .as_ref()
-                    .and_then(|b| b.find(CFString::new("X")))
-                    .and_then(|v| v.downcast::<CFNumber>())
-                    .and_then(|n| n.to_f64())
-                    .unwrap_or(0.0) as i32;
-                let y: i32 = bounds
-                    .as_ref()
-                    .and_then(|b| b.find(CFString::new("Y")))
-                    .and_then(|v| v.downcast::<CFNumber>())
-                    .and_then(|n| n.to_f64())
-                    .unwrap_or(0.0) as i32;
-                let width: u32 = bounds
-                    .as_ref()
-                    .and_then(|b| b.find(CFString::new("Width")))
-                    .and_then(|v| v.downcast::<CFNumber>())
-                    .and_then(|n| n.to_f64())
-                    .unwrap_or(0.0) as u32;
-                let height: u32 = bounds
-                    .as_ref()
-                    .and_then(|b| b.find(CFString::new("Height")))
-                    .and_then(|v| v.downcast::<CFNumber>())
-                    .and_then(|n| n.to_f64())
-                    .unwrap_or(0.0) as u32;
-                let is_visible: bool =
-                    dict.find(CFString::new("kCGWindowIsOnscreen")).and_then(|v| v.downcast::<CFNumber>()).and_then(|n| n.to_i64()).unwrap_or(0) == 1;
+            // Cast the raw CFArray pointer to an NSArray reference.
+            // CFArray and NSArray are toll-free bridged on macOS.
+            let array: &NSArray<NSDictionary<NSString, AnyObject>> = unsafe { &*(window_info as *const NSArray<NSDictionary<NSString, AnyObject>>) };
+            for dict in array.iter() {
+                let window_id: Option<u64> = dict
+                    .objectForKey(&NSString::from_str("kCGWindowNumber"))
+                    .and_then(|v| v.downcast_ref::<NSNumber>().map(|n| n.unsignedLongLongValue()));
+                let title: String = dict
+                    .objectForKey(&NSString::from_str("kCGWindowName"))
+                    .and_then(|v| v.downcast_ref::<NSString>().map(|s| s.to_string()))
+                    .unwrap_or_default();
+                let pid: u32 = dict
+                    .objectForKey(&NSString::from_str("kCGWindowOwnerPID"))
+                    .and_then(|v| v.downcast_ref::<NSNumber>().map(|n| n.unsignedIntValue()))
+                    .unwrap_or(0);
+                let process_name: String = dict
+                    .objectForKey(&NSString::from_str("kCGWindowOwnerName"))
+                    .and_then(|v| v.downcast_ref::<NSString>().map(|s| s.to_string()))
+                    .unwrap_or_default();
+                let bounds: Option<&NSDictionary<NSString, AnyObject>> =
+                    dict.objectForKey(&NSString::from_str("kCGWindowBounds")).and_then(|v| v.downcast_ref::<NSDictionary<NSString, AnyObject>>());
+                let get_f64 = |key: &str| -> f64 {
+                    bounds
+                        .and_then(|b| b.objectForKey(&NSString::from_str(key)))
+                        .and_then(|v| v.downcast_ref::<NSNumber>().map(|n| n.doubleValue()))
+                        .unwrap_or(0.0)
+                };
+                let x = get_f64("X") as i32;
+                let y = get_f64("Y") as i32;
+                let width = get_f64("Width") as u32;
+                let height = get_f64("Height") as u32;
+                let is_visible: bool = dict
+                    .objectForKey(&NSString::from_str("kCGWindowIsOnscreen"))
+                    .and_then(|v| v.downcast_ref::<NSNumber>().map(|n| n.boolValue()))
+                    .unwrap_or(false);
                 if let Some(id) = window_id {
                     windows.push(WindowInfo {
                         id,
@@ -306,8 +297,8 @@ mod macos_impl {
     pub fn get_focus_window() -> DriverResult<u64> {
         debug!("Getting focused window on macOS");
         use objc2::runtime::AnyObject;
-        use objc2::{class, msg_send, sel};
-        // Explicit type annotation is required for objc2 msg_send! return values
+        use objc2::{class, msg_send};
+        // Explicit type annotation is required for objc2 msg_send! return values.
         let workspace: *mut AnyObject = unsafe { msg_send![class!(NSWorkspace), sharedWorkspace] };
         let front_app: *mut AnyObject = unsafe { msg_send![workspace, frontmostApplication] };
         let pid: i32 = unsafe { msg_send![front_app, processIdentifier] };
@@ -323,7 +314,6 @@ mod macos_impl {
 #[cfg(target_os = "linux")]
 mod linux_impl {
     use super::*;
-    use std::process::Command;
     use tracing::{debug, info};
     pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
         debug!("Listing windows on Linux");
