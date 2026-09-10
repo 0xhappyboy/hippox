@@ -305,7 +305,8 @@ pub mod platform {
 pub mod platform {
     use crate::DriverError;
     use crate::result::DriverResult;
-    use libc::{mach_task_self, mach_vm_read_overwrite, mach_vm_write, task_t, vm_deallocate};
+    use libc::{mach_task_self, task_t, vm_deallocate};
+    use mach2::vm::{mach_vm_read_overwrite, mach_vm_write};
     use std::ptr;
     use tracing::{debug, info, warn};
     pub struct ProcessMemory {
@@ -317,6 +318,7 @@ pub mod platform {
             use libc::task_for_pid;
             debug!("Opening process memory for PID: {}", pid);
             let mut task: task_t = 0;
+            // task_for_pid expects an i32 pid on macOS
             let result = unsafe { task_for_pid(mach_task_self(), pid as i32, &mut task) };
             if result != 0 {
                 let err_msg = format!("Failed to get task for PID {}", pid);
@@ -339,7 +341,7 @@ pub mod platform {
             return Ok(bytes_read as usize);
         }
         pub fn write_memory(&self, address: usize, data: &[u8]) -> DriverResult<usize> {
-            let result = unsafe { mach_vm_write(self.task, address as u64, data.as_ptr() as u64, data.len() as u64) };
+            let result = unsafe { mach_vm_write(self.task, address as u64, data.as_ptr() as usize, data.len() as u32) };
             if result != 0 {
                 let err_msg = format!("Failed to write memory at address 0x{:X}", address);
                 warn!("{}", err_msg);
@@ -360,15 +362,17 @@ pub mod platform {
         }
     }
     pub fn list_processes() -> DriverResult<Vec<super::ProcessInfo>> {
-        use libproc::libproc::bsd_info::BSDInfo;
-        use libproc::libproc::proc_pid::{PidInfo, pidinfo};
-        use libproc::libproc::processes::pids;
+        use libproc::bsd_info::BSDInfo;
+        use libproc::proc_pid::{PidInfo, pidinfo};
+        use libproc::processes::pids;
         debug!("Listing processes on macOS");
         let pids = pids();
         let mut processes = Vec::new();
         for pid in pids {
             if let Ok(bsd_info) = pidinfo::<BSDInfo>(pid as i32, 0) {
-                let name = String::from_utf8_lossy(&bsd_info.pbi_name).to_string();
+                // pbi_name is a C char array ([i8; 32]); convert to u8 before string conversion
+                let name_bytes: Vec<u8> = bsd_info.pbi_name.iter().map(|&c| c as u8).collect();
+                let name = String::from_utf8_lossy(&name_bytes).to_string();
                 processes.push(super::ProcessInfo { pid, name: name.trim_end_matches('\0').to_string(), parent_pid: Some(bsd_info.pbi_ppid as u32) });
             }
         }

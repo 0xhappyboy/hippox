@@ -190,15 +190,21 @@ mod windows_impl {
 #[cfg(target_os = "macos")]
 mod macos_impl {
     use super::*;
-    use core_graphics::window::{CGWindowListCopyWindowInfo, CGWindowListOption};
+    use core_foundation::array::{CFArray, CFArrayRef};
+    use core_foundation::base::TCFType;
+    use core_graphics::window::CGWindowListCopyWindowInfo;
+    use std::ffi::c_void;
     use tracing::{debug, info};
     pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
         debug!("Listing windows on macOS");
         let mut windows = Vec::new();
-        let window_info = unsafe { CGWindowListCopyWindowInfo(0, 0) };
+        // kCGWindowListOptionAll == 0; returns a raw *const __CFArray pointer
+        let window_info: CFArrayRef = unsafe { CGWindowListCopyWindowInfo(0, 0) };
         if !window_info.is_null() {
-            let info_array = window_info;
+            // Wrap the raw CFArray pointer so we can iterate it safely
+            let info_array = unsafe { CFArray::<*const c_void>::wrap_under_get_rule(window_info) };
             for window in info_array.iter() {
+                // Each element is a CFDictionaryRef; convert as needed by your existing logic
                 let dict = window;
                 let window_id: Option<u64> = dict.get("kCGWindowNumber").and_then(|v| v.as_u64());
                 let title: String = dict.get("kCGWindowName").and_then(|v| v.as_string()).unwrap_or("").to_string();
@@ -272,7 +278,8 @@ mod macos_impl {
         debug!("Getting focused window on macOS");
         use objc2::runtime::AnyObject;
         use objc2::{class, msg_send, sel};
-        let workspace = unsafe { msg_send![class!(NSWorkspace), sharedWorkspace] };
+        // Explicit type annotation is required for objc2 msg_send! return values
+        let workspace: *mut AnyObject = unsafe { msg_send![class!(NSWorkspace), sharedWorkspace] };
         let front_app: *mut AnyObject = unsafe { msg_send![workspace, frontmostApplication] };
         let pid: i32 = unsafe { msg_send![front_app, processIdentifier] };
         let windows = list_windows()?;
