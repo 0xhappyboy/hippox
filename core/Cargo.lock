@@ -3223,7 +3223,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hippox"
-version = "0.6.6"
+version = "0.6.7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3246,9 +3246,9 @@ dependencies = [
 
 [[package]]
 name = "hippox-drivers"
-version = "0.3.9"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4723094eb71a0b821fd0485b651acdd203090f771d7c83c476aefae036bd24b1"
+checksum = "caf4778621d75ba44dded5f6dcaffb6958ce2ff25f34b8557abdfef0fd6bfb36"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -3286,6 +3286,7 @@ dependencies = [
  "libproc",
  "local-ip-address",
  "lopdf 0.40.0",
+ "mach2",
  "md5",
  "nix 0.31.3",
  "objc2",
@@ -4556,6 +4557,12 @@ checksum = "ce716bf1a316f47a280fc76295f6495b5bea4752bca01c3b3885e101b1c23c02"
 dependencies = [
  "sha2 0.11.0",
 ]
+
+[[package]]
+name = "mach2"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0d28e293f2b8c9d2b2d1c0193bd3c1cbdc0d2cf396888dc01162f7cf9d6c3f3"
 
 [[package]]
 name = "markup5ever"
