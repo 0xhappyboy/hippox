@@ -317,7 +317,7 @@ pub mod platform {
             use libc::task_for_pid;
             debug!("Opening process memory for PID: {}", pid);
             let mut task: task_t = 0;
-            let result = unsafe { task_for_pid(mach_task_self(), pid, &mut task) };
+            let result = unsafe { task_for_pid(mach_task_self(), pid as i32, &mut task) };
             if result != 0 {
                 let err_msg = format!("Failed to get task for PID {}", pid);
                 warn!("{}", err_msg);

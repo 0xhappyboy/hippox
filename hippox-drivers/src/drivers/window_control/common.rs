@@ -195,8 +195,9 @@ mod macos_impl {
     pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
         debug!("Listing windows on macOS");
         let mut windows = Vec::new();
-        let window_info = unsafe { CGWindowListCopyWindowInfo(CGWindowListOption::kCGWindowListOptionAll, 0) };
-        if let Some(info_array) = window_info {
+        let window_info = unsafe { CGWindowListCopyWindowInfo(0, 0) };
+        if !window_info.is_null() {
+            let info_array = window_info;
             for window in info_array.iter() {
                 let dict = window;
                 let window_id: Option<u64> = dict.get("kCGWindowNumber").and_then(|v| v.as_u64());

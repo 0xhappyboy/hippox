@@ -279,10 +279,10 @@ fn get_macos_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
         }
     }
     return Ok(DiskSmartInfo {
-        health_percent: health,
-        temperature_celsius: temp,
+        health_percent: health as f32,
+        temperature_celsius: temp as f32,
         power_on_hours: power_on,
-        wear_level: wear,
+        wear_level: wear.map(|v| v as f32),
         has_error,
         error_message: error_msg,
     });
