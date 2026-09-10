@@ -220,8 +220,8 @@ mod macos_impl {
                     .objectForKey(&NSString::from_str("kCGWindowOwnerName"))
                     .and_then(|v| v.downcast_ref::<NSString>().map(|s| s.to_string()))
                     .unwrap_or_default();
-                let bounds: Option<&NSDictionary<NSString, AnyObject>> =
-                    dict.objectForKey(&NSString::from_str("kCGWindowBounds")).and_then(|v| v.downcast_ref::<NSDictionary<NSString, AnyObject>>());
+                let bounds: Option<&NSDictionary> =
+                    dict.objectForKey(&NSString::from_str("kCGWindowBounds")).and_then(|v| v.downcast_ref::<NSDictionary>());
                 let get_f64 = |key: &str| -> f64 {
                     bounds
                         .and_then(|b| b.objectForKey(&NSString::from_str(key)))
