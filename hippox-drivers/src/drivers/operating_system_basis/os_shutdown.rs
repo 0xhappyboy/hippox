@@ -94,20 +94,20 @@ impl Driver for OsShutdownDriver {
         #[cfg(not(target_os = "windows"))]
         {
             debug!("Shutting down on Unix-like system");
-            let mut args = vec!["shutdown"];
+            // Use Vec<String> so the delay argument's lifetime is not an issue.
+            let mut args: Vec<String> = vec!["shutdown".to_string()];
             if delay > 0 {
-                args.push("-h");
-                // Bind the formatted string to a variable so the reference lives long enough.
-                let delay_arg = format!("+{}", delay / 60);
-                args.push(&delay_arg);
+                args.push("-h".to_string());
+                args.push(format!("+{}", delay / 60));
             } else {
-                args.push("-h");
-                args.push("now");
+                args.push("-h".to_string());
+                args.push("now".to_string());
             }
             if force {
-                args.push("-f");
+                args.push("-f".to_string());
             }
-            let _ = exec_async("sudo", &args, None).await;
+            let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            let _ = exec_async("sudo", &args_ref, None).await;
             info!("System will shutdown on Unix-like system in {} seconds", delay);
         }
         return Ok(format!("System will shutdown in {} seconds", delay));

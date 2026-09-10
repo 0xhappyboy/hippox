@@ -119,7 +119,7 @@ fn get_partitions() -> DriverResult<Vec<DiskPartition>> {
                     // Get size info
                     let total_size = match fs::metadata(&mount_point) {
                         Ok(_) => {
-                            if let Ok(statvfs) = nix::sys::statvfs::statvfs(&mount_point) {
+                            if let Ok(statvfs) = nix::sys::statvfs::statvfs(mount_point.as_str()) {
                                 (statvfs.blocks() as u64 * statvfs.fragment_size() as u64) / (1024 * 1024 * 1024)
                             } else {
                                 0
