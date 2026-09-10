@@ -33,6 +33,7 @@ impl Rect {
         Self { x, y, width, height }
     }
 }
+use crate::{DriverError, DriverResult};
 /// Find window by title or process name
 pub fn find_window(title: Option<&str>, process: Option<&str>) -> DriverResult<u64> {
     debug!("Finding window: title={:?}, process={:?}", title, process);
@@ -192,6 +193,9 @@ mod macos_impl {
     use super::*;
     use core_foundation::array::{CFArray, CFArrayRef};
     use core_foundation::base::TCFType;
+    use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
+    use core_foundation::number::CFNumber;
+    use core_foundation::string::CFString;
     use core_graphics::window::CGWindowListCopyWindowInfo;
     use std::ffi::c_void;
     use tracing::{debug, info};
@@ -204,18 +208,43 @@ mod macos_impl {
             // Wrap the raw CFArray pointer so we can iterate it safely
             let info_array = unsafe { CFArray::<*const c_void>::wrap_under_get_rule(window_info) };
             for window in info_array.iter() {
-                // Each element is a CFDictionaryRef; convert as needed by your existing logic
-                let dict = window;
-                let window_id: Option<u64> = dict.get("kCGWindowNumber").and_then(|v| v.as_u64());
-                let title: String = dict.get("kCGWindowName").and_then(|v| v.as_string()).unwrap_or("").to_string();
-                let pid: u32 = dict.get("kCGWindowOwnerPID").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                let process_name: String = dict.get("kCGWindowOwnerName").and_then(|v| v.as_string()).unwrap_or("").to_string();
-                let bounds = dict.get("kCGWindowBounds").and_then(|v| v.as_dictionary());
-                let x: i32 = bounds.and_then(|b| b.get("X")).and_then(|v| v.as_f64()).unwrap_or(0.0) as i32;
-                let y: i32 = bounds.and_then(|b| b.get("Y")).and_then(|v| v.as_f64()).unwrap_or(0.0) as i32;
-                let width: u32 = bounds.and_then(|b| b.get("Width")).and_then(|v| v.as_f64()).unwrap_or(0.0) as u32;
-                let height: u32 = bounds.and_then(|b| b.get("Height")).and_then(|v| v.as_f64()).unwrap_or(0.0) as u32;
-                let is_visible: bool = dict.get("kCGWindowIsOnscreen").and_then(|v| v.as_u64()).unwrap_or(0) == 1;
+                // Each element is a CFDictionaryRef; wrap it as CFDictionary
+                let dict: CFDictionary = unsafe { CFDictionary::wrap_under_get_rule(*window as CFDictionaryRef) };
+                let window_id: Option<u64> =
+                    dict.find(CFString::new("kCGWindowNumber")).and_then(|v| v.downcast::<CFNumber>()).and_then(|n| n.to_i64()).map(|n| n as u64);
+                let title: String =
+                    dict.find(CFString::new("kCGWindowName")).and_then(|v| v.downcast::<CFString>()).map(|s| s.to_string()).unwrap_or_default();
+                let pid: u32 =
+                    dict.find(CFString::new("kCGWindowOwnerPID")).and_then(|v| v.downcast::<CFNumber>()).and_then(|n| n.to_i64()).unwrap_or(0) as u32;
+                let process_name: String =
+                    dict.find(CFString::new("kCGWindowOwnerName")).and_then(|v| v.downcast::<CFString>()).map(|s| s.to_string()).unwrap_or_default();
+                let bounds: Option<CFDictionary> = dict.find(CFString::new("kCGWindowBounds")).and_then(|v| v.downcast::<CFDictionary>());
+                let x: i32 = bounds
+                    .as_ref()
+                    .and_then(|b| b.find(CFString::new("X")))
+                    .and_then(|v| v.downcast::<CFNumber>())
+                    .and_then(|n| n.to_f64())
+                    .unwrap_or(0.0) as i32;
+                let y: i32 = bounds
+                    .as_ref()
+                    .and_then(|b| b.find(CFString::new("Y")))
+                    .and_then(|v| v.downcast::<CFNumber>())
+                    .and_then(|n| n.to_f64())
+                    .unwrap_or(0.0) as i32;
+                let width: u32 = bounds
+                    .as_ref()
+                    .and_then(|b| b.find(CFString::new("Width")))
+                    .and_then(|v| v.downcast::<CFNumber>())
+                    .and_then(|n| n.to_f64())
+                    .unwrap_or(0.0) as u32;
+                let height: u32 = bounds
+                    .as_ref()
+                    .and_then(|b| b.find(CFString::new("Height")))
+                    .and_then(|v| v.downcast::<CFNumber>())
+                    .and_then(|n| n.to_f64())
+                    .unwrap_or(0.0) as u32;
+                let is_visible: bool =
+                    dict.find(CFString::new("kCGWindowIsOnscreen")).and_then(|v| v.downcast::<CFNumber>()).and_then(|n| n.to_i64()).unwrap_or(0) == 1;
                 if let Some(id) = window_id {
                     windows.push(WindowInfo {
                         id,
@@ -475,8 +504,6 @@ pub use linux_impl::*;
 pub use macos_impl::*;
 #[cfg(target_os = "windows")]
 pub use windows_impl::*;
-
-use crate::{DriverError, DriverResult};
 pub fn list_windows() -> DriverResult<Vec<WindowInfo>> {
     #[cfg(target_os = "windows")]
     return windows_impl::list_windows();
