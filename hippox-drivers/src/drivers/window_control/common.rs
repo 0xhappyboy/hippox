@@ -220,18 +220,20 @@ mod macos_impl {
                     .objectForKey(&NSString::from_str("kCGWindowOwnerName"))
                     .and_then(|v| v.downcast_ref::<NSString>().map(|s| s.to_string()))
                     .unwrap_or_default();
-                let bounds: Option<&NSDictionary> =
-                    dict.objectForKey(&NSString::from_str("kCGWindowBounds")).and_then(|v| v.downcast_ref::<NSDictionary>());
-                let get_f64 = |key: &str| -> f64 {
-                    bounds
-                        .and_then(|b| b.objectForKey(&NSString::from_str(key)))
-                        .and_then(|v| v.downcast_ref::<NSNumber>().map(|n| n.doubleValue()))
-                        .unwrap_or(0.0)
-                };
-                let x = get_f64("X") as i32;
-                let y = get_f64("Y") as i32;
-                let width = get_f64("Width") as u32;
-                let height = get_f64("Height") as u32;
+                // Extract x/y/width/height inside the closure so no reference
+                // to the temporary value escapes. Returns owned values only.
+                let (x, y, width, height) = dict
+                    .objectForKey(&NSString::from_str("kCGWindowBounds"))
+                    .and_then(|v| {
+                        let b = v.downcast_ref::<NSDictionary>()?;
+                        let get_f64 = |key: &str| -> f64 {
+                            b.objectForKey(&NSString::from_str(key))
+                                .and_then(|v| v.downcast_ref::<NSNumber>().map(|n| n.doubleValue()))
+                                .unwrap_or(0.0)
+                        };
+                        Some((get_f64("X") as i32, get_f64("Y") as i32, get_f64("Width") as u32, get_f64("Height") as u32))
+                    })
+                    .unwrap_or((0, 0, 0, 0));
                 let is_visible: bool = dict
                     .objectForKey(&NSString::from_str("kCGWindowIsOnscreen"))
                     .and_then(|v| v.downcast_ref::<NSNumber>().map(|n| n.boolValue()))
