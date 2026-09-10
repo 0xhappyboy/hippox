@@ -1,6 +1,6 @@
 [package]
 name = "hippox-drivers"
-version = "0.3.5"
+version = "0.3.6"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛All indivisible atomic driver units in Hippox."
@@ -124,7 +124,9 @@ qrcode = "0.14.1"
 barcoders = "2.0.0"
 ssh2 = "0.9.5"
 raw-cpuid = "11.6.0"
-nix = "0.31.3"
+nix = { version = "0.31.3", features = ["signal", "process", "fs", "user"] }
+libc = "0.2"
+shellexpand = "3"
 
 [features]
 default = [

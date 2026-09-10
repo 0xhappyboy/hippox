@@ -85,8 +85,9 @@ Min Frequency: 800 MHz"#
             #[cfg(target_os = "linux")]
             {
                 if let Ok(content) = std::fs::read_to_string("/proc/cpuinfo") {
-                    let mut physical_ids = HashSet::new();
-                    let mut core_ids = HashSet::new();
+                    // Explicit type annotation required; inference cannot determine the element type.
+                    let mut physical_ids: HashSet<String> = HashSet::new();
+                    let mut core_ids: HashSet<String> = HashSet::new();
                     let mut current_physical = String::new();
                     for line in content.lines() {
                         if line.starts_with("physical id") {

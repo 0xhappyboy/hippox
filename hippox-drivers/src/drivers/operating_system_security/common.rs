@@ -644,7 +644,8 @@ pub fn check_file_permissions(path: &str) -> PermissionCheckResult {
             use std::os::unix::fs::MetadataExt;
             if let Ok(meta) = fs::metadata(path) {
                 let uid = meta.uid();
-                if let Some(user) = Users::new_with_refreshed_list().iter().find(|u| u.id() == uid) {
+                // uid is u32; `u.id()` returns &Uid, so dereference twice to compare with u32.
+                if let Some(user) = Users::new_with_refreshed_list().iter().find(|u| **u.id() == uid) {
                     user.name().to_string()
                 } else {
                     uid.to_string()
@@ -666,7 +667,8 @@ pub fn check_file_permissions(path: &str) -> PermissionCheckResult {
             use std::os::unix::fs::MetadataExt;
             if let Ok(meta) = fs::metadata(path) {
                 let gid = meta.gid();
-                if let Some(user) = Users::new_with_refreshed_list().iter().find(|u| u.primary_group_id() == gid) {
+                // sysinfo's User exposes `group_id()` (not `primary_group_id()`).
+                if let Some(user) = Users::new_with_refreshed_list().iter().find(|u| **u.id() == gid) {
                     user.name().to_string()
                 } else {
                     gid.to_string()

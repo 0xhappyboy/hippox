@@ -100,10 +100,10 @@ fn get_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
         if let Ok(output) = crate::common::hidden_cmd("smartctl").args(&["-a", device]).output() {
             if output.status.success() {
                 if let Ok(output_str) = String::from_utf8(output.stdout) {
-                    let mut health = 100.0;
-                    let mut temp = 0.0;
+                    let mut health = 100.0f64;
+                    let mut temp = 0.0f64;
                     let mut power_on = 0;
-                    let mut wear = None;
+                    let mut wear: Option<f64> = None;
                     let mut has_error = false;
                     let mut error_msg = None;
                     for line in output_str.lines() {
@@ -146,11 +146,12 @@ fn get_smart_info(device: &str) -> DriverResult<DiskSmartInfo> {
                             }
                         }
                     }
+                    // Cast f64 -> f32 to match DiskSmartInfo field types.
                     return Ok(DiskSmartInfo {
-                        health_percent: health,
-                        temperature_celsius: temp,
+                        health_percent: health as f32,
+                        temperature_celsius: temp as f32,
                         power_on_hours: power_on,
-                        wear_level: wear,
+                        wear_level: wear.map(|v| v as f32),
                         has_error,
                         error_message: error_msg,
                     });

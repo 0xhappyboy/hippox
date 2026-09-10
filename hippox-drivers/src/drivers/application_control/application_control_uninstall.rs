@@ -71,10 +71,8 @@ impl Driver for ApplicationControlUninstallDriver {
         debug!("Uninstalling package: {}", package);
         #[cfg(target_os = "windows")]
         {
-            use crate::hidden_cmd;
-
             info!("Uninstalling package via winget: {}", package);
-            let output = hidden_cmd("winget").args(["uninstall", package, "--silent"]).output().map_err(|e| {
+            let output = crate::hidden_cmd("winget").args(["uninstall", package, "--silent"]).output().map_err(|e| {
                 let msg = format!("Failed to execute winget: {}", e);
                 warn!("{}", msg);
                 DriverError::execution(msg)
@@ -91,7 +89,7 @@ impl Driver for ApplicationControlUninstallDriver {
         #[cfg(target_os = "linux")]
         {
             info!("Uninstalling package via apt-get: {}", package);
-            let output = hidden_cmd("sudo").args(["apt-get", "remove", "-y", package]).output().map_err(|e| {
+            let output = crate::hidden_cmd("sudo").args(["apt-get", "remove", "-y", package]).output().map_err(|e| {
                 let msg = format!("Failed to execute apt-get: {}", e);
                 warn!("{}", msg);
                 DriverError::execution(msg)
@@ -108,7 +106,7 @@ impl Driver for ApplicationControlUninstallDriver {
         #[cfg(target_os = "macos")]
         {
             info!("Uninstalling package via brew: {}", package);
-            let output = hidden_cmd("brew").args(["uninstall", package]).output().map_err(|e| {
+            let output = crate::hidden_cmd("brew").args(["uninstall", package]).output().map_err(|e| {
                 let msg = format!("Failed to execute brew: {}", e);
                 warn!("{}", msg);
                 DriverError::execution(msg)

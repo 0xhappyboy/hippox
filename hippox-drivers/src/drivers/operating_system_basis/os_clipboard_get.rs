@@ -55,7 +55,7 @@ impl Driver for ClipboardGetDriver {
         #[cfg(target_os = "macos")]
         {
             debug!("Getting clipboard content on macOS");
-            let result = exec_async("pbpaste", &[], None)
+            let result = crate::exec_async("pbpaste", &[], None)
                 .await
                 .map_err(|e| DriverError::execution(format!("Failed to get clipboard content on macOS: {}", e)))?;
             if result.success {
@@ -68,7 +68,7 @@ impl Driver for ClipboardGetDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Getting clipboard content on Linux");
-            let result = exec_async("xclip", &["-selection", "clipboard", "-o"], None).await;
+            let result = crate::exec_async("xclip", &["-selection", "clipboard", "-o"], None).await;
             if let Ok(r) = result {
                 if r.success {
                     info!("Clipboard content retrieved successfully using xclip on Linux");
@@ -76,7 +76,7 @@ impl Driver for ClipboardGetDriver {
                 }
             }
             debug!("Trying xsel as fallback on Linux");
-            let result = exec_async("xsel", &["--clipboard", "--output"], None)
+            let result = crate::exec_async("xsel", &["--clipboard", "--output"], None)
                 .await
                 .map_err(|e| DriverError::execution(format!("Failed to get clipboard content on Linux: {}", e)))?;
             if result.success {

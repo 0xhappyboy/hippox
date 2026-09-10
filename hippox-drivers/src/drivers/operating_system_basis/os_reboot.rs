@@ -97,7 +97,9 @@ impl Driver for OsRebootDriver {
             let mut args = vec!["shutdown"];
             if delay > 0 {
                 args.push("-h");
-                args.push(&format!("+{}", delay / 60));
+                // Bind the formatted string to a variable so the reference lives long enough.
+                let delay_arg = format!("+{}", delay / 60);
+                args.push(&delay_arg);
             } else {
                 args.push("-r");
                 args.push("now");

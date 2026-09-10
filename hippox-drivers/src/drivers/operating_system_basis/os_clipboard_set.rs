@@ -66,7 +66,7 @@ impl Driver for ClipboardSetDriver {
         #[cfg(target_os = "macos")]
         {
             debug!("Setting clipboard content on macOS");
-            let result = exec_with_stdin_async("pbcopy", &[], content, None)
+            let result = crate::exec_with_stdin_async("pbcopy", &[], content, None)
                 .await
                 .map_err(|e| DriverError::execution(format!("Failed to set clipboard content on macOS: {}", e)))?;
             if result.success {
@@ -79,7 +79,7 @@ impl Driver for ClipboardSetDriver {
         #[cfg(target_os = "linux")]
         {
             debug!("Setting clipboard content on Linux");
-            let result = exec_with_stdin_async("xclip", &["-selection", "clipboard"], content, None).await;
+            let result = crate::exec_with_stdin_async("xclip", &["-selection", "clipboard"], content, None).await;
             if let Ok(r) = result {
                 if r.success {
                     info!("Clipboard content set successfully using xclip on Linux");
@@ -87,7 +87,7 @@ impl Driver for ClipboardSetDriver {
                 }
             }
             debug!("Trying xsel as fallback on Linux");
-            let result = exec_with_stdin_async("xsel", &["--clipboard", "--input"], content, None)
+            let result = crate::exec_with_stdin_async("xsel", &["--clipboard", "--input"], content, None)
                 .await
                 .map_err(|e| DriverError::execution(format!("Failed to set clipboard content on Linux: {}", e)))?;
             if result.success {
