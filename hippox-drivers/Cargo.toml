@@ -1,6 +1,6 @@
 [package]
 name = "hippox-drivers"
-version = "0.4.46"
+version = "0.4.47"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛All indivisible atomic driver units in Hippox."
@@ -127,7 +127,7 @@ kamadak-exif = "0.6.1"
 rqrr = "0.10.1"
 qrcode = "0.14.1"
 barcoders = "2.0.0"
-ssh2 = "0.9.5"
+ssh2 = { version = "0.9.5", features = ["vendored-openssl"] }
 raw-cpuid = "11.6.0"
 nix = { version = "0.31.3", features = ["signal", "process", "fs", "user"] }
 libc = "0.2"
