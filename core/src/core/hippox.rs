@@ -10,7 +10,9 @@ use crate::{
 };
 use hippox_drivers::{DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names};
 use langhub::LLMClient;
+use langhub::image::{ImageLLMOptions, ImageModelProvider};
 use langhub::types::{ChatMessage, ModelProvider};
+use langhub::video::{VideoLLMOptions, VideoModelProvider};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
@@ -22,11 +24,6 @@ pub static INPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
 /// Global output token count for the entire process
 pub static OUTPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
 /// Core engine for Hippox
-///
-/// This is the main entry point for the Hippox engine. It handles:
-/// - Natural language processing with atomic driver registry
-/// - SKILL.md file execution for complex workflows
-/// - Managing conversation history for natural language interactions
 #[derive(Clone)]
 pub struct Hippox {
     scheduler: DriverScheduler,
@@ -63,17 +60,11 @@ impl Hippox {
         Ok(Self { scheduler, executor, is_first_message: Arc::new(AtomicBool::new(false)) })
     }
     /// Notify LLM about updated drivers registry
-    ///
-    /// Call this after dynamically registering new drivers.
-    /// This will mark the session to resend the drivers registry on next message.
     pub fn refresh_llm_driver_registry(&self) -> HippoxVoidResult {
         self.is_first_message.store(false, Ordering::SeqCst);
         HippoxResult::ok(())
     }
     /// Notify LLM about updated instances registry
-    ///
-    /// Call this after adding/removing instance configurations.
-    /// This will mark the session to resend the instances registry on next message.
     pub fn refresh_llm_instances(&self) -> HippoxVoidResult {
         self.is_first_message.store(false, Ordering::SeqCst);
         HippoxResult::ok(())
@@ -108,9 +99,6 @@ impl Hippox {
         }
     }
     /// Submit a natural language task and return task ID immediately
-    ///
-    /// This function creates a task, adds it to the global task pool, and returns the task ID.
-    /// The actual execution happens asynchronously in the background.
     ///
     /// # Arguments
     /// * `input` - Natural language input from the user
@@ -184,10 +172,6 @@ impl Hippox {
         HippoxResult::ok(results)
     }
     /// Execute natural language directly without task pool, returning the result asynchronously.
-    ///
-    /// Note: This function uses the task pool **only** for token counting via `TaskStateUpdater`.
-    /// The actual execution logic runs synchronously in the current thread, not through
-    /// the background execution engine.
     ///
     /// # Example
     /// ```
@@ -276,6 +260,58 @@ impl Hippox {
         OUTPUT_TOKEN_COUNT.fetch_add(output_tokens, std::sync::atomic::Ordering::Relaxed);
         HippoxResult::ok_with_tokens(final_output, input_tokens, output_tokens)
     }
+    /// Submit a video generation task (direct, no general task pipeline).
+    ///
+    /// # Arguments
+    /// * `provider` - The video model provider to use.
+    /// * `api_key` - API key for the provider.
+    /// * `prompt` - Text prompt for video generation.
+    /// * `options` - Optional generation options (duration, resolution, etc.).
+    /// * `base_url` - Optional custom base URL for the provider.
+    /// * `output_filename` - Optional custom filename for the produced video.
+    ///   If `None`, a default filename (`{task_id}.mp4`) is used.
+    /// * `output_path` - Directory where the produced video will be saved.
+    ///
+    /// # Returns
+    /// `HippoxStringResult` containing the saved file path on success.
+    pub async fn submit_video_task(
+        &self,
+        provider: VideoModelProvider,
+        api_key: String,
+        prompt: String,
+        options: Option<VideoLLMOptions>,
+        base_url: Option<String>,
+        output_filename: Option<String>,
+        output_path: String,
+    ) -> HippoxStringResult {
+        crate::core::video_task::run_video_task(provider, api_key, prompt, options, base_url, output_filename, output_path).await
+    }
+    /// Submit an image generation task (direct, no general task pipeline).
+    ///
+    /// # Arguments
+    /// * `provider` - The image model provider to use.
+    /// * `api_key` - API key for the provider.
+    /// * `prompt` - Text prompt for image generation.
+    /// * `options` - Optional generation options (n, resolution, aspect ratio, etc.).
+    /// * `base_url` - Optional custom base URL for the provider.
+    /// * `output_filename` - Optional custom filename for the produced image.
+    ///   If `None`, a default filename (`{task_id}_{idx}.png`) is used.
+    /// * `output_path` - Directory where the produced image(s) will be saved.
+    ///
+    /// # Returns
+    /// `HippoxStringResult` containing the first saved file path on success.
+    pub async fn submit_image_task(
+        &self,
+        provider: ImageModelProvider,
+        api_key: String,
+        prompt: String,
+        options: Option<ImageLLMOptions>,
+        base_url: Option<String>,
+        output_filename: Option<String>,
+        output_path: String,
+    ) -> HippoxStringResult {
+        crate::core::image_task::run_image_task(provider, api_key, prompt, options, base_url, output_filename, output_path).await
+    }
     /// heartbeat
     pub async fn heartbeat(&self) -> HippoxStringResult {
         let mut messages: Vec<ChatMessage> = Vec::new();
@@ -335,9 +371,6 @@ impl Hippox {
     }
     /// Get current global input token count
     ///
-    /// This returns the total input tokens consumed across all tasks
-    /// in the entire process lifetime.
-    ///
     /// # Returns
     /// The total input token count as u64
     ///
@@ -352,9 +385,6 @@ impl Hippox {
     }
     /// Get current global output token count
     ///
-    /// This returns the total output tokens consumed across all tasks
-    /// in the entire process lifetime.
-    ///
     /// # Returns
     /// The total output token count as u64
     ///
@@ -368,10 +398,6 @@ impl Hippox {
         OUTPUT_TOKEN_COUNT.load(std::sync::atomic::Ordering::Relaxed)
     }
     /// Storage task pool to a JSON file and remove completed tasks from memory
-    ///
-    /// This function saves all completed/failed/cancelled/timeout tasks from the task pool
-    /// to a JSON file at the specified path, then removes them from memory to free up resources.
-    /// Only terminal state tasks (cannot be executed again) are processed.
     ///
     /// # Arguments
     /// * `path` - The file path to save the JSON file (e.g., "./task_pool.json")

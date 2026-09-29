@@ -1,9 +1,5 @@
 /// Driver execution scheduler module
 ///
-/// This module provides the DriverScheduler which orchestrates driver
-/// selection and execution based on user input. It uses the driver
-/// registry to access built-in atomic drivers.
-///
 /// # Key Responsibilities
 /// - Generating driver registry prompts for LLM
 /// - Selecting appropriate drivers based on user input
@@ -16,7 +12,7 @@ use hippox_drivers::{
     list_drivers_names,
 };
 use langhub::LLMClient;
-use langhub::llms::LLMResult;
+use langhub::chat::LLMResult;
 use langhub::types::{ChatMessage, LangHubError};
 use serde_json::Value;
 use std::collections::HashMap;
