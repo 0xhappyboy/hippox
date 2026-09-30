@@ -360,17 +360,20 @@ impl Hippox {
     /// # Arguments
     /// * `provider` - The video model provider to probe.
     /// * `api_key` - API key for the provider. Must be non-empty.
-    ///
-    /// # Returns
-    /// `HippoxStringResult` containing a short status message on success.
-    pub async fn heartbeat_video(&self, provider: VideoModelProvider, api_key: Option<String>) -> HippoxStringResult {
+    /// * `base_url` - Optional custom base URL override.
+    pub async fn heartbeat_video(&self, provider: VideoModelProvider, api_key: Option<String>, base_url: Option<String>) -> HippoxStringResult {
         if VideoModelProvider::all().is_empty() {
             return HippoxResult::system_error("no video provider available".to_string());
         }
-        match api_key {
-            Some(key) if !key.is_empty() => HippoxResult::ok(format!("video channel ok: {:?}", provider)),
-            Some(_) => HippoxResult::system_error(format!("video channel key empty: {:?}", provider)),
-            None => HippoxResult::system_error(format!("video channel key missing: {:?}", provider)),
+        let key = match api_key {
+            Some(k) if !k.is_empty() => k,
+            Some(_) => return HippoxResult::system_error(format!("video channel key empty: {:?}", provider)),
+            None => return HippoxResult::system_error(format!("video channel key missing: {:?}", provider)),
+        };
+        let base_opt = base_url.as_deref().filter(|b| !b.trim().is_empty());
+        match provider.probe(&key, base_opt).await {
+            Ok(_) => HippoxResult::ok(format!("video channel ok: {:?}", provider)),
+            Err(e) => HippoxResult::network_error(format!("video channel unreachable: {:?}: {}", provider, e)),
         }
     }
     /// Heartbeat for the image channel.
@@ -378,17 +381,20 @@ impl Hippox {
     /// # Arguments
     /// * `provider` - The image model provider to probe.
     /// * `api_key` - API key for the provider. Must be non-empty.
-    ///
-    /// # Returns
-    /// `HippoxStringResult` containing a short status message on success.
-    pub async fn heartbeat_image(&self, provider: ImageModelProvider, api_key: Option<String>) -> HippoxStringResult {
+    /// * `base_url` - Optional custom base URL override.
+    pub async fn heartbeat_image(&self, provider: ImageModelProvider, api_key: Option<String>, base_url: Option<String>) -> HippoxStringResult {
         if ImageModelProvider::all().is_empty() {
             return HippoxResult::system_error("no image provider available".to_string());
         }
-        match api_key {
-            Some(key) if !key.is_empty() => HippoxResult::ok(format!("image channel ok: {:?}", provider)),
-            Some(_) => HippoxResult::system_error(format!("image channel key empty: {:?}", provider)),
-            None => HippoxResult::system_error(format!("image channel key missing: {:?}", provider)),
+        let key = match api_key {
+            Some(k) if !k.is_empty() => k,
+            Some(_) => return HippoxResult::system_error(format!("image channel key empty: {:?}", provider)),
+            None => return HippoxResult::system_error(format!("image channel key missing: {:?}", provider)),
+        };
+        let base_opt = base_url.as_deref().filter(|b| !b.trim().is_empty());
+        match provider.probe(&key, base_opt).await {
+            Ok(_) => HippoxResult::ok(format!("image channel ok: {:?}", provider)),
+            Err(e) => HippoxResult::network_error(format!("image channel unreachable: {:?}: {}", provider, e)),
         }
     }
     /// Heartbeat for the audio channel.
@@ -396,17 +402,20 @@ impl Hippox {
     /// # Arguments
     /// * `provider` - The audio model provider to probe.
     /// * `api_key` - API key for the provider. Must be non-empty.
-    ///
-    /// # Returns
-    /// `HippoxStringResult` containing a short status message on success.
-    pub async fn heartbeat_audio(&self, provider: AudioModelProvider, api_key: Option<String>) -> HippoxStringResult {
+    /// * `base_url` - Optional custom base URL override.
+    pub async fn heartbeat_audio(&self, provider: AudioModelProvider, api_key: Option<String>, base_url: Option<String>) -> HippoxStringResult {
         if AudioModelProvider::all().is_empty() {
             return HippoxResult::system_error("no audio provider available".to_string());
         }
-        match api_key {
-            Some(key) if !key.is_empty() => HippoxResult::ok(format!("audio channel ok: {:?}", provider)),
-            Some(_) => HippoxResult::system_error(format!("audio channel key empty: {:?}", provider)),
-            None => HippoxResult::system_error(format!("audio channel key missing: {:?}", provider)),
+        let key = match api_key {
+            Some(k) if !k.is_empty() => k,
+            Some(_) => return HippoxResult::system_error(format!("audio channel key empty: {:?}", provider)),
+            None => return HippoxResult::system_error(format!("audio channel key missing: {:?}", provider)),
+        };
+        let base_opt = base_url.as_deref().filter(|b| !b.trim().is_empty());
+        match provider.probe(&key, base_opt).await {
+            Ok(_) => HippoxResult::ok(format!("audio channel ok: {:?}", provider)),
+            Err(e) => HippoxResult::network_error(format!("audio channel unreachable: {:?}: {}", provider, e)),
         }
     }
     /// List all available atomic drivers
