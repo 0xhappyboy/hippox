@@ -8,7 +8,6 @@ mod prompts;
 mod signalbus;
 mod tasks;
 mod workflow;
-
 pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::core::*;
@@ -17,7 +16,6 @@ pub use crate::pipeline::*;
 pub use crate::signalbus::*;
 pub use crate::tasks::*;
 pub use crate::workflow::*;
-
 pub use hippox_drivers::registry::*;
 pub use hippox_drivers::result::DriverResult;
 pub use hippox_drivers::types::Driver;
@@ -26,6 +24,7 @@ pub use hippox_drivers::types::DriverCallback;
 pub use hippox_drivers::types::DriverContext;
 pub use hippox_drivers::types::DriverMetadata;
 pub use hippox_drivers::types::DriverParameter;
+pub use langhub::audio::{AudioLLMOptions, AudioModelProvider, AudioUsage};
 pub use langhub::image::{ImageLLMOptions, ImageModelProvider, ImageUsage};
 pub use langhub::types::ModelProvider;
 pub use langhub::video::{VideoLLMOptions, VideoModelProvider, VideoUsage};

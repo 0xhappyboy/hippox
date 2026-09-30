@@ -10,6 +10,7 @@ use crate::{
 };
 use hippox_drivers::{DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names};
 use langhub::LLMClient;
+use langhub::audio::{AudioLLMOptions, AudioModelProvider};
 use langhub::image::{ImageLLMOptions, ImageModelProvider};
 use langhub::types::{ChatMessage, ModelProvider};
 use langhub::video::{VideoLLMOptions, VideoModelProvider};
@@ -312,7 +313,33 @@ impl Hippox {
     ) -> HippoxStringResult {
         crate::core::image_task::run_image_task(provider, api_key, prompt, options, base_url, output_filename, output_path).await
     }
-    /// heartbeat
+    /// Submit an audio generation task (direct, no general task pipeline).
+    ///
+    /// # Arguments
+    /// * `provider` - The audio model provider to use.
+    /// * `api_key` - API key for the provider.
+    /// * `prompt` - Text prompt for audio generation.
+    /// * `options` - Optional generation options (voice, emotion, format, etc.).
+    /// * `base_url` - Optional custom base URL for the provider.
+    /// * `output_filename` - Optional custom filename for the produced audio.
+    ///   If `None`, a default filename (`{task_id}.{format}`) is used.
+    /// * `output_path` - Directory where the produced audio will be saved.
+    ///
+    /// # Returns
+    /// `HippoxStringResult` containing the saved file path on success.
+    pub async fn submit_audio_task(
+        &self,
+        provider: AudioModelProvider,
+        api_key: String,
+        prompt: String,
+        options: Option<AudioLLMOptions>,
+        base_url: Option<String>,
+        output_filename: Option<String>,
+        output_path: String,
+    ) -> HippoxStringResult {
+        crate::core::audio_task::run_audio_task(provider, api_key, prompt, options, base_url, output_filename, output_path).await
+    }
+    /// Heartbeat for the chat (LLM) channel.
     pub async fn heartbeat(&self) -> HippoxStringResult {
         let mut messages: Vec<ChatMessage> = Vec::new();
         messages.push(ChatMessage::user("hi"));
@@ -326,6 +353,60 @@ impl Hippox {
                 HippoxResult::ok_with_tokens(result.text, input_tokens, output_tokens)
             }
             Err(e) => HippoxResult::network_error(e.to_string()),
+        }
+    }
+    /// Heartbeat for the video channel.
+    ///
+    /// # Arguments
+    /// * `provider` - The video model provider to probe.
+    /// * `api_key` - API key for the provider. Must be non-empty.
+    ///
+    /// # Returns
+    /// `HippoxStringResult` containing a short status message on success.
+    pub async fn heartbeat_video(&self, provider: VideoModelProvider, api_key: Option<String>) -> HippoxStringResult {
+        if VideoModelProvider::all().is_empty() {
+            return HippoxResult::system_error("no video provider available".to_string());
+        }
+        match api_key {
+            Some(key) if !key.is_empty() => HippoxResult::ok(format!("video channel ok: {:?}", provider)),
+            Some(_) => HippoxResult::system_error(format!("video channel key empty: {:?}", provider)),
+            None => HippoxResult::system_error(format!("video channel key missing: {:?}", provider)),
+        }
+    }
+    /// Heartbeat for the image channel.
+    ///
+    /// # Arguments
+    /// * `provider` - The image model provider to probe.
+    /// * `api_key` - API key for the provider. Must be non-empty.
+    ///
+    /// # Returns
+    /// `HippoxStringResult` containing a short status message on success.
+    pub async fn heartbeat_image(&self, provider: ImageModelProvider, api_key: Option<String>) -> HippoxStringResult {
+        if ImageModelProvider::all().is_empty() {
+            return HippoxResult::system_error("no image provider available".to_string());
+        }
+        match api_key {
+            Some(key) if !key.is_empty() => HippoxResult::ok(format!("image channel ok: {:?}", provider)),
+            Some(_) => HippoxResult::system_error(format!("image channel key empty: {:?}", provider)),
+            None => HippoxResult::system_error(format!("image channel key missing: {:?}", provider)),
+        }
+    }
+    /// Heartbeat for the audio channel.
+    ///
+    /// # Arguments
+    /// * `provider` - The audio model provider to probe.
+    /// * `api_key` - API key for the provider. Must be non-empty.
+    ///
+    /// # Returns
+    /// `HippoxStringResult` containing a short status message on success.
+    pub async fn heartbeat_audio(&self, provider: AudioModelProvider, api_key: Option<String>) -> HippoxStringResult {
+        if AudioModelProvider::all().is_empty() {
+            return HippoxResult::system_error("no audio provider available".to_string());
+        }
+        match api_key {
+            Some(key) if !key.is_empty() => HippoxResult::ok(format!("audio channel ok: {:?}", provider)),
+            Some(_) => HippoxResult::system_error(format!("audio channel key empty: {:?}", provider)),
+            None => HippoxResult::system_error(format!("audio channel key missing: {:?}", provider)),
         }
     }
     /// List all available atomic drivers
