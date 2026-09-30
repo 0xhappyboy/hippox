@@ -1,6 +1,6 @@
 [package]
 name = "hippox"
-version = "0.7.18"
+version = "0.7.20"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "🦛A reliable, autonomous LLM runtime and skill orchestration engine, Capable of processing natural language and automatically executing OS-native atomic skills, fundamentally enabling the LLM to truly take over the computer."
@@ -11,7 +11,8 @@ keywords = ["ai", "agent", "llm", "skills", "skills-orchestration"]
 exclude = ["assets/", "examples/", "templates/", "hippox-drivers/"]
 
 [dependencies]
-langhub = "0.4.0"
+# langhub = { path = "D:\\gitproject\\langhub" }
+langhub = "0.4.5"
 futures-util = "0.3"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.32"

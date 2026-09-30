@@ -3229,7 +3229,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hippox"
-version = "0.7.18"
+version = "0.7.20"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3239,7 +3239,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hippox-drivers",
- "langhub 0.4.0",
+ "langhub 0.4.5",
  "once_cell",
  "regex",
  "reqwest 0.13.5",
@@ -4182,10 +4182,11 @@ dependencies = [
 
 [[package]]
 name = "langhub"
-version = "0.4.0"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a92b4ab89e9d66e14e25aa8fd50ed466d97303ed62f739e352ae4797b6ed6985"
+checksum = "3fb80d49d42a4ebf62f6c57fc7115e23386b5dd4f04aab3211ec356a41e175ea"
 dependencies = [
+ "base64 0.23.1",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
