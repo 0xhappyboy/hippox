@@ -13,7 +13,7 @@ use langhub::chat::ChatModelProvider;
 use langhub::image::{ImageLLMOptions, ImageModelProvider};
 use langhub::types::ChatMessage;
 use langhub::video::{VideoLLMOptions, VideoModelProvider};
-use langhub::{AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, LLMClient, VideoLLMClient, VideoLLMConfig};
+use langhub::{AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, ChatLLMClient, VideoLLMClient, VideoLLMConfig};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
@@ -66,7 +66,7 @@ impl Hippox {
         let config = get_config();
         i18n::set_language(&config.lang);
         // init llm
-        let llm = LLMClient::new_with_key(provider, api_key, extra_keys)?;
+        let llm = ChatLLMClient::new_with_key(provider, api_key, extra_keys)?;
         // init llm scheduler
         let scheduler = DriverScheduler::new(llm);
         let executor = Executor::new();
@@ -87,7 +87,7 @@ impl Hippox {
         update_config(|global| *global = config.unwrap_or_default())?;
         let config = get_config();
         i18n::set_language(&config.lang);
-        let llm = LLMClient::new_with_key(ChatModelProvider::OpenAI, Some(String::new()), None)?;
+        let llm = ChatLLMClient::new_with_key(ChatModelProvider::OpenAI, Some(String::new()), None)?;
         let scheduler = DriverScheduler::new(llm);
         let executor = Executor::new();
         Ok(Self {

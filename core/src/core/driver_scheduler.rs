@@ -11,7 +11,7 @@ use hippox_drivers::{
     DriverCallback, DriverContext, DriverError, DriverResult, generate_driver_registry_table_json_str, get_driver_by_name, has_driver,
     list_drivers_names,
 };
-use langhub::LLMClient;
+use langhub::ChatLLMClient;
 use langhub::chat::LLMResult;
 use langhub::types::{ChatMessage, LangHubError};
 use serde_json::Value;
@@ -27,7 +27,7 @@ use tracing::{debug, info, warn};
 #[derive(Clone)]
 pub struct DriverScheduler {
     /// Language model client for LLM interactions
-    llm: LLMClient,
+    llm: ChatLLMClient,
 }
 impl fmt::Debug for DriverScheduler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -39,7 +39,7 @@ impl DriverScheduler {
     ///
     /// # Arguments
     /// * `llm` - Language model client for making LLM API calls
-    pub fn new(llm: LLMClient) -> Self {
+    pub fn new(llm: ChatLLMClient) -> Self {
         debug!("Creating new DriverScheduler instance");
         return Self { llm };
     }
@@ -308,8 +308,8 @@ impl DriverScheduler {
     /// Get a reference to the LLM client
     ///
     /// # Returns
-    /// Reference to the internal LLMClient
-    fn get_llm(&self) -> &LLMClient {
+    /// Reference to the internal ChatLLMClient
+    fn get_llm(&self) -> &ChatLLMClient {
         return &self.llm;
     }
     /// Chat with LLM and return raw LLMResult
@@ -371,10 +371,10 @@ impl DriverScheduler {
 #[cfg(test)]
 mod driver_scheduler_test {
     use super::*;
-    use langhub::{LLMClient, chat::ChatModelProvider};
+    use langhub::{ChatLLMClient, chat::ChatModelProvider};
     /// Create a test scheduler with OpenAI provider
     fn create_test_scheduler() -> DriverScheduler {
-        let llm = LLMClient::new_with_key(ChatModelProvider::OpenAI, Some("test-api-key".to_string()), None).unwrap();
+        let llm = ChatLLMClient::new_with_key(ChatModelProvider::OpenAI, Some("test-api-key".to_string()), None).unwrap();
         return DriverScheduler::new(llm);
     }
     #[test]
