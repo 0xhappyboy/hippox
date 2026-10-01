@@ -1,126 +1,365 @@
-//! Image task definitions and dedicated task pool.
-//!
-//! # Entry point
-//! The public entry is `Hippox::submit_image_task` in `hippox.rs`, which calls
-//! `run_image_task` in this module.
-//!
-//! # Design
-//! - Uses a dedicated `IMAGE_TASK_POOL` (independent from the general `TASK_POOL`).
-//! - Directly calls `ImageLLMClient` from `langhub`.
-//! - Downloads the produced image(s) to `output_path` (or `output_path/output_filename`
-//!   when a custom filename is provided; for multiple images, an index suffix is added).
-//! - Records real usage (if the provider returns it) into the task record.
-//!   Image usage has no token field, so it does NOT contribute to `MEDIA_TOKEN_COUNT`.
+//! Image task definitions and atomic operations.
 use crate::HippoxResult;
 use crate::HippoxStringResult;
 use crate::base64_decode_to_file;
 use crate::download_to_file;
-use langhub::image::{ImageLLMOptions, ImageModelProvider, ImageUsage};
-use langhub::types::Result as LangHubResult;
+use langhub::image::ImageUsage;
+use langhub::image::{ImageLLMOptions, ImageLLMResult, ImageModelProvider, ImageTask, ImageTaskStatus};
 use langhub::{ImageLLMClient, ImageLLMConfig};
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use serde::{Deserialize, Serialize};
+use std::time::SystemTime;
+use tracing::{info, warn};
 use uuid::Uuid;
-/// Status of a single image generation task.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Status of a single image generation task (public-facing, serializable).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ImageTaskState {
-    /// Task has been created but not started yet.
     Pending,
-    /// Task is currently calling the LLM API.
-    Running,
-    /// Task completed successfully and the image(s) were saved to disk.
+    Processing,
     Succeeded,
-    /// Task failed with an error message.
     Failed,
+    Cancelled,
 }
-/// A single image generation task record.
-#[derive(Debug, Clone)]
-pub struct ImageTaskRecord {
-    /// Unique task ID.
+impl ImageTaskState {
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, ImageTaskState::Succeeded | ImageTaskState::Failed | ImageTaskState::Cancelled)
+    }
+    pub fn from_langhub(s: &ImageTaskStatus) -> Self {
+        match s {
+            ImageTaskStatus::Pending => ImageTaskState::Pending,
+            ImageTaskStatus::Processing => ImageTaskState::Processing,
+            ImageTaskStatus::Succeeded => ImageTaskState::Succeeded,
+            ImageTaskStatus::Failed => ImageTaskState::Failed,
+            ImageTaskStatus::Cancelled => ImageTaskState::Cancelled,
+        }
+    }
+}
+/// A serializable snapshot of an image generation task.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageTaskInfo {
     pub task_id: String,
-    /// Provider used for this task.
-    pub provider: ImageModelProvider,
-    /// Original prompt.
+    pub provider: String,
     pub prompt: String,
-    /// Current task state.
     pub state: ImageTaskState,
-    /// Local paths where the produced image(s) were saved (on success).
-    pub output_paths: Vec<String>,
-    /// Error message (on failure).
-    pub error: Option<String>,
-    /// Real usage reported by the provider (if any).
+    pub message: String,
+    pub progress: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_task_id: Option<String>,
+    /// Multiple download URLs (images are usually multi-output).
+    #[serde(default)]
+    pub download_urls: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<ImageUsage>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub local_paths: Vec<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
 }
-/// Dedicated task pool for image generation tasks.
-#[derive(Debug, Default)]
-pub struct ImageTaskPool {
-    tasks: HashMap<String, ImageTaskRecord>,
-}
-impl ImageTaskPool {
-    /// Creates a new empty image task pool.
-    pub fn new() -> Self {
-        Self { tasks: HashMap::new() }
-    }
-    /// Inserts a new task record and returns its ID.
-    pub fn insert(&mut self, record: ImageTaskRecord) -> String {
-        let id = record.task_id.clone();
-        self.tasks.insert(id.clone(), record);
-        id
-    }
-    /// Updates the state of an existing task.
-    pub fn set_state(&mut self, task_id: &str, state: ImageTaskState) {
-        if let Some(record) = self.tasks.get_mut(task_id) {
-            record.state = state;
+impl ImageTaskInfo {
+    pub fn new(provider: String, prompt: String) -> Self {
+        let now = now_millis();
+        Self {
+            task_id: Uuid::new_v4().to_string(),
+            provider,
+            prompt,
+            state: ImageTaskState::Pending,
+            message: "Pending".to_string(),
+            progress: 0,
+            provider_task_id: None,
+            download_urls: Vec::new(),
+            resolution: None,
+            usage: None,
+            error: None,
+            local_paths: Vec::new(),
+            created_at: now,
+            updated_at: now,
         }
     }
-    /// Marks a task as succeeded and records the output paths.
-    pub fn set_succeeded(&mut self, task_id: &str, output_paths: Vec<String>) {
-        if let Some(record) = self.tasks.get_mut(task_id) {
-            record.state = ImageTaskState::Succeeded;
-            record.output_paths = output_paths;
-            record.error = None;
-        }
+    fn touch(&mut self) {
+        self.updated_at = now_millis();
     }
-    /// Marks a task as failed and records the error message.
-    pub fn set_failed(&mut self, task_id: &str, error: String) {
-        if let Some(record) = self.tasks.get_mut(task_id) {
-            record.state = ImageTaskState::Failed;
-            record.error = Some(error);
-        }
-    }
-    /// Records usage for a task.
-    pub fn set_usage(&mut self, task_id: &str, usage: ImageUsage) {
-        if let Some(record) = self.tasks.get_mut(task_id) {
-            record.usage = Some(usage);
-        }
-    }
-    /// Gets a clone of a task record by ID.
-    pub fn get(&self, task_id: &str) -> Option<ImageTaskRecord> {
-        self.tasks.get(task_id).cloned()
+    fn set_failed(&mut self, err: String) {
+        self.state = ImageTaskState::Failed;
+        self.message = "Failed".to_string();
+        self.error = Some(err);
+        self.touch();
     }
 }
-/// Global dedicated image task pool.
-pub static IMAGE_TASK_POOL: Lazy<Arc<RwLock<ImageTaskPool>>> = Lazy::new(|| Arc::new(RwLock::new(ImageTaskPool::new())));
-/// Get the current state of an image task.
-pub async fn get_image_task(task_id: &str) -> HippoxResult<ImageTaskRecord> {
-    let pool = IMAGE_TASK_POOL.read().await;
-    match pool.get(task_id) {
-        Some(record) => HippoxResult::ok(record),
-        None => HippoxResult::system_error(format!("Image task not found: {}", task_id)),
+fn now_millis() -> u64 {
+    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() as u64
+}
+/// Build an `ImageLLMConfig` for the given provider.
+pub(crate) fn build_image_config(provider: ImageModelProvider, api_key: String, base_url: Option<String>) -> ImageLLMConfig {
+    let mut config = ImageLLMConfig::new();
+    match provider {
+        ImageModelProvider::Seedream => {
+            config = config.seedream(api_key);
+            if let Some(base) = base_url {
+                config.seedream_base_url = Some(base);
+            }
+        }
+        ImageModelProvider::WanImage => {
+            config = config.wan_image(api_key);
+            if let Some(base) = base_url {
+                config.wan_image_base_url = Some(base);
+            }
+        }
+        ImageModelProvider::StabilityImage => {
+            config = config.stability(api_key);
+            if let Some(base) = base_url {
+                config.stability_base_url = Some(base);
+            }
+        }
+        ImageModelProvider::Flux => {
+            config = config.flux(api_key);
+            if let Some(base) = base_url {
+                config.flux_base_url = Some(base);
+            }
+        }
+        ImageModelProvider::Imagen => {
+            config = config.imagen(api_key);
+            if let Some(base) = base_url {
+                config.imagen_base_url = Some(base);
+            }
+        }
+        ImageModelProvider::DallE => {
+            config = config.dalle(api_key);
+            if let Some(base) = base_url {
+                config.dalle_base_url = Some(base);
+            }
+        }
+    }
+    config
+}
+/// Parse a frontend provider string to `ImageModelProvider`.
+pub fn parse_image_provider(name: &str) -> Result<ImageModelProvider, String> {
+    match name.to_lowercase().as_str() {
+        "seedream" => Ok(ImageModelProvider::Seedream),
+        "wan_image" | "wanimage" | "wan" => Ok(ImageModelProvider::WanImage),
+        "stability" | "stability_image" => Ok(ImageModelProvider::StabilityImage),
+        "flux" => Ok(ImageModelProvider::Flux),
+        "imagen" => Ok(ImageModelProvider::Imagen),
+        "dalle" | "dall_e" | "dall-e" => Ok(ImageModelProvider::DallE),
+        other => Err(format!("Unknown image provider: {}", other)),
     }
 }
-/// Get the usage recorded for a specific image task.
-pub async fn get_image_task_usage(task_id: &str) -> HippoxResult<Option<ImageUsage>> {
-    let pool = IMAGE_TASK_POOL.read().await;
-    match pool.get(task_id) {
-        Some(record) => HippoxResult::ok(record.usage),
-        None => HippoxResult::system_error(format!("Image task not found: {}", task_id)),
+// Atomic operations
+pub async fn submit_image_task_info(
+    provider: ImageModelProvider,
+    api_key: String,
+    prompt: String,
+    options: Option<ImageLLMOptions>,
+    base_url: Option<String>,
+) -> HippoxResult<ImageTaskInfo> {
+    let provider_name = format!("{:?}", provider);
+    let mut info = ImageTaskInfo::new(provider_name.clone(), prompt.clone());
+    info!(target: "hippox::media", "submit_image_task_info - provider={}, task_id={}", provider_name, info.task_id);
+    let config = build_image_config(provider, api_key, base_url);
+    let client = match ImageLLMClient::new_with_config(provider, &config) {
+        Ok(c) => c,
+        Err(e) => {
+            let msg = format!("Failed to create image client: {}", e);
+            warn!("{}", msg);
+            info.set_failed(msg.clone());
+            return HippoxResult::ok(info);
+        }
+    };
+    let opts = options.unwrap_or_default();
+    match client.submit_task(&prompt, opts).await {
+        Ok(task) => {
+            apply_image_task_to_info(&mut info, &task);
+            info.touch();
+            HippoxResult::ok(info)
+        }
+        Err(e) => {
+            let msg = format!("Image submit failed: {}", e);
+            warn!("{}", msg);
+            info.set_failed(msg.clone());
+            HippoxResult::ok(info)
+        }
     }
 }
-/// Internal implementation of an image generation task.
+pub async fn poll_image_task_info(
+    provider: ImageModelProvider,
+    api_key: String,
+    provider_task_id: String,
+    base_url: Option<String>,
+    task_id: String,
+    prompt: String,
+    created_at: u64,
+) -> HippoxResult<ImageTaskInfo> {
+    let provider_name = format!("{:?}", provider);
+    let mut info = ImageTaskInfo {
+        task_id,
+        provider: provider_name.clone(),
+        prompt,
+        state: ImageTaskState::Pending,
+        message: "Polling".to_string(),
+        progress: 0,
+        provider_task_id: Some(provider_task_id.clone()),
+        download_urls: Vec::new(),
+        resolution: None,
+        usage: None,
+        error: None,
+        local_paths: Vec::new(),
+        created_at,
+        updated_at: now_millis(),
+    };
+    let config = build_image_config(provider, api_key, base_url);
+    let client = match ImageLLMClient::new_with_config(provider, &config) {
+        Ok(c) => c,
+        Err(e) => {
+            let msg = format!("Failed to create image client: {}", e);
+            warn!("{}", msg);
+            info.set_failed(msg.clone());
+            return HippoxResult::ok(info);
+        }
+    };
+    match client.poll_task(&provider_task_id).await {
+        Ok(task) => {
+            apply_image_task_to_info(&mut info, &task);
+            info.touch();
+            HippoxResult::ok(info)
+        }
+        Err(e) => {
+            let msg = format!("Image poll failed: {}", e);
+            warn!("{}", msg);
+            info.set_failed(msg.clone());
+            HippoxResult::ok(info)
+        }
+    }
+}
+pub async fn cancel_image_task_info(
+    provider: ImageModelProvider,
+    _api_key: String,
+    provider_task_id: Option<String>,
+    _base_url: Option<String>,
+    task_id: String,
+    prompt: String,
+    created_at: u64,
+) -> HippoxResult<ImageTaskInfo> {
+    let provider_name = format!("{:?}", provider);
+    let info = ImageTaskInfo {
+        task_id,
+        provider: provider_name,
+        prompt,
+        state: ImageTaskState::Cancelled,
+        message: "Cancelled".to_string(),
+        progress: 0,
+        provider_task_id,
+        download_urls: Vec::new(),
+        resolution: None,
+        usage: None,
+        error: None,
+        local_paths: Vec::new(),
+        created_at,
+        updated_at: now_millis(),
+    };
+    HippoxResult::ok(info)
+}
+pub async fn download_image_task(
+    download_urls: Vec<String>,
+    output_path: String,
+    output_filename: Option<String>,
+    task_id: String,
+    provider: String,
+    prompt: String,
+    created_at: u64,
+) -> HippoxResult<ImageTaskInfo> {
+    let mut info = ImageTaskInfo {
+        task_id: task_id.clone(),
+        provider,
+        prompt,
+        state: ImageTaskState::Succeeded,
+        message: "Downloading".to_string(),
+        progress: 80,
+        provider_task_id: None,
+        download_urls: download_urls.clone(),
+        resolution: None,
+        usage: None,
+        error: None,
+        local_paths: Vec::new(),
+        created_at,
+        updated_at: now_millis(),
+    };
+    if let Err(e) = std::fs::create_dir_all(&output_path) {
+        let msg = format!("Failed to create output directory: {}", e);
+        warn!("{}", msg);
+        info.set_failed(msg.clone());
+        return HippoxResult::ok(info);
+    }
+    let total = download_urls.len();
+    let mut saved: Vec<String> = Vec::new();
+    for (idx, url) in download_urls.iter().enumerate() {
+        let filename = match &output_filename {
+            Some(name) if total > 1 => {
+                let path = std::path::Path::new(name);
+                let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
+                let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("png");
+                format!("{}_{}.{}", stem, idx, ext)
+            }
+            Some(name) => name.clone(),
+            None => format!("{}_{}.png", task_id, idx),
+        };
+        let full_path = std::path::Path::new(&output_path).join(&filename);
+        if let Err(e) = download_to_file(url, &full_path).await {
+            let msg = format!("Failed to download image from {}: {}", url, e);
+            warn!("{}", msg);
+            info.set_failed(msg.clone());
+            return HippoxResult::ok(info);
+        }
+        saved.push(full_path.to_string_lossy().to_string());
+    }
+    if saved.is_empty() {
+        let msg = "Image download received no URL".to_string();
+        info.set_failed(msg);
+        return HippoxResult::ok(info);
+    }
+    info.local_paths = saved;
+    info.progress = 100;
+    info.message = "Downloaded".to_string();
+    info.touch();
+    HippoxResult::ok(info)
+}
+fn apply_image_task_to_info(info: &mut ImageTaskInfo, task: &ImageTask) {
+    info.state = ImageTaskState::from_langhub(&task.status);
+    info.provider_task_id = Some(task.task_id.clone());
+    info.message = match &task.status {
+        ImageTaskStatus::Pending => "Pending".to_string(),
+        ImageTaskStatus::Processing => "Processing".to_string(),
+        ImageTaskStatus::Succeeded => "Succeeded".to_string(),
+        ImageTaskStatus::Failed => "Failed".to_string(),
+        ImageTaskStatus::Cancelled => "Cancelled".to_string(),
+    };
+    info.progress = match &task.status {
+        ImageTaskStatus::Pending => 10,
+        ImageTaskStatus::Processing => 50,
+        ImageTaskStatus::Succeeded => 90,
+        ImageTaskStatus::Failed | ImageTaskStatus::Cancelled => 100,
+    };
+    if let Some(result) = &task.result {
+        apply_image_result_to_info(info, result);
+    }
+    if let Some(err) = &task.error {
+        info.error = Some(err.clone());
+    }
+}
+fn apply_image_result_to_info(info: &mut ImageTaskInfo, result: &ImageLLMResult) {
+    if info.download_urls.is_empty() {
+        info.download_urls = result.image_urls.clone();
+    }
+    if info.resolution.is_none() {
+        info.resolution = result.resolution.clone();
+    }
+    if info.usage.is_none() {
+        info.usage = result.extract_usage();
+    }
+}
+// Legacy entry point (kept for backward compatibility).
 pub(crate) async fn run_image_task(
     provider: ImageModelProvider,
     api_key: String,
@@ -130,78 +369,97 @@ pub(crate) async fn run_image_task(
     output_filename: Option<String>,
     output_path: String,
 ) -> HippoxStringResult {
-    let task_id = Uuid::new_v4().to_string();
-    info!("Submitting image task {}: provider={:?}, prompt_len={}", task_id, provider, prompt.len());
-    {
-        let mut pool = IMAGE_TASK_POOL.write().await;
-        pool.insert(ImageTaskRecord {
-            task_id: task_id.clone(),
-            provider,
-            prompt: prompt.clone(),
-            state: ImageTaskState::Pending,
-            output_paths: Vec::new(),
-            error: None,
-            usage: None,
-        });
+    let submitted = submit_image_task_info(provider, api_key.clone(), prompt.clone(), options.clone(), base_url.clone()).await;
+    let mut info = match submitted.data {
+        Some(i) => i,
+        None => return HippoxResult::system_error(submitted.error.unwrap_or_else(|| "Image submit failed".to_string())),
+    };
+    // Sync provider: already Succeeded with URLs.
+    if info.state == ImageTaskState::Succeeded && !info.download_urls.is_empty() {
+        let dl = download_image_task(
+            info.download_urls.clone(),
+            output_path,
+            output_filename,
+            info.task_id.clone(),
+            info.provider.clone(),
+            info.prompt.clone(),
+            info.created_at,
+        )
+        .await;
+        return match dl.data {
+            Some(dl_info) if !dl_info.local_paths.is_empty() => HippoxResult::ok(dl_info.local_paths[0].clone()),
+            Some(dl_info) => HippoxResult::system_error(dl_info.error.unwrap_or_else(|| "Image download failed".to_string())),
+            None => HippoxResult::system_error(dl.error.unwrap_or_else(|| "Image download failed".to_string())),
+        };
     }
-    {
-        let mut pool = IMAGE_TASK_POOL.write().await;
-        pool.set_state(&task_id, ImageTaskState::Running);
-    }
-    let mut config = ImageLLMConfig::new();
-    config = match provider {
-        ImageModelProvider::Seedream => {
-            let mut c = config.seedream(api_key.clone());
-            if let Some(base) = &base_url {
-                c.seedream_base_url = Some(base.clone());
-            }
-            c
-        }
-        ImageModelProvider::WanImage => {
-            let mut c = config.wan_image(api_key.clone());
-            if let Some(base) = &base_url {
-                c.wan_image_base_url = Some(base.clone());
-            }
-            c
-        }
-        ImageModelProvider::StabilityImage => {
-            let mut c = config.stability(api_key.clone());
-            if let Some(base) = &base_url {
-                c.stability_base_url = Some(base.clone());
-            }
-            c
-        }
-        ImageModelProvider::Flux => {
-            let mut c = config.flux(api_key.clone());
-            if let Some(base) = &base_url {
-                c.flux_base_url = Some(base.clone());
-            }
-            c
-        }
-        ImageModelProvider::Imagen => {
-            let mut c = config.imagen(api_key.clone());
-            if let Some(base) = &base_url {
-                c.imagen_base_url = Some(base.clone());
-            }
-            c
-        }
-        ImageModelProvider::DallE => {
-            let mut c = config.dalle(api_key.clone());
-            if let Some(base) = &base_url {
-                c.dalle_base_url = Some(base.clone());
-            }
-            c
+    // Async provider: poll until terminal.
+    let provider_task_id = match info.provider_task_id.clone() {
+        Some(id) => id,
+        None => {
+            // No task id but not succeeded: might be a sync provider that
+            // returned base64. Fallback to `generate_with_options`.
+            return run_image_task_sync_fallback(provider, api_key, prompt, options, base_url, output_filename, output_path).await;
         }
     };
+    for _ in 0..180 {
+        let polled = poll_image_task_info(
+            provider,
+            api_key.clone(),
+            provider_task_id.clone(),
+            base_url.clone(),
+            info.task_id.clone(),
+            info.prompt.clone(),
+            info.created_at,
+        )
+        .await;
+        match polled.data {
+            Some(p) => {
+                info = p;
+                if info.state == ImageTaskState::Succeeded {
+                    if info.download_urls.is_empty() {
+                        return HippoxResult::system_error("Image succeeded but no download_urls".to_string());
+                    }
+                    let dl = download_image_task(
+                        info.download_urls.clone(),
+                        output_path,
+                        output_filename,
+                        info.task_id.clone(),
+                        info.provider.clone(),
+                        info.prompt.clone(),
+                        info.created_at,
+                    )
+                    .await;
+                    return match dl.data {
+                        Some(dl_info) if !dl_info.local_paths.is_empty() => HippoxResult::ok(dl_info.local_paths[0].clone()),
+                        Some(dl_info) => HippoxResult::system_error(dl_info.error.unwrap_or_else(|| "Image download failed".to_string())),
+                        None => HippoxResult::system_error(dl.error.unwrap_or_else(|| "Image download failed".to_string())),
+                    };
+                }
+                if info.state.is_terminal() {
+                    return HippoxResult::system_error(info.error.unwrap_or_else(|| "Image task failed".to_string()));
+                }
+            }
+            None => {
+                return HippoxResult::system_error(polled.error.unwrap_or_else(|| "Image poll failed".to_string()));
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
+    HippoxResult::system_error("Image task polling timeout".to_string())
+}
+async fn run_image_task_sync_fallback(
+    provider: ImageModelProvider,
+    api_key: String,
+    prompt: String,
+    options: Option<ImageLLMOptions>,
+    base_url: Option<String>,
+    output_filename: Option<String>,
+    output_path: String,
+) -> HippoxStringResult {
+    let config = build_image_config(provider, api_key, base_url);
     let client = match ImageLLMClient::new_with_config(provider, &config) {
         Ok(c) => c,
-        Err(e) => {
-            let err_msg = format!("Failed to create image client: {}", e);
-            warn!("{}", err_msg);
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.set_failed(&task_id, err_msg.clone());
-            return HippoxResult::system_error(err_msg);
-        }
+        Err(e) => return HippoxResult::system_error(format!("Failed to create image client: {}", e)),
     };
     let result = match options {
         Some(opts) => client.generate_with_options(&prompt, opts).await,
@@ -209,288 +467,56 @@ pub(crate) async fn run_image_task(
     };
     let result = match result {
         Ok(r) => r,
-        Err(e) => {
-            let err_msg = format!("Image generation failed: {}", e);
-            warn!("{}", err_msg);
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.set_failed(&task_id, err_msg.clone());
-            return HippoxResult::system_error(err_msg);
-        }
+        Err(e) => return HippoxResult::system_error(format!("Image generation failed: {}", e)),
     };
-    // Record real usage into the task record.
-    // `ImageUsage` has no token field, so it does NOT feed `MEDIA_TOKEN_COUNT`.
-    if let Some(usage) = result.extract_usage() {
-        let mut pool = IMAGE_TASK_POOL.write().await;
-        pool.set_usage(&task_id, usage);
-    }
     if let Err(e) = std::fs::create_dir_all(&output_path) {
-        let err_msg = format!("Failed to create output directory: {}", e);
-        warn!("{}", err_msg);
-        let mut pool = IMAGE_TASK_POOL.write().await;
-        pool.set_failed(&task_id, err_msg.clone());
-        return HippoxResult::system_error(err_msg);
+        return HippoxResult::system_error(format!("Failed to create output directory: {}", e));
     }
-    let mut saved_paths: Vec<String> = Vec::new();
+    let task_id = Uuid::new_v4().to_string();
+    let mut saved: Vec<String> = Vec::new();
     let total = result.image_urls.len();
     for (idx, url) in result.image_urls.iter().enumerate() {
         let filename = match &output_filename {
-            Some(name) => {
-                if total > 1 {
-                    // Append index suffix for multi-image output.
-                    let path = std::path::Path::new(name);
-                    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
-                    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("png");
-                    format!("{}_{}.{}", stem, idx, ext)
-                } else {
-                    name.clone()
-                }
+            Some(name) if total > 1 => {
+                let p = std::path::Path::new(name);
+                let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
+                let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("png");
+                format!("{}_{}.{}", stem, idx, ext)
             }
+            Some(name) => name.clone(),
             None => format!("{}_{}.png", task_id, idx),
         };
         let full_path = std::path::Path::new(&output_path).join(&filename);
         if let Err(e) = download_to_file(url, &full_path).await {
-            let err_msg = format!("Failed to download image from {}: {}", url, e);
-            warn!("{}", err_msg);
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.set_failed(&task_id, err_msg.clone());
-            return HippoxResult::system_error(err_msg);
+            return HippoxResult::system_error(format!("Failed to download image: {}", e));
         }
-        saved_paths.push(full_path.to_string_lossy().to_string());
+        saved.push(full_path.to_string_lossy().to_string());
     }
-    if saved_paths.is_empty() {
+    if saved.is_empty() {
         if let Some(b64_list) = &result.image_base64 {
             let total_b64 = b64_list.len();
             for (idx, b64) in b64_list.iter().enumerate() {
                 let filename = match &output_filename {
-                    Some(name) => {
-                        if total_b64 > 1 {
-                            let path = std::path::Path::new(name);
-                            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
-                            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("png");
-                            format!("{}_{}.{}", stem, idx, ext)
-                        } else {
-                            name.clone()
-                        }
+                    Some(name) if total_b64 > 1 => {
+                        let p = std::path::Path::new(name);
+                        let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
+                        let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("png");
+                        format!("{}_{}.{}", stem, idx, ext)
                     }
+                    Some(name) => name.clone(),
                     None => format!("{}_{}.png", task_id, idx),
                 };
                 let full_path = std::path::Path::new(&output_path).join(&filename);
                 if let Err(e) = base64_decode_to_file(b64, &full_path) {
-                    let err_msg = format!("Failed to decode base64 image: {}", e);
-                    warn!("{}", err_msg);
-                    let mut pool = IMAGE_TASK_POOL.write().await;
-                    pool.set_failed(&task_id, err_msg.clone());
-                    return HippoxResult::system_error(err_msg);
+                    return HippoxResult::system_error(format!("Failed to decode base64 image: {}", e));
                 }
-                saved_paths.push(full_path.to_string_lossy().to_string());
+                saved.push(full_path.to_string_lossy().to_string());
             }
         }
     }
-    if saved_paths.is_empty() {
-        let err_msg = "Image generation returned no image URL or base64 payload".to_string();
-        warn!("{}", err_msg);
-        let mut pool = IMAGE_TASK_POOL.write().await;
-        pool.set_failed(&task_id, err_msg.clone());
-        return HippoxResult::system_error(err_msg);
+    if saved.is_empty() {
+        return HippoxResult::system_error("Image generation returned no image URL or base64 payload".to_string());
     }
-    info!("Image task {} saved {} image(s) to {}", task_id, saved_paths.len(), output_path);
-    let first_path = saved_paths[0].clone();
-    {
-        let mut pool = IMAGE_TASK_POOL.write().await;
-        pool.set_succeeded(&task_id, saved_paths);
-    }
-    HippoxResult::ok(first_path)
-}
-#[cfg(test)]
-mod image_task_tests {
-    use super::*;
-    /// Verifies that a new ImageTaskPool is empty.
-    #[test]
-    fn test_image_task_pool_new_is_empty() {
-        let pool = ImageTaskPool::new();
-        assert!(pool.get("nonexistent").is_none());
-    }
-    /// Verifies insert / get round-trip on ImageTaskPool.
-    #[test]
-    fn test_image_task_pool_insert_and_get() {
-        let mut pool = ImageTaskPool::new();
-        let record = ImageTaskRecord {
-            task_id: "img-1".to_string(),
-            provider: ImageModelProvider::Seedream,
-            prompt: "a red apple".to_string(),
-            state: ImageTaskState::Pending,
-            output_paths: Vec::new(),
-            error: None,
-            usage: None,
-        };
-        let id = pool.insert(record);
-        assert_eq!(id, "img-1");
-        let fetched = pool.get("img-1").unwrap();
-        assert_eq!(fetched.task_id, "img-1");
-        assert_eq!(fetched.provider, ImageModelProvider::Seedream);
-        assert_eq!(fetched.state, ImageTaskState::Pending);
-    }
-    /// Verifies set_state updates the task state.
-    #[test]
-    fn test_image_task_pool_set_state() {
-        let mut pool = ImageTaskPool::new();
-        pool.insert(ImageTaskRecord {
-            task_id: "img-2".to_string(),
-            provider: ImageModelProvider::WanImage,
-            prompt: "a blue sky".to_string(),
-            state: ImageTaskState::Pending,
-            output_paths: Vec::new(),
-            error: None,
-            usage: None,
-        });
-        pool.set_state("img-2", ImageTaskState::Running);
-        assert_eq!(pool.get("img-2").unwrap().state, ImageTaskState::Running);
-    }
-    /// Verifies set_succeeded records the output paths and clears error.
-    #[test]
-    fn test_image_task_pool_set_succeeded() {
-        let mut pool = ImageTaskPool::new();
-        pool.insert(ImageTaskRecord {
-            task_id: "img-3".to_string(),
-            provider: ImageModelProvider::Flux,
-            prompt: "a green tree".to_string(),
-            state: ImageTaskState::Running,
-            output_paths: Vec::new(),
-            error: Some("previous error".to_string()),
-            usage: None,
-        });
-        let paths = vec!["/tmp/a.png".to_string(), "/tmp/b.png".to_string()];
-        pool.set_succeeded("img-3", paths.clone());
-        let record = pool.get("img-3").unwrap();
-        assert_eq!(record.state, ImageTaskState::Succeeded);
-        assert_eq!(record.output_paths, paths);
-        assert!(record.error.is_none());
-    }
-    /// Verifies set_failed records the error message.
-    #[test]
-    fn test_image_task_pool_set_failed() {
-        let mut pool = ImageTaskPool::new();
-        pool.insert(ImageTaskRecord {
-            task_id: "img-4".to_string(),
-            provider: ImageModelProvider::Imagen,
-            prompt: "a yellow sun".to_string(),
-            state: ImageTaskState::Running,
-            output_paths: Vec::new(),
-            error: None,
-            usage: None,
-        });
-        pool.set_failed("img-4", "boom".to_string());
-        let record = pool.get("img-4").unwrap();
-        assert_eq!(record.state, ImageTaskState::Failed);
-        assert_eq!(record.error, Some("boom".to_string()));
-    }
-    /// Verifies set_state on a missing task is a no-op.
-    #[test]
-    fn test_image_task_pool_set_state_missing() {
-        let mut pool = ImageTaskPool::new();
-        pool.set_state("nonexistent", ImageTaskState::Running);
-        assert!(pool.get("nonexistent").is_none());
-    }
-    /// Verifies set_usage records the usage on the task.
-    #[test]
-    fn test_image_task_pool_set_usage() {
-        let mut pool = ImageTaskPool::new();
-        pool.insert(ImageTaskRecord {
-            task_id: "img-5".to_string(),
-            provider: ImageModelProvider::Seedream,
-            prompt: "a flower".to_string(),
-            state: ImageTaskState::Running,
-            output_paths: Vec::new(),
-            error: None,
-            usage: None,
-        });
-        let usage = ImageUsage { billed_images: 2, billed_megapixels: Some(1.5), estimated_cost_usd: Some(0.04) };
-        pool.set_usage("img-5", usage.clone());
-        let record = pool.get("img-5").unwrap();
-        assert_eq!(record.usage.unwrap().billed_images, 2);
-    }
-    /// Verifies get_image_task returns an error for unknown task IDs.
-    #[tokio::test]
-    async fn test_get_image_task_not_found() {
-        let result = get_image_task("definitely-not-a-real-task-id").await;
-        assert!(result.is_err());
-    }
-    /// Verifies get_image_task returns a record after insertion.
-    #[tokio::test]
-    async fn test_get_image_task_found() {
-        let task_id = format!("unit-test-{}", Uuid::new_v4());
-        {
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.insert(ImageTaskRecord {
-                task_id: task_id.clone(),
-                provider: ImageModelProvider::DallE,
-                prompt: "unit test".to_string(),
-                state: ImageTaskState::Pending,
-                output_paths: Vec::new(),
-                error: None,
-                usage: None,
-            });
-        }
-        let result = get_image_task(&task_id).await;
-        assert!(result.is_ok());
-        let record = result.unwrap();
-        assert_eq!(record.task_id, task_id);
-        assert_eq!(record.provider, ImageModelProvider::DallE);
-        // Cleanup
-        {
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.tasks.remove(&task_id);
-        }
-    }
-    /// Verifies get_image_task_usage returns None when no usage is recorded.
-    #[tokio::test]
-    async fn test_get_image_task_usage_none() {
-        let task_id = format!("unit-test-usage-{}", Uuid::new_v4());
-        {
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.insert(ImageTaskRecord {
-                task_id: task_id.clone(),
-                provider: ImageModelProvider::Seedream,
-                prompt: "usage test".to_string(),
-                state: ImageTaskState::Succeeded,
-                output_paths: vec!["/tmp/x.png".to_string()],
-                error: None,
-                usage: None,
-            });
-        }
-        let result = get_image_task_usage(&task_id).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
-        // Cleanup
-        {
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.tasks.remove(&task_id);
-        }
-    }
-    /// Verifies get_image_task_usage returns the recorded usage.
-    #[tokio::test]
-    async fn test_get_image_task_usage_some() {
-        let task_id = format!("unit-test-usage-some-{}", Uuid::new_v4());
-        {
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.insert(ImageTaskRecord {
-                task_id: task_id.clone(),
-                provider: ImageModelProvider::Seedream,
-                prompt: "usage test".to_string(),
-                state: ImageTaskState::Succeeded,
-                output_paths: vec!["/tmp/x.png".to_string()],
-                error: None,
-                usage: Some(ImageUsage { billed_images: 1, billed_megapixels: Some(1.0), estimated_cost_usd: Some(0.02) }),
-            });
-        }
-        let result = get_image_task_usage(&task_id).await;
-        assert!(result.is_ok());
-        let usage = result.unwrap().unwrap();
-        assert_eq!(usage.billed_images, 1);
-        // Cleanup
-        {
-            let mut pool = IMAGE_TASK_POOL.write().await;
-            pool.tasks.remove(&task_id);
-        }
-    }
+    info!("Image task fallback saved {} image(s) to {}", saved.len(), output_path);
+    HippoxResult::ok(saved[0].clone())
 }
