@@ -1,13 +1,12 @@
 use crate::{Hippox, HippoxConfig, IdentityInformation};
 use langhub::{
-    AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, VideoLLMClient, VideoLLMConfig, audio::AudioModelProvider,
-    image::ImageModelProvider, types::ModelProvider, video::VideoModelProvider,
+    AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, VideoLLMClient, VideoLLMConfig, audio::AudioModelProvider, chat::ChatModelProvider, image::ImageModelProvider, video::VideoModelProvider,
 };
 use std::collections::HashMap;
 /// Builder for creating Hippox instances.
 pub struct HippoxBuilder {
     // LLM (chat) modality
-    llm_provider: Option<ModelProvider>,
+    llm_provider: Option<ChatModelProvider>,
     llm_api_key: Option<String>,
     llm_extra_keys: Option<HashMap<String, String>>,
     // Image modality
@@ -24,7 +23,7 @@ pub struct HippoxBuilder {
 }
 impl HippoxBuilder {
     /// Create a new builder for the LLM (chat) modality.
-    pub fn new(provider: ModelProvider) -> Self {
+    pub fn new(provider: ChatModelProvider) -> Self {
         Self {
             llm_provider: Some(provider),
             llm_api_key: None,
@@ -171,7 +170,7 @@ impl HippoxBuilder {
 }
 impl Hippox {
     /// Create a new builder for the LLM (chat) modality.
-    pub fn builder(provider: ModelProvider) -> HippoxBuilder {
+    pub fn builder(provider: ChatModelProvider) -> HippoxBuilder {
         HippoxBuilder::new(provider)
     }
     /// Create a new builder for the image modality.

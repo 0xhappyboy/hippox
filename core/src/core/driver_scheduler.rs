@@ -371,11 +371,10 @@ impl DriverScheduler {
 #[cfg(test)]
 mod driver_scheduler_test {
     use super::*;
-    use langhub::LLMClient;
-    use langhub::types::ModelProvider;
+    use langhub::{LLMClient, chat::ChatModelProvider};
     /// Create a test scheduler with OpenAI provider
     fn create_test_scheduler() -> DriverScheduler {
-        let llm = LLMClient::new_with_key(ModelProvider::OpenAI, Some("test-api-key".to_string()), None).unwrap();
+        let llm = LLMClient::new_with_key(ChatModelProvider::OpenAI, Some("test-api-key".to_string()), None).unwrap();
         return DriverScheduler::new(llm);
     }
     #[test]

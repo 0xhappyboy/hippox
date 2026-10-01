@@ -9,8 +9,9 @@ use crate::{
 };
 use hippox_drivers::{DriverCallback, DriverCategory, Executor, get_all_drivers, list_drivers_names};
 use langhub::audio::{AudioLLMOptions, AudioModelProvider};
+use langhub::chat::ChatModelProvider;
 use langhub::image::{ImageLLMOptions, ImageModelProvider};
-use langhub::types::{ChatMessage, ModelProvider};
+use langhub::types::ChatMessage;
 use langhub::video::{VideoLLMOptions, VideoModelProvider};
 use langhub::{AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, LLMClient, VideoLLMClient, VideoLLMConfig};
 use serde_json::{Value, json};
@@ -45,7 +46,7 @@ pub struct Hippox {
 impl Hippox {
     /// Create a new Hippox core instance with default ReAct workflow mode
     pub async fn new(
-        provider: ModelProvider,
+        provider: ChatModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
         config: Option<HippoxConfig>,
@@ -54,7 +55,7 @@ impl Hippox {
     }
     /// Create a new Hippox core instance with specified workflow mode
     pub async fn with_workflow_mode(
-        provider: ModelProvider,
+        provider: ChatModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
         config: Option<HippoxConfig>,
@@ -86,7 +87,7 @@ impl Hippox {
         update_config(|global| *global = config.unwrap_or_default())?;
         let config = get_config();
         i18n::set_language(&config.lang);
-        let llm = LLMClient::new_with_key(ModelProvider::OpenAI, Some(String::new()), None)?;
+        let llm = LLMClient::new_with_key(ChatModelProvider::OpenAI, Some(String::new()), None)?;
         let scheduler = DriverScheduler::new(llm);
         let executor = Executor::new();
         Ok(Self {

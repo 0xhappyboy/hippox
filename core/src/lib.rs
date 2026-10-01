@@ -28,6 +28,6 @@ pub use langhub::AudioLLMConfig;
 pub use langhub::ImageLLMConfig;
 pub use langhub::VideoLLMConfig;
 pub use langhub::audio::{AudioLLMOptions, AudioModelProvider, AudioUsage};
+pub use langhub::chat::ChatModelProvider;
 pub use langhub::image::{ImageLLMOptions, ImageModelProvider, ImageUsage};
-pub use langhub::types::ModelProvider;
 pub use langhub::video::{VideoLLMOptions, VideoModelProvider, VideoUsage};
