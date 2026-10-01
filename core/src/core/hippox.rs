@@ -490,6 +490,8 @@ impl Hippox {
     /// * `prompt` - Text prompt for video generation.
     /// * `options` - Optional generation options (duration, resolution, etc.).
     /// * `base_url` - Optional custom base URL for the provider.
+    /// * `model` - Optional model id override. When `None`, the provider's
+    ///   configured default model is used.
     ///
     /// # Returns
     /// `VideoTaskInfo` containing the hippox task id, the provider task id,
@@ -502,8 +504,9 @@ impl Hippox {
         prompt: String,
         options: Option<VideoLLMOptions>,
         base_url: Option<String>,
+        model: Option<String>,
     ) -> HippoxResult<crate::core::video_task::VideoTaskInfo> {
-        crate::core::video_task::submit_video_task_info(provider, api_key, prompt, options, base_url).await
+        crate::core::video_task::submit_video_task_info(provider, api_key, prompt, options, base_url, model).await
     }
     /// Poll the provider once for the current state of a video task.
     ///
@@ -589,8 +592,9 @@ impl Hippox {
         prompt: String,
         options: Option<ImageLLMOptions>,
         base_url: Option<String>,
+        model: Option<String>,
     ) -> HippoxResult<crate::core::image_task::ImageTaskInfo> {
-        crate::core::image_task::submit_image_task_info(provider, api_key, prompt, options, base_url).await
+        crate::core::image_task::submit_image_task_info(provider, api_key, prompt, options, base_url, model).await
     }
     /// Poll the provider once for the current state of an image task.
     pub async fn poll_image_task_info(
@@ -663,8 +667,9 @@ impl Hippox {
         prompt: String,
         options: Option<AudioLLMOptions>,
         base_url: Option<String>,
+        model: Option<String>,
     ) -> HippoxResult<crate::core::audio_task::AudioTaskInfo> {
-        crate::core::audio_task::submit_audio_task_info(provider, api_key, prompt, options, base_url).await
+        crate::core::audio_task::submit_audio_task_info(provider, api_key, prompt, options, base_url, model).await
     }
     /// Poll the provider once for the current state of an audio task.
     pub async fn poll_audio_task_info(

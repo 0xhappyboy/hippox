@@ -199,18 +199,21 @@ pub fn parse_video_provider(name: &str) -> Result<VideoModelProvider, String> {
         other => Err(format!("Unknown video provider: {}", other)),
     }
 }
-/// Atomic operations: submit / poll / cancel / download
 /// Submit a video generation task and return immediately.
+///
+/// `model` - Optional model id override. When `None`, the provider's
+/// configured default model is used.
 pub async fn submit_video_task_info(
     provider: VideoModelProvider,
     api_key: String,
     prompt: String,
     options: Option<VideoLLMOptions>,
     base_url: Option<String>,
+    model: Option<String>,
 ) -> HippoxResult<VideoTaskInfo> {
     let provider_name = format!("{:?}", provider);
     let mut info = VideoTaskInfo::new(provider_name.clone(), prompt.clone());
-    info!(target: "hippox::media", "submit_video_task_info - provider={}, task_id={}", provider_name, info.task_id);
+    info!(target: "hippox::media", "submit_video_task_info - provider={}, task_id={}, model={:?}", provider_name, info.task_id, model);
     let config = build_video_config(provider, api_key, base_url);
     let client = match VideoLLMClient::new_with_config(provider, &config) {
         Ok(c) => c,
@@ -222,7 +225,7 @@ pub async fn submit_video_task_info(
         }
     };
     let opts = options.unwrap_or_default();
-    match client.submit_task(&prompt, opts).await {
+    match client.submit_task(&prompt, opts, model.as_deref()).await {
         Ok(task) => {
             apply_video_task_to_info(&mut info, &task);
             info.touch();
@@ -417,8 +420,9 @@ pub(crate) async fn run_video_task(
     base_url: Option<String>,
     output_filename: Option<String>,
     output_path: String,
+    model: Option<String>,
 ) -> HippoxStringResult {
-    let submitted = submit_video_task_info(provider, api_key.clone(), prompt.clone(), options.clone(), base_url.clone()).await;
+    let submitted = submit_video_task_info(provider, api_key.clone(), prompt.clone(), options.clone(), base_url.clone(), model.clone()).await;
     let mut info = match submitted.data {
         Some(i) => i,
         None => return HippoxResult::system_error(submitted.error.unwrap_or_else(|| "Video submit failed".to_string())),

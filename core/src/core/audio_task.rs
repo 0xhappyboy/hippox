@@ -169,10 +169,11 @@ pub async fn submit_audio_task_info(
     prompt: String,
     options: Option<AudioLLMOptions>,
     base_url: Option<String>,
+    model: Option<String>,
 ) -> HippoxResult<AudioTaskInfo> {
     let provider_name = format!("{:?}", provider);
     let mut info = AudioTaskInfo::new(provider_name.clone(), prompt.clone());
-    info!(target: "hippox::media", "submit_audio_task_info - provider={}, task_id={}", provider_name, info.task_id);
+    info!(target: "hippox::media", "submit_audio_task_info - provider={}, task_id={}", provider_name, info.task_id, model);
     let config = build_audio_config(provider, api_key, base_url);
     let client = match AudioLLMClient::new_with_config(provider, &config) {
         Ok(c) => c,
@@ -184,7 +185,7 @@ pub async fn submit_audio_task_info(
         }
     };
     let opts = options.unwrap_or_default();
-    match client.submit_task(&prompt, opts).await {
+    match client.submit_task(&prompt, opts, model.as_deref()).await {
         Ok(task) => {
             apply_audio_task_to_info(&mut info, &task);
             info.touch();
@@ -388,8 +389,9 @@ pub(crate) async fn run_audio_task(
     base_url: Option<String>,
     output_filename: Option<String>,
     output_path: String,
+    model: Option<String>,
 ) -> HippoxStringResult {
-    let submitted = submit_audio_task_info(provider, api_key.clone(), prompt.clone(), options.clone(), base_url.clone()).await;
+    let submitted = submit_audio_task_info(provider, api_key.clone(), prompt.clone(), options.clone(), base_url.clone(), model.clone()).await;
     let mut info = match submitted.data {
         Some(i) => i,
         None => return HippoxResult::system_error(submitted.error.unwrap_or_else(|| "Audio submit failed".to_string())),
@@ -418,8 +420,7 @@ pub(crate) async fn run_audio_task(
     let provider_task_id = match info.provider_task_id.clone() {
         Some(id) => id,
         None => {
-            // No task id: fallback to synchronous generate.
-            return run_audio_task_sync_fallback(provider, api_key, prompt, options, base_url, output_filename, output_path).await;
+            return run_audio_task_sync_fallback(provider, api_key, prompt, options, base_url, output_filename, output_path, model).await;
         }
     };
     for _ in 0..180 {
@@ -476,6 +477,7 @@ async fn run_audio_task_sync_fallback(
     base_url: Option<String>,
     output_filename: Option<String>,
     output_path: String,
+    model: Option<String>,
 ) -> HippoxStringResult {
     let config = build_audio_config(provider, api_key, base_url);
     let client = match AudioLLMClient::new_with_config(provider, &config) {
@@ -483,8 +485,8 @@ async fn run_audio_task_sync_fallback(
         Err(e) => return HippoxResult::system_error(format!("Failed to create audio client: {}", e)),
     };
     let result = match options {
-        Some(opts) => client.generate_with_options(&prompt, opts).await,
-        None => client.generate(&prompt).await,
+        Some(opts) => client.generate_with_options(&prompt, opts, model.as_deref()).await,
+        None => client.generate(&prompt, model.as_deref()).await,
     };
     let result = match result {
         Ok(r) => r,
