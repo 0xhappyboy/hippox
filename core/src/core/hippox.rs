@@ -13,7 +13,7 @@ use langhub::chat::ChatModelProvider;
 use langhub::image::{ImageLLMOptions, ImageModelProvider};
 use langhub::types::ChatMessage;
 use langhub::video::{VideoLLMOptions, VideoModelProvider};
-use langhub::{AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, ChatLLMClient, VideoLLMClient, VideoLLMConfig};
+use langhub::{AudioLLMClient, AudioLLMConfig, ChatLLMClient, ImageLLMClient, ImageLLMConfig, VideoLLMClient, VideoLLMConfig};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
@@ -307,8 +307,11 @@ impl Hippox {
     ///
     /// # Arguments
     /// * `input` - Natural language input from the user
-    /// * `_session_id` - Optional session ID (unused in core, for compatibility)
-    /// * `_callback` - Optional callback for workflow execution progress
+    /// * `workflow_mode` - Workflow mode for this task
+    /// * `model` - Mandatory chat model id used by every LLM call of this task
+    /// * `workflow_callback` - Optional workflow callback
+    /// * `driver_callback` - Optional driver callback
+    /// * `disabled_drivers` - Optional list of driver names to skip
     ///
     /// # Returns
     /// The task ID as a string wrapped in HippoxResult
@@ -316,6 +319,7 @@ impl Hippox {
         &self,
         input: &str,
         workflow_mode: WorkflowMode,
+        model: &str,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
@@ -325,6 +329,7 @@ impl Hippox {
             input.to_string(),
             workflow_executor,
             self.scheduler.clone(),
+            model.to_string(),
             workflow_callback,
             driver_callback,
             disabled_drivers,
@@ -343,18 +348,27 @@ impl Hippox {
     /// Submit multiple natural language tasks in batch and return task IDs immediately
     ///
     /// # Arguments
-    /// * `inputs` - Vector of tuples (input, session_id, workflow_callback, driver_callback)
+    /// * `inputs` - Vector of tuples
+    ///   (input, workflow_mode, model, session_id, workflow_callback, driver_callback, disabled_drivers)
     ///
     /// # Returns
     /// Vector of task IDs in the same order as inputs wrapped in HippoxResult
     pub fn submit_batch(
         &self,
-        inputs: Vec<(String, WorkflowMode, Option<String>, Option<Arc<dyn WorkflowCallback>>, Option<Arc<dyn DriverCallback>>, Option<Vec<&str>>)>,
+        inputs: Vec<(
+            String,
+            WorkflowMode,
+            String,
+            Option<String>,
+            Option<Arc<dyn WorkflowCallback>>,
+            Option<Arc<dyn DriverCallback>>,
+            Option<Vec<&str>>,
+        )>,
     ) -> HippoxBatchResult {
         let task_ids: Vec<String> = inputs
             .into_iter()
-            .map(|(input, workflow_mode, _session_id, workflow_callback, driver_callback, disabled_drivers)| {
-                self.submit(&input, workflow_mode, workflow_callback, driver_callback, disabled_drivers).unwrap_or(String::new())
+            .map(|(input, workflow_mode, model, _session_id, workflow_callback, driver_callback, disabled_drivers)| {
+                self.submit(&input, workflow_mode, &model, workflow_callback, driver_callback, disabled_drivers).unwrap_or(String::new())
             })
             .collect();
         HippoxResult::ok(task_ids)
@@ -362,38 +376,40 @@ impl Hippox {
     /// Execute multiple natural language tasks in batch and return results directly
     ///
     /// # Arguments
-    /// * `inputs` - Vector of tuples (input, workflow_callback, driver_callback)
+    /// * `inputs` - Vector of tuples
+    ///   (input, workflow_mode, model, workflow_callback, driver_callback, disabled_drivers)
     ///
     /// # Returns
     /// Vector of results in the same order as inputs wrapped in HippoxBatchResult
     pub async fn execute_batch(
         &self,
-        inputs: Vec<(String, WorkflowMode, Option<Arc<dyn WorkflowCallback>>, Option<Arc<dyn DriverCallback>>, Option<Vec<&str>>)>,
+        inputs: Vec<(String, WorkflowMode, String, Option<Arc<dyn WorkflowCallback>>, Option<Arc<dyn DriverCallback>>, Option<Vec<&str>>)>,
     ) -> HippoxBatchResult {
         let mut results = Vec::new();
-        for (input, workflow_mode, workflow_callback, driver_callback, disabled_drivers) in inputs {
-            results.push(self.execute(&input, workflow_mode, workflow_callback, driver_callback, disabled_drivers).await.unwrap_or(String::new()));
+        for (input, workflow_mode, model, workflow_callback, driver_callback, disabled_drivers) in inputs {
+            results.push(
+                self.execute(&input, workflow_mode, &model, workflow_callback, driver_callback, disabled_drivers).await.unwrap_or(String::new()),
+            );
         }
         HippoxResult::ok(results)
     }
     /// Execute natural language directly without task pool, returning the result asynchronously.
     ///
-    /// # Example
-    /// ```
-    /// # async fn example() -> anyhow::Result<()> {
-    /// let result = hippox.execute("What is the weather today?", None).await?;
-    /// println!("{}", result);
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// # Arguments
+    /// * `input` - User input
+    /// * `workflow_mode` - Workflow mode
+    /// * `model` - Mandatory chat model id used by every LLM call of this run
     ///
-    /// Compare with [`submit()`](Self::submit):
-    /// - `execute()`: Blocks until completion, returns result directly
-    /// - `submit()`: Returns task ID immediately, use [`wait_task()`](Self::wait_task) to get result
+    /// # Example
+    /// ```ignore
+    /// let result = hippox.execute("What is the weather today?", WorkflowMode::ReAct, "gpt-4o", None, None, None).await?;
+    /// println!("{}", result);
+    /// ```
     pub async fn execute(
         &self,
         input: &str,
         workflow_mode: WorkflowMode,
+        model: &str,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
@@ -407,8 +423,8 @@ impl Hippox {
         }
         let pipeline = SystemPipeline::new();
         let disabled_drivers_owned = disabled_drivers.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
-        // Step 1: intent analysis
-        let intent_result = match pipeline.intent_analysis(&self.scheduler, input, &temp_task_id).await {
+        // Step 1: intent analysis, forwarded with the caller's mandatory model id.
+        let intent_result = match pipeline.intent_analysis(&self.scheduler, input, &temp_task_id, Some(model)).await {
             Ok(result) => result,
             Err(e) => {
                 tracing::warn!("Intent analysis failed: {}, using raw input", e);
@@ -433,12 +449,13 @@ impl Hippox {
                     &self.scheduler,
                     clean_intent,
                     disabled_drivers_owned.as_deref(),
+                    Some(model),
                 )
                 .await
         } else {
             let result = workflow_executor_with_driver_cb
                 .clone()
-                .execute_with_categories(&self.scheduler, clean_intent, categories, disabled_drivers_owned.as_deref())
+                .execute_with_categories(&self.scheduler, clean_intent, categories, disabled_drivers_owned.as_deref(), Some(model))
                 .await;
             let json_output = match result {
                 WorkflowExecutionResult::Completed(output) => output,
@@ -447,9 +464,9 @@ impl Hippox {
             };
             WorkflowExecResult { json_output, original_input: clean_intent.to_string() }
         };
-        // Step 3: format conversion
+        // Step 3: format conversion, forwarded with the caller's mandatory model id.
         let final_output = if needs_format_conversion(input) {
-            let format_result = pipeline.response_formatting(&self.scheduler, input, &workflow_result.json_output, &temp_task_id).await;
+            let format_result = pipeline.response_formatting(&self.scheduler, input, &workflow_result.json_output, &temp_task_id, Some(model)).await;
             format_result.final_output
         } else {
             workflow_result.json_output
@@ -719,10 +736,14 @@ impl Hippox {
         .await
     }
     /// Heartbeat for the chat (LLM) channel.
-    pub async fn heartbeat(&self) -> HippoxStringResult {
+    ///
+    /// # Arguments
+    /// * `model` - Mandatory model id used for this heartbeat call.
+    pub async fn heartbeat(&self, model: &str) -> HippoxStringResult {
         let mut messages: Vec<ChatMessage> = Vec::new();
         messages.push(ChatMessage::user("hi"));
-        match self.scheduler.chat_raw(messages).await {
+        // Forward the caller-provided model id.
+        match self.scheduler.chat_raw(messages, Some(model)).await {
             Ok(result) => {
                 let usage = result.extract_usage();
                 let input_tokens = usage.as_ref().map(|u| u.prompt_tokens as u64).unwrap_or(0);
@@ -844,7 +865,7 @@ impl Hippox {
     /// The total input token count as u64
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// let hippox = Hippox::builder(ModelProvider::OpenAI).build().await?;
     /// let input_tokens = hippox.get_current_input_token_count();
     /// println!("Total input tokens: {}", input_tokens);
@@ -858,7 +879,7 @@ impl Hippox {
     /// The total output token count as u64
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// let hippox = Hippox::builder(ModelProvider::OpenAI).build().await?;
     /// let output_tokens = hippox.get_current_output_token_count();
     /// println!("Total output tokens: {}", output_tokens);

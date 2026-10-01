@@ -1,25 +1,4 @@
 //! Batch mode workflow execution
-//!
-//! This mode executes multiple independent drivers in parallel. Each driver is executed
-//! with its own retry and timeout policy. Failures in one driver do not affect others.
-//!
-//! # Characteristics
-//! - All drivers are executed concurrently using `tokio::spawn`
-//! - Each driver has independent retry (3 attempts) and timeout (60s) protection
-//! - Results are collected and aggregated regardless of individual failures
-//! - Best for: Bulk operations, independent tasks, parallel processing
-//!
-//! # Execution Flow
-//! 1. LLM generates a batch plan containing multiple driver calls
-//! 2. Each driver call is spawned as a separate tokio task
-//! 3. Each task executes with its own retry context
-//! 4. All results are collected and returned as a single batch result
-//!
-//! # Retry Behavior
-//! Each driver in the batch inherits the global retry policy:
-//! - Up to 3 retry attempts per driver
-//! - 60-second timeout per execution attempt
-//! - Individual drivers do not affect each other's retry state
 use super::core::WorkflowExecutor;
 use super::retry::*;
 use super::types::*;
@@ -33,12 +12,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 /// Execute a single driver with retry and timeout protection in batch mode.
-///
-/// This function handles the complete lifecycle of a single batch task:
-/// - Executes the driver with timeout protection
-/// - Automatically retries on failure or timeout (up to max_retries)
-/// - Triggers appropriate callbacks for each attempt
-/// - Returns either a success or failure StepResult
 ///
 /// # Arguments
 /// * `executor` - The driver executor
@@ -173,6 +146,7 @@ pub async fn execute_batch_plan(executor: &WorkflowExecutor, steps: &[DriverCall
 /// * `scheduler` - The driver scheduler for LLM interactions
 /// * `input` - User input text
 /// * `categories` - Driver categories to filter by
+/// * `model` - Optional model id override forwarded to the LLM call
 ///
 /// # Returns
 /// A WorkflowExecutionResult containing the batch results
@@ -182,13 +156,15 @@ pub async fn execute_batch_with_categories(
     input: &str,
     categories: &[String],
     disabled_drivers: Option<&[String]>,
+    model: Option<&str>,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let batch_prompt = crate::prompts::build_batch_prompt_with_categories(&filtered_drivers, input);
     let task_id_str = task_id.as_deref().unwrap_or("unknown");
-    let llm_response = match scheduler.generate_with_task(&batch_prompt, task_id_str).await {
+    // Forward the caller-provided model id.
+    let llm_response = match scheduler.generate_with_task(&batch_prompt, task_id_str, model).await {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };

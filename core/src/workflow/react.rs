@@ -1,29 +1,4 @@
 //! ReAct mode workflow execution
-//!
-//! This mode implements the ReAct (Reasoning + Acting) pattern where the LLM
-//! iteratively decides which driver to execute based on previous results.
-//! It is the most flexible and intelligent mode, suitable for open-ended tasks.
-//!
-//! # Characteristics
-//! - LLM-driven decision making at each step
-//! - Each driver execution has timeout (60s) and retry (3 attempts) protection
-//! - Full error feedback loop: errors are sent back to LLM for decision
-//! - LLM can retry, switch drivers, or finish based on error context
-//! - Best for: Open-ended tasks, dynamic decision making, error recovery
-//!
-//! # Execution Flow
-//! 1. LLM receives the user input and driver registry
-//! 2. LLM decides: execute a driver, execute a batch, or finish
-//! 3. Driver is executed with timeout and retry protection
-//! 4. Result (success or error) is fed back to LLM
-//! 5. LLM decides the next action based on the result
-//! 6. Loop continues until LLM decides to finish or max iterations reached
-//!
-//! # Retry Behavior
-//! - Each driver has up to 3 retry attempts
-//! - Retry decisions are made by LLM (not automatic)
-//! - LLM receives structured error feedback to make informed decisions
-//! - LLM can adjust parameters, switch drivers, or abort
 use super::batch::execute_batch_plan;
 use super::core::WorkflowExecutor;
 use super::retry::*;
@@ -39,14 +14,12 @@ use std::sync::Arc;
 use std::time::Instant;
 /// Execute a ReAct workflow with category filtering.
 ///
-/// This is the main entry point for ReAct mode execution. It implements the
-/// full Think → Act → Observe loop with LLM-driven decision making.
-///
 /// # Arguments
 /// * `executor` - The workflow executor
 /// * `scheduler` - The driver scheduler for LLM interactions
 /// * `input` - User input text
 /// * `categories` - Driver categories to filter by
+/// * `model` - Optional model id override forwarded to every LLM call of this run
 ///
 /// # Returns
 /// A WorkflowExecutionResult containing the final response and execution history
@@ -56,6 +29,7 @@ pub async fn execute_react_with_categories(
     input: &str,
     categories: &[String],
     disabled_drivers: Option<&[String]>,
+    model: Option<&str>,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let input_trimmed = input.trim();
@@ -129,8 +103,8 @@ pub async fn execute_react_with_categories(
                 }
             }
         }
-        // Call LLM to get next instruction
-        let llm_response = match scheduler.chat_with_task(messages.clone(), &task_id.clone().unwrap()).await {
+        // Call LLM to get next instruction, forwarding the caller's model id.
+        let llm_response = match scheduler.chat_with_task(messages.clone(), &task_id.clone().unwrap(), model).await {
             Ok(resp) => resp,
             Err(e) => {
                 return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: step_results.len() };

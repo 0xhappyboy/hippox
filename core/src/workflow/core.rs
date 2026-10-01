@@ -50,18 +50,24 @@ impl WorkflowExecutor {
     pub fn get_workflow_callback(&self) -> &Option<Arc<dyn WorkflowCallback>> {
         &self.workflow_callback
     }
+    /// Execute this workflow with the given categories and an optional model id override.
+    ///
+    /// `model` - Optional model id override forwarded to every LLM call of this run.
     pub async fn execute_with_categories(
         &self,
         scheduler: &DriverScheduler,
         input: &str,
         categories: &[String],
         disabled_drivers: Option<&[String]>,
+        model: Option<&str>,
     ) -> WorkflowExecutionResult {
         match self.mode {
-            WorkflowMode::ReAct => execute_react_with_categories(self, scheduler, input, categories, disabled_drivers).await,
-            WorkflowMode::Batch => execute_batch_with_categories(self, scheduler, input, categories, disabled_drivers).await,
-            WorkflowMode::Chain => execute_chain_with_categories(self, scheduler, input, categories, disabled_drivers).await,
-            WorkflowMode::PlanAndExecute => execute_plan_and_execute_with_categories(self, scheduler, input, categories, disabled_drivers).await,
+            WorkflowMode::ReAct => execute_react_with_categories(self, scheduler, input, categories, disabled_drivers, model).await,
+            WorkflowMode::Batch => execute_batch_with_categories(self, scheduler, input, categories, disabled_drivers, model).await,
+            WorkflowMode::Chain => execute_chain_with_categories(self, scheduler, input, categories, disabled_drivers, model).await,
+            WorkflowMode::PlanAndExecute => {
+                execute_plan_and_execute_with_categories(self, scheduler, input, categories, disabled_drivers, model).await
+            }
         }
     }
     pub fn extract_json(text: &str) -> String {

@@ -1,25 +1,4 @@
 //! Chain mode workflow execution
-//!
-//! This mode executes drivers sequentially in the order defined by the LLM.
-//! Each step is independent and does not depend on previous step outputs.
-//! Failures in one step do not prevent subsequent steps from executing.
-//!
-//! # Characteristics
-//! - Drivers are executed one after another (sequential, not parallel)
-//! - Each step has independent retry (3 attempts) and timeout (60s) protection
-//! - Steps do not depend on each other's results (no variable passing)
-//! - Best for: Ordered operations where order matters but results are independent
-//!
-//! # Execution Flow
-//! 1. LLM generates a chain plan with ordered steps
-//! 2. Each step is executed in sequence
-//! 3. Step failures are recorded but execution continues
-//! 4. All results are aggregated and returned
-//!
-//! # Note
-//! Unlike PlanAndExecute, Chain mode does NOT support variable passing
-//! between steps. Each step operates independently with only the user input
-//! available as context.
 use super::core::WorkflowExecutor;
 use super::retry::*;
 use super::types::*;
@@ -200,6 +179,7 @@ async fn execute_chain_step_with_retry(
 /// * `scheduler` - The driver scheduler for LLM interactions
 /// * `input` - User input text
 /// * `categories` - Driver categories to filter by
+/// * `model` - Optional model id override forwarded to the LLM call
 ///
 /// # Returns
 /// A WorkflowExecutionResult containing all step results
@@ -209,12 +189,14 @@ pub async fn execute_chain_with_categories(
     input: &str,
     categories: &[String],
     disabled_drivers: Option<&[String]>,
+    model: Option<&str>,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_drivers, input);
-    let llm_response = match scheduler.generate_with_task(&chain_prompt, &task_id.clone().unwrap()).await {
+    // Forward the caller-provided model id.
+    let llm_response = match scheduler.generate_with_task(&chain_prompt, &task_id.clone().unwrap(), model).await {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };

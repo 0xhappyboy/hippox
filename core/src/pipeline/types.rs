@@ -27,8 +27,18 @@ pub struct FormatResult {
 #[async_trait::async_trait]
 pub trait Pipeline: Send + Sync {
     /// Step 1: Analyze user intent into driver categories
-    async fn intent_analysis(&self, scheduler: &DriverScheduler, input: &str, task_id: &str) -> anyhow::Result<IntentAnalysisResult>;
+    ///
+    /// `model` - Optional model id override forwarded to the LLM call.
+    async fn intent_analysis(
+        &self,
+        scheduler: &DriverScheduler,
+        input: &str,
+        task_id: &str,
+        model: Option<&str>,
+    ) -> anyhow::Result<IntentAnalysisResult>;
     /// Step 2: Core workflow execution
+    ///
+    /// `model` - Optional model id override forwarded to the LLM call.
     async fn workflow_execution(
         &self,
         mode: WorkflowMode,
@@ -36,7 +46,17 @@ pub trait Pipeline: Send + Sync {
         scheduler: &DriverScheduler,
         input: &str,
         disabled_drivers: Option<&[String]>,
+        model: Option<&str>,
     ) -> WorkflowExecResult;
     /// Step 3: Format conversion based on user's structure requirements
-    async fn response_formatting(&self, scheduler: &DriverScheduler, original_input: &str, json_output: &str, task_id: &str) -> FormatResult;
+    ///
+    /// `model` - Optional model id override forwarded to the LLM call.
+    async fn response_formatting(
+        &self,
+        scheduler: &DriverScheduler,
+        original_input: &str,
+        json_output: &str,
+        task_id: &str,
+        model: Option<&str>,
+    ) -> FormatResult;
 }

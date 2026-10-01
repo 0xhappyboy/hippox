@@ -17,6 +17,8 @@ pub(crate) struct NaturalLanguageTask {
     input: String,
     workflow_executor: WorkflowExecutor,
     scheduler: DriverScheduler,
+    /// Mandatory model id forwarded to every LLM call of this task.
+    model: String,
     workflow_callback: Option<Arc<dyn WorkflowCallback>>,
     driver_callback: Option<Arc<dyn DriverCallback>>,
     disabled_drivers: Option<Vec<String>>,
@@ -26,6 +28,7 @@ impl NaturalLanguageTask {
         input: String,
         workflow_executor: WorkflowExecutor,
         scheduler: DriverScheduler,
+        model: String,
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
@@ -34,6 +37,7 @@ impl NaturalLanguageTask {
             input,
             workflow_executor,
             scheduler,
+            model,
             workflow_callback,
             driver_callback,
             disabled_drivers: disabled_drivers.map(|v| v.into_iter().map(String::from).collect()),
@@ -50,12 +54,14 @@ impl ExecutableTask for NaturalLanguageTask {
         let input = self.input.clone();
         let mut workflow_executor = self.workflow_executor.clone();
         let scheduler = self.scheduler.clone();
+        // Forward the mandatory model id down the pipeline.
+        let model = self.model.clone();
         let task_id = state_updater.task_id().to_string();
         let overall_start = Instant::now();
         let pipeline = SystemPipeline::new();
         let disabled_drivers = self.disabled_drivers.clone();
         Box::pin(async move {
-            let intent_result = match pipeline.intent_analysis(&scheduler, &input, &task_id).await {
+            let intent_result = match pipeline.intent_analysis(&scheduler, &input, &task_id, Some(model.as_str())).await {
                 Ok(result) => result,
                 Err(e) => {
                     tracing::warn!("Intent analysis failed: {}, using raw input", e);
@@ -72,7 +78,9 @@ impl ExecutableTask for NaturalLanguageTask {
                 executor_with_callback = executor_with_callback.with_driver_callback(cb);
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
-            let result = pipeline.execute_workflow(&scheduler, &executor_with_callback, clean_intent, categories, disabled_drivers.as_deref()).await;
+            let result = pipeline
+                .execute_workflow(&scheduler, &executor_with_callback, clean_intent, categories, disabled_drivers.as_deref(), Some(model.as_str()))
+                .await;
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;
             let (display_output, raw_json) = match &result {
@@ -83,7 +91,7 @@ impl ExecutableTask for NaturalLanguageTask {
                 WorkflowExecutionResult::Failed { error, .. } => (error.clone(), String::new()),
             };
             let final_output = if needs_format_conversion(&input) {
-                let format_result = pipeline.response_formatting(&scheduler, &input, &raw_json, &task_id).await;
+                let format_result = pipeline.response_formatting(&scheduler, &input, &raw_json, &task_id, Some(model.as_str())).await;
                 format_result.final_output
             } else {
                 display_output

@@ -1,24 +1,20 @@
 use crate::{Hippox, HippoxConfig, IdentityInformation};
 use langhub::{
-    AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, VideoLLMClient, VideoLLMConfig, audio::AudioModelProvider, chat::ChatModelProvider, image::ImageModelProvider, video::VideoModelProvider,
+    AudioLLMClient, AudioLLMConfig, ImageLLMClient, ImageLLMConfig, VideoLLMClient, VideoLLMConfig, audio::AudioModelProvider,
+    chat::ChatModelProvider, image::ImageModelProvider, video::VideoModelProvider,
 };
 use std::collections::HashMap;
-/// Builder for creating Hippox instances.
 pub struct HippoxBuilder {
-    // LLM (chat) modality
     llm_provider: Option<ChatModelProvider>,
     llm_api_key: Option<String>,
     llm_extra_keys: Option<HashMap<String, String>>,
-    // Image modality
+    llm_model: Option<String>,
     image_provider: Option<ImageModelProvider>,
     image_config: Option<ImageLLMConfig>,
-    // Video modality
     video_provider: Option<VideoModelProvider>,
     video_config: Option<VideoLLMConfig>,
-    // Audio modality
     audio_provider: Option<AudioModelProvider>,
     audio_config: Option<AudioLLMConfig>,
-    // Shared runtime config
     config: HippoxConfig,
 }
 impl HippoxBuilder {
@@ -28,6 +24,7 @@ impl HippoxBuilder {
             llm_provider: Some(provider),
             llm_api_key: None,
             llm_extra_keys: None,
+            llm_model: None,
             image_provider: None,
             image_config: None,
             video_provider: None,
@@ -43,6 +40,7 @@ impl HippoxBuilder {
             llm_provider: None,
             llm_api_key: None,
             llm_extra_keys: None,
+            llm_model: None,
             image_provider: Some(provider),
             image_config: Some(config),
             video_provider: None,
@@ -58,6 +56,7 @@ impl HippoxBuilder {
             llm_provider: None,
             llm_api_key: None,
             llm_extra_keys: None,
+            llm_model: None,
             image_provider: None,
             image_config: None,
             video_provider: Some(provider),
@@ -73,6 +72,7 @@ impl HippoxBuilder {
             llm_provider: None,
             llm_api_key: None,
             llm_extra_keys: None,
+            llm_model: None,
             image_provider: None,
             image_config: None,
             video_provider: None,
@@ -85,6 +85,12 @@ impl HippoxBuilder {
     /// Set the LLM API key.
     pub fn api_key(mut self, key: impl Into<String>) -> Self {
         self.llm_api_key = Some(key.into());
+        self
+    }
+    /// Set the default chat model id used by every LLM call of the built
+    /// Hippox instance unless a per-call override is provided.
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.llm_model = Some(model.into());
         self
     }
     /// Set LLM extra keys (e.g., for Azure, custom endpoints).
@@ -133,20 +139,15 @@ impl HippoxBuilder {
     /// ```ignore
     /// let hippox = Hippox::builder(ModelProvider::OpenAI)
     ///     .api_key("sk-xxx")
+    ///     .model("gpt-4o")
     ///     .image(
     ///         ImageModelProvider::Seedream,
     ///         ImageLLMConfig::new().seedream("ark-key".to_string()),
     ///     )
     ///     .build_with_model().await?;
     ///
-    /// // The image client is reachable through the Hippox gateway:
-    /// let task = hippox.submit_image_task_info(
-    ///     ImageModelProvider::Seedream,
-    ///     String::new(),
-    ///     "a cat".to_string(),
-    ///     None,
-    ///     None,
-    /// ).await?;
+    /// // Per-call model override:
+    /// let result = hippox.execute("hi", WorkflowMode::ReAct, "gpt-4o-mini", None, None, None).await?;
     /// ```
     pub async fn build_with_model(self) -> anyhow::Result<Hippox> {
         let mut hippox = match self.llm_provider {

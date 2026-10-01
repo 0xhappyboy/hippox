@@ -1,66 +1,4 @@
 //! Plan-and-Execute mode workflow execution
-//!
-//! This mode generates a complete execution plan upfront and then executes it step by step.
-//! It supports DAG-style workflows with conditional logic, variable references, and error handling.
-//!
-//! # Error Handling Strategy
-//!
-//! Since PlanAndExecute is a DAG (Directed Acyclic Graph) mode, node failures are handled
-//! differently from other modes. Each node can define an `on_error` handler in the plan:
-//!
-//! - `on_error: "skip"` → After retries are exhausted, the failed node is skipped and the
-//!   workflow continues with subsequent nodes. The failure is logged but does not block
-//!   the rest of the workflow.
-//!
-//! - `on_error: "fail"` → After retries are exhausted, the entire workflow terminates
-//!   immediately and returns a failure result. No further nodes are executed.
-//!
-//! - No `on_error` handler → The default behavior is the same as `"fail"`: the workflow
-//!   terminates when a node fails after exhausting all retries.
-//!
-//! # Retry Behavior
-//!
-//! Each node in the plan inherits the global retry policy defined in `retry.rs`:
-//! - `DEFAULT_MAX_RETRIES_PER_SKILL`: Maximum number of retry attempts for each node
-//! - `DEFAULT_SKILL_TIMEOUT_SECS`: Timeout for each driver execution
-//!
-//! When a node fails, it will retry up to `max_retries` times before the error handler
-//! determines the final outcome (skip or fail).
-//!
-//! # Node Dependencies
-//!
-//! Nodes are executed sequentially in the order defined in the plan. Each node can reference
-//! outputs from previous nodes using the `{{variable_name}}` syntax. If a node is skipped
-//! due to `on_error: "skip"`, its output is not available for subsequent nodes.
-//!
-//! # Example
-//!
-//! ```json
-//! {
-//!   "mode": "plan",
-//!   "plan": {
-//!     "steps": [
-//!       {
-//!         "id": "step1",
-//!         "action": "file_read",
-//!         "parameters": { "path": "/data/input.txt" },
-//!         "output_as": "content",
-//!         "on_error": { "action": "skip" }
-//!       },
-//!       {
-//!         "id": "step2",
-//!         "action": "file_write",
-//!         "parameters": { "path": "/data/output.txt", "content": "{{content}}" },
-//!         "on_error": { "action": "fail" }
-//!       }
-//!     ]
-//!   }
-//! }
-//! ```
-//!
-//! In this example:
-//! - If `step1` fails after retries, it is skipped and `step2` still executes (but `{{content}}` will be empty)
-//! - If `step2` fails after retries, the entire workflow terminates
 use super::core::WorkflowExecutor;
 use super::retry::*;
 use super::types::*;
@@ -367,12 +305,14 @@ pub async fn execute_plan_and_execute_with_categories(
     input: &str,
     categories: &[String],
     disabled_drivers: Option<&[String]>,
+    model: Option<&str>,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let plan_prompt = crate::prompts::build_plan_prompt_with_categories(&filtered_drivers, input);
-    let llm_response = match scheduler.generate_with_task(&plan_prompt, &task_id.clone().unwrap()).await {
+    // Forward the caller-provided model id.
+    let llm_response = match scheduler.generate_with_task(&plan_prompt, &task_id.clone().unwrap(), model).await {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };
