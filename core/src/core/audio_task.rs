@@ -173,7 +173,7 @@ pub async fn submit_audio_task_info(
 ) -> HippoxResult<AudioTaskInfo> {
     let provider_name = format!("{:?}", provider);
     let mut info = AudioTaskInfo::new(provider_name.clone(), prompt.clone());
-    info!(target: "hippox::media", "submit_audio_task_info - provider={}, task_id={}, model={}", provider_name, info.task_id, model);
+    info!(target: "hippox::media", "submit_audio_task_info - provider={}, task_id={}, model={:?}", provider_name, info.task_id, model);
     let config = build_audio_config(provider, api_key, base_url);
     let client = match AudioLLMClient::new_with_config(provider, &config) {
         Ok(c) => c,
