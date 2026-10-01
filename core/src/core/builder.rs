@@ -4,16 +4,6 @@ use langhub::{
     image::ImageModelProvider, types::ModelProvider, video::VideoModelProvider,
 };
 use std::collections::HashMap;
-pub struct HippoxModel {
-    /// The LLM (chat) core instance, present only when an LLM provider was set.
-    pub llm: Option<Hippox>,
-    /// The image client, present only when an image provider + config were set.
-    pub image: Option<ImageLLMClient>,
-    /// The video client, present only when a video provider + config were set.
-    pub video: Option<VideoLLMClient>,
-    /// The audio client, present only when an audio provider + config were set.
-    pub audio: Option<AudioLLMClient>,
-}
 /// Builder for creating Hippox instances.
 pub struct HippoxBuilder {
     // LLM (chat) modality
@@ -138,11 +128,11 @@ impl HippoxBuilder {
             .ok_or_else(|| anyhow::anyhow!("LLM provider is required for `build()`; use `build_with_model()` for modality-only builders"))?;
         Hippox::with_workflow_mode(provider, self.llm_api_key, self.llm_extra_keys, Some(self.config)).await
     }
-    /// Build every configured modality and return them as a [`HippoxModel`].
+    /// Build a single `Hippox` instance carrying every configured modality.
     ///
     /// # Example
     /// ```ignore
-    /// let model = Hippox::builder(ModelProvider::OpenAI)
+    /// let hippox = Hippox::builder(ModelProvider::OpenAI)
     ///     .api_key("sk-xxx")
     ///     .image(
     ///         ImageModelProvider::Seedream,
@@ -150,35 +140,33 @@ impl HippoxBuilder {
     ///     )
     ///     .build_with_model().await?;
     ///
-    /// if let Some(llm) = &model.llm {
-    ///     // use the LLM core
-    /// }
-    /// if let Some(image) = &model.image {
-    ///     let result = image.generate("a cat").await?;
-    /// }
+    /// // The image client is reachable through the Hippox gateway:
+    /// let task = hippox.submit_image_task_info(
+    ///     ImageModelProvider::Seedream,
+    ///     String::new(),
+    ///     "a cat".to_string(),
+    ///     None,
+    ///     None,
+    /// ).await?;
     /// ```
-    pub async fn build_with_model(self) -> anyhow::Result<HippoxModel> {
-        // Build the LLM core only when an LLM provider exists
-        let llm = match self.llm_provider {
-            Some(provider) => Some(Hippox::with_workflow_mode(provider, self.llm_api_key, self.llm_extra_keys, Some(self.config)).await?),
-            None => None,
+    pub async fn build_with_model(self) -> anyhow::Result<Hippox> {
+        let mut hippox = match self.llm_provider {
+            Some(provider) => Hippox::with_workflow_mode(provider, self.llm_api_key, self.llm_extra_keys, Some(self.config)).await?,
+            None => Hippox::without_llm(Some(self.config)).await?,
         };
-        // Build image client (own provider enum + own config type)
-        let image = match (self.image_provider, self.image_config) {
-            (Some(provider), Some(config)) => Some(Hippox::new_llm_image_with_config(provider, &config)?),
-            _ => None,
-        };
-        // Build video client (own provider enum + own config type)
-        let video = match (self.video_provider, self.video_config) {
-            (Some(provider), Some(config)) => Some(Hippox::new_llm_video_with_config(provider, &config)?),
-            _ => None,
-        };
-        // Build audio client (own provider enum + own config type)
-        let audio = match (self.audio_provider, self.audio_config) {
-            (Some(provider), Some(config)) => Some(Hippox::new_llm_audio_with_config(provider, &config)?),
-            _ => None,
-        };
-        Ok(HippoxModel { llm, image, video, audio })
+        if let (Some(provider), Some(config)) = (self.image_provider, self.image_config) {
+            let client = Hippox::new_llm_image_with_config(provider, &config)?;
+            hippox = hippox.with_image_client(client, provider);
+        }
+        if let (Some(provider), Some(config)) = (self.video_provider, self.video_config) {
+            let client = Hippox::new_llm_video_with_config(provider, &config)?;
+            hippox = hippox.with_video_client(client, provider);
+        }
+        if let (Some(provider), Some(config)) = (self.audio_provider, self.audio_config) {
+            let client = Hippox::new_llm_audio_with_config(provider, &config)?;
+            hippox = hippox.with_audio_client(client, provider);
+        }
+        Ok(hippox)
     }
 }
 impl Hippox {
@@ -190,11 +178,10 @@ impl Hippox {
     ///
     /// # Example
     /// ```ignore
-    /// let model = Hippox::builder_image(
+    /// let hippox = Hippox::builder_image(
     ///     ImageModelProvider::Seedream,
     ///     ImageLLMConfig::new().seedream("ark-key".to_string()),
     /// ).build_with_model().await?;
-    /// let image = model.image.expect("image client");
     /// ```
     pub fn builder_image(provider: ImageModelProvider, config: ImageLLMConfig) -> HippoxBuilder {
         HippoxBuilder::new_image(provider, config)
@@ -203,11 +190,10 @@ impl Hippox {
     ///
     /// # Example
     /// ```ignore
-    /// let model = Hippox::builder_video(
+    /// let hippox = Hippox::builder_video(
     ///     VideoModelProvider::Seedance,
     ///     VideoLLMConfig::new().seedance("ark-key".to_string()),
     /// ).build_with_model().await?;
-    /// let video = model.video.expect("video client");
     /// ```
     pub fn builder_video(provider: VideoModelProvider, config: VideoLLMConfig) -> HippoxBuilder {
         HippoxBuilder::new_video(provider, config)
@@ -216,11 +202,10 @@ impl Hippox {
     ///
     /// # Example
     /// ```ignore
-    /// let model = Hippox::builder_audio(
+    /// let hippox = Hippox::builder_audio(
     ///     AudioModelProvider::QwenTts,
     ///     AudioLLMConfig::new().qwen_tts("dashscope-key".to_string()),
     /// ).build_with_model().await?;
-    /// let audio = model.audio.expect("audio client");
     /// ```
     pub fn builder_audio(provider: AudioModelProvider, config: AudioLLMConfig) -> HippoxBuilder {
         HippoxBuilder::new_audio(provider, config)

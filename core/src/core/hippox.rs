@@ -23,12 +23,24 @@ use tracing::info;
 pub static INPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
 /// Global output token count for the entire process
 pub static OUTPUT_TOKEN_COUNT: AtomicU64 = AtomicU64::new(0);
-/// Core engine for Hippox
+/// Core engine for Hippox.
 #[derive(Clone)]
 pub struct Hippox {
     scheduler: DriverScheduler,
     executor: Executor,
     is_first_message: Arc<AtomicBool>,
+    /// Optional image generation client (attached via `with_image_client`).
+    image_client: Option<Arc<ImageLLMClient>>,
+    /// Image provider used when `image_client` is attached.
+    image_provider: Option<ImageModelProvider>,
+    /// Optional video generation client (attached via `with_video_client`).
+    video_client: Option<Arc<VideoLLMClient>>,
+    /// Video provider used when `video_client` is attached.
+    video_provider: Option<VideoModelProvider>,
+    /// Optional audio generation client (attached via `with_audio_client`).
+    audio_client: Option<Arc<AudioLLMClient>>,
+    /// Audio provider used when `audio_client` is attached.
+    audio_provider: Option<AudioModelProvider>,
 }
 impl Hippox {
     /// Create a new Hippox core instance with default ReAct workflow mode
@@ -57,7 +69,76 @@ impl Hippox {
         // init llm scheduler
         let scheduler = DriverScheduler::new(llm);
         let executor = Executor::new();
-        Ok(Self { scheduler, executor, is_first_message: Arc::new(AtomicBool::new(false)) })
+        Ok(Self {
+            scheduler,
+            executor,
+            is_first_message: Arc::new(AtomicBool::new(false)),
+            image_client: None,
+            image_provider: None,
+            video_client: None,
+            video_provider: None,
+            audio_client: None,
+            audio_provider: None,
+        })
+    }
+    /// Create a `Hippox` instance without a real LLM scheduler.
+    pub async fn without_llm(config: Option<HippoxConfig>) -> anyhow::Result<Self> {
+        update_config(|global| *global = config.unwrap_or_default())?;
+        let config = get_config();
+        i18n::set_language(&config.lang);
+        let llm = LLMClient::new_with_key(ModelProvider::OpenAI, Some(String::new()), None)?;
+        let scheduler = DriverScheduler::new(llm);
+        let executor = Executor::new();
+        Ok(Self {
+            scheduler,
+            executor,
+            is_first_message: Arc::new(AtomicBool::new(false)),
+            image_client: None,
+            image_provider: None,
+            video_client: None,
+            video_provider: None,
+            audio_client: None,
+            audio_provider: None,
+        })
+    }
+    /// Attach (or replace) the image generation client.
+    pub fn with_image_client(mut self, client: ImageLLMClient, provider: ImageModelProvider) -> Self {
+        self.image_client = Some(Arc::new(client));
+        self.image_provider = Some(provider);
+        self
+    }
+    /// Attach (or replace) the video generation client.
+    pub fn with_video_client(mut self, client: VideoLLMClient, provider: VideoModelProvider) -> Self {
+        self.video_client = Some(Arc::new(client));
+        self.video_provider = Some(provider);
+        self
+    }
+    /// Attach (or replace) the audio generation client.
+    pub fn with_audio_client(mut self, client: AudioLLMClient, provider: AudioModelProvider) -> Self {
+        self.audio_client = Some(Arc::new(client));
+        self.audio_provider = Some(provider);
+        self
+    }
+    /// Returns the embedded image client when present.
+    pub fn image_client(&self) -> Option<(&ImageLLMClient, ImageModelProvider)> {
+        match (&self.image_client, self.image_provider) {
+            (Some(client), Some(provider)) => Some((client.as_ref(), provider)),
+            _ => None,
+        }
+    }
+    /// Returns the embedded video client when present.
+    pub fn video_client(&self) -> Option<(&VideoLLMClient, VideoModelProvider)> {
+        match (&self.video_client, self.video_provider) {
+            (Some(client), Some(provider)) => Some((client.as_ref(), provider)),
+            _ => None,
+        }
+    }
+    /// Returns the embedded audio client when present.
+    pub fn audio_client(&self) -> Option<(&AudioLLMClient, AudioModelProvider)> {
+        match (&self.audio_client, self.audio_provider) {
+            (Some(client), Some(provider)) => Some((client.as_ref(), provider)),
+            _ => None,
+        }
     }
     /// Image modality instantiation — mirrors LLMClient::new_with_key
     /// Create an image client using an optional API key
@@ -335,7 +416,7 @@ impl Hippox {
         };
         let clean_intent = &intent_result.clean_intent;
         let categories = &intent_result.categories;
-        // Step 2: Workflow execution
+        // Workflow execution
         let workflow_executor_with_id = workflow_executor.clone().with_task_id(temp_task_id.clone());
         // workflow callback
         let workflow_executor_with_callbacks =
