@@ -151,6 +151,208 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### Image / Video / Audio Task
+
+Hippox also exposes async submit/poll/download helpers for media generation.
+
+#### Image Task
+
+```rust
+use hippox::Hippox;
+use langhub::image::ImageModelProvider;
+use langhub::types::ModelProvider;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+
+    // 1. Submit image task (non-blocking, returns task info)
+    let info = hippox
+        .submit_image_task_info(
+            ImageModelProvider::DallE,
+            "sk-xxx".to_string(),
+            "a cat sitting on a windowsill".to_string(),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    let task_id = info.task_id.clone();
+    let provider_task_id = info.provider_task_id.clone().unwrap_or_default();
+    let created_at = info.created_at;
+
+    // 2. Poll until terminal
+    let mut current = info;
+    while !current.state.is_terminal() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        current = hippox
+            .poll_image_task_info(
+                ImageModelProvider::DallE,
+                "sk-xxx".to_string(),
+                provider_task_id.clone(),
+                None,
+                task_id.clone(),
+                "a cat sitting on a windowsill".to_string(),
+                created_at,
+            )
+            .await?;
+    }
+
+    // 3. Download produced image(s)
+    if !current.download_urls.is_empty() {
+        let downloaded = hippox
+            .download_image_task(
+                current.download_urls.clone(),
+                "./output".to_string(),
+                None,
+                task_id,
+                current.provider.clone(),
+                current.prompt.clone(),
+                created_at,
+            )
+            .await?;
+        println!("Image saved to: {:?}", downloaded.local_paths);
+    }
+
+    Ok(())
+}
+```
+
+#### Video Task
+
+```rust
+use hippox::Hippox;
+use langhub::video::VideoModelProvider;
+use langhub::types::ModelProvider;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+
+    // 1. Submit video task
+    let info = hippox
+        .submit_video_task_info(
+            VideoModelProvider::Seedance,
+            "ark-key".to_string(),
+            "a cat walking on the beach".to_string(),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    let task_id = info.task_id.clone();
+    let provider_task_id = info.provider_task_id.clone().unwrap_or_default();
+    let created_at = info.created_at;
+
+    // 2. Poll until terminal
+    let mut current = info;
+    while !current.state.is_terminal() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        current = hippox
+            .poll_video_task_info(
+                VideoModelProvider::Seedance,
+                "ark-key".to_string(),
+                provider_task_id.clone(),
+                None,
+                task_id.clone(),
+                "a cat walking on the beach".to_string(),
+                created_at,
+            )
+            .await?;
+    }
+
+    // 3. Download produced video
+    if let Some(url) = current.download_url.clone() {
+        let downloaded = hippox
+            .download_video_task(
+                url,
+                "./output".to_string(),
+                None,
+                task_id,
+                current.provider.clone(),
+                current.prompt.clone(),
+                created_at,
+            )
+            .await?;
+        println!("Video saved to: {:?}", downloaded.local_paths);
+    }
+
+    Ok(())
+}
+```
+
+#### Audio Task
+
+```rust
+use hippox::Hippox;
+use langhub::audio::AudioModelProvider;
+use langhub::types::ModelProvider;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+
+    // 1. Submit audio task
+    let info = hippox
+        .submit_audio_task_info(
+            AudioModelProvider::QwenTts,
+            "dashscope-key".to_string(),
+            "Hello, world!".to_string(),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    let task_id = info.task_id.clone();
+    let provider_task_id = info.provider_task_id.clone().unwrap_or_default();
+    let created_at = info.created_at;
+
+    // 2. Poll until terminal
+    let mut current = info;
+    while !current.state.is_terminal() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        current = hippox
+            .poll_audio_task_info(
+                AudioModelProvider::QwenTts,
+                "dashscope-key".to_string(),
+                provider_task_id.clone(),
+                None,
+                task_id.clone(),
+                "Hello, world!".to_string(),
+                created_at,
+            )
+            .await?;
+    }
+
+    // 3. Download produced audio (URL or base64)
+    let downloaded = hippox
+        .download_audio_task(
+            current.download_url.clone(),
+            None,
+            current.format.clone(),
+            "./output".to_string(),
+            None,
+            task_id,
+            current.provider.clone(),
+            current.prompt.clone(),
+            created_at,
+        )
+        .await?;
+    println!("Audio saved to: {:?}", downloaded.local_paths);
+
+    Ok(())
+}
+```
+
 ### Custom Drivers and Driver Classification
 
 ```rust

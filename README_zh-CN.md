@@ -152,6 +152,208 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### 图片 / 视频 / 音频任务
+
+Hippox 同时提供图片、视频、音频生成的异步提交 / 轮询 / 下载接口。
+
+#### 图片任务
+
+```rust
+use hippox::Hippox;
+use langhub::image::ImageModelProvider;
+use langhub::types::ModelProvider;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+
+    // 1. 提交图片任务（非阻塞，立即返回任务信息）
+    let info = hippox
+        .submit_image_task_info(
+            ImageModelProvider::DallE,
+            "sk-xxx".to_string(),
+            "一只坐在窗台上的猫".to_string(),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    let task_id = info.task_id.clone();
+    let provider_task_id = info.provider_task_id.clone().unwrap_or_default();
+    let created_at = info.created_at;
+
+    // 2. 轮询直到任务进入终态
+    let mut current = info;
+    while !current.state.is_terminal() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        current = hippox
+            .poll_image_task_info(
+                ImageModelProvider::DallE,
+                "sk-xxx".to_string(),
+                provider_task_id.clone(),
+                None,
+                task_id.clone(),
+                "一只坐在窗台上的猫".to_string(),
+                created_at,
+            )
+            .await?;
+    }
+
+    // 3. 下载生成的图片
+    if !current.download_urls.is_empty() {
+        let downloaded = hippox
+            .download_image_task(
+                current.download_urls.clone(),
+                "./output".to_string(),
+                None,
+                task_id,
+                current.provider.clone(),
+                current.prompt.clone(),
+                created_at,
+            )
+            .await?;
+        println!("图片已保存到: {:?}", downloaded.local_paths);
+    }
+
+    Ok(())
+}
+```
+
+#### 视频任务
+
+```rust
+use hippox::Hippox;
+use langhub::video::VideoModelProvider;
+use langhub::types::ModelProvider;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+
+    // 1. 提交视频任务
+    let info = hippox
+        .submit_video_task_info(
+            VideoModelProvider::Seedance,
+            "ark-key".to_string(),
+            "一只在海滩上行走的猫".to_string(),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    let task_id = info.task_id.clone();
+    let provider_task_id = info.provider_task_id.clone().unwrap_or_default();
+    let created_at = info.created_at;
+
+    // 2. 轮询直到任务进入终态
+    let mut current = info;
+    while !current.state.is_terminal() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        current = hippox
+            .poll_video_task_info(
+                VideoModelProvider::Seedance,
+                "ark-key".to_string(),
+                provider_task_id.clone(),
+                None,
+                task_id.clone(),
+                "一只在海滩上行走的猫".to_string(),
+                created_at,
+            )
+            .await?;
+    }
+
+    // 3. 下载生成的视频
+    if let Some(url) = current.download_url.clone() {
+        let downloaded = hippox
+            .download_video_task(
+                url,
+                "./output".to_string(),
+                None,
+                task_id,
+                current.provider.clone(),
+                current.prompt.clone(),
+                created_at,
+            )
+            .await?;
+        println!("视频已保存到: {:?}", downloaded.local_paths);
+    }
+
+    Ok(())
+}
+```
+
+#### 音频任务
+
+```rust
+use hippox::Hippox;
+use langhub::audio::AudioModelProvider;
+use langhub::types::ModelProvider;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let hippox = Hippox::builder(ModelProvider::OpenAI)
+        .api_key("sk-xxx")
+        .build()
+        .await?;
+
+    // 1. 提交音频任务
+    let info = hippox
+        .submit_audio_task_info(
+            AudioModelProvider::QwenTts,
+            "dashscope-key".to_string(),
+            "你好，世界！".to_string(),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    let task_id = info.task_id.clone();
+    let provider_task_id = info.provider_task_id.clone().unwrap_or_default();
+    let created_at = info.created_at;
+
+    // 2. 轮询直到任务进入终态
+    let mut current = info;
+    while !current.state.is_terminal() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        current = hippox
+            .poll_audio_task_info(
+                AudioModelProvider::QwenTts,
+                "dashscope-key".to_string(),
+                provider_task_id.clone(),
+                None,
+                task_id.clone(),
+                "你好，世界！".to_string(),
+                created_at,
+            )
+            .await?;
+    }
+
+    // 3. 下载生成的音频（URL 或 base64）
+    let downloaded = hippox
+        .download_audio_task(
+            current.download_url.clone(),
+            None,
+            current.format.clone(),
+            "./output".to_string(),
+            None,
+            task_id,
+            current.provider.clone(),
+            current.prompt.clone(),
+            created_at,
+        )
+        .await?;
+    println!("音频已保存到: {:?}", downloaded.local_paths);
+
+    Ok(())
+}
+```
+
 ### 自定义驱动与驱动分类
 
 ```rust
