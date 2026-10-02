@@ -110,7 +110,7 @@ fn now_millis() -> u64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }
 /// Build a `VideoLLMConfig` for the given provider.
-pub(crate) fn build_video_config(provider: VideoModelProvider, api_key: String, base_url: Option<String>) -> VideoLLMConfig {
+pub fn build_video_config(provider: VideoModelProvider, api_key: String, base_url: Option<String>) -> VideoLLMConfig {
     let mut config = VideoLLMConfig::new();
     match provider {
         VideoModelProvider::Seedance => {

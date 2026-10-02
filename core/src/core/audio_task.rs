@@ -94,7 +94,7 @@ fn now_millis() -> u64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }
 /// Build an `AudioLLMConfig` for the given provider.
-pub(crate) fn build_audio_config(provider: AudioModelProvider, api_key: String, base_url: Option<String>) -> AudioLLMConfig {
+pub fn build_audio_config(provider: AudioModelProvider, api_key: String, base_url: Option<String>) -> AudioLLMConfig {
     let mut config = AudioLLMConfig::new();
     match provider {
         AudioModelProvider::QwenTts => {

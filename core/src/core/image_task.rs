@@ -93,7 +93,7 @@ fn now_millis() -> u64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }
 /// Build an `ImageLLMConfig` for the given provider.
-pub(crate) fn build_image_config(provider: ImageModelProvider, api_key: String, base_url: Option<String>) -> ImageLLMConfig {
+pub fn build_image_config(provider: ImageModelProvider, api_key: String, base_url: Option<String>) -> ImageLLMConfig {
     let mut config = ImageLLMConfig::new();
     match provider {
         ImageModelProvider::Seedream => {
