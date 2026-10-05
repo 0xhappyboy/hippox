@@ -163,7 +163,7 @@ impl Hippox {
         provider: ImageModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
-    ) -> langhub::types::Result<ImageLLMClient> {
+    ) -> langhub::types::LangHubResult<ImageLLMClient> {
         ImageLLMClient::new_with_key(provider, api_key, extra_keys)
     }
     /// Create an image client from an `ImageLLMConfig`
@@ -179,7 +179,7 @@ impl Hippox {
     ///     .dalle("openai-key".to_string());
     /// let client = Hippox::new_llm_image_with_config(ImageModelProvider::Seedream, &config)?;
     /// ```
-    pub fn new_llm_image_with_config(provider: ImageModelProvider, config: &ImageLLMConfig) -> langhub::types::Result<ImageLLMClient> {
+    pub fn new_llm_image_with_config(provider: ImageModelProvider, config: &ImageLLMConfig) -> langhub::types::LangHubResult<ImageLLMClient> {
         ImageLLMClient::new_with_config(provider, config)
     }
     /// Video modality instantiation — mirrors LLMClient::new_with_key
@@ -204,7 +204,7 @@ impl Hippox {
         provider: VideoModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
-    ) -> langhub::types::Result<VideoLLMClient> {
+    ) -> langhub::types::LangHubResult<VideoLLMClient> {
         VideoLLMClient::new_with_key(provider, api_key, extra_keys)
     }
     /// Create a video client from a `VideoLLMConfig`
@@ -220,7 +220,7 @@ impl Hippox {
     ///     .wan("dashscope-key".to_string());
     /// let client = Hippox::new_llm_video_with_config(VideoModelProvider::Seedance, &config)?;
     /// ```
-    pub fn new_llm_video_with_config(provider: VideoModelProvider, config: &VideoLLMConfig) -> langhub::types::Result<VideoLLMClient> {
+    pub fn new_llm_video_with_config(provider: VideoModelProvider, config: &VideoLLMConfig) -> langhub::types::LangHubResult<VideoLLMClient> {
         VideoLLMClient::new_with_config(provider, config)
     }
     /// Audio modality instantiation — mirrors LLMClient::new_with_key
@@ -245,7 +245,7 @@ impl Hippox {
         provider: AudioModelProvider,
         api_key: Option<String>,
         extra_keys: Option<HashMap<String, String>>,
-    ) -> langhub::types::Result<AudioLLMClient> {
+    ) -> langhub::types::LangHubResult<AudioLLMClient> {
         AudioLLMClient::new_with_key(provider, api_key, extra_keys)
     }
     /// Create an audio client from an `AudioLLMConfig`
@@ -261,7 +261,7 @@ impl Hippox {
     ///     .elevenlabs("elevenlabs-key".to_string());
     /// let client = Hippox::new_llm_audio_with_config(AudioModelProvider::QwenTts, &config)?;
     /// ```
-    pub fn new_llm_audio_with_config(provider: AudioModelProvider, config: &AudioLLMConfig) -> langhub::types::Result<AudioLLMClient> {
+    pub fn new_llm_audio_with_config(provider: AudioModelProvider, config: &AudioLLMConfig) -> langhub::types::LangHubResult<AudioLLMClient> {
         AudioLLMClient::new_with_config(provider, config)
     }
     /// Notify LLM about updated drivers registry

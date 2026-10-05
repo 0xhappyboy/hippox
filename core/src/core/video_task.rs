@@ -182,23 +182,6 @@ pub fn build_video_config(provider: VideoModelProvider, api_key: String, base_ur
     }
     config
 }
-/// Parse a frontend provider string to `VideoModelProvider`.
-pub fn parse_video_provider(name: &str) -> Result<VideoModelProvider, String> {
-    match name.to_lowercase().as_str() {
-        "seedance" => Ok(VideoModelProvider::Seedance),
-        "wan" => Ok(VideoModelProvider::Wan),
-        "kling" => Ok(VideoModelProvider::Kling),
-        "veo" => Ok(VideoModelProvider::Veo),
-        "runway" => Ok(VideoModelProvider::Runway),
-        "minimax_h3" | "minimaxh3" => Ok(VideoModelProvider::MiniMaxH3),
-        "happyhorse" => Ok(VideoModelProvider::HappyHorse),
-        "ltx" => Ok(VideoModelProvider::Ltx),
-        "grok" | "grok_imagine" => Ok(VideoModelProvider::GrokImagine),
-        "pruna" => Ok(VideoModelProvider::Pruna),
-        "gemini" | "gemini_omni_flash" => Ok(VideoModelProvider::GeminiOmniFlash),
-        other => Err(format!("Unknown video provider: {}", other)),
-    }
-}
 /// Submit a video generation task and return immediately.
 ///
 /// `model` - Optional model id override. When `None`, the provider's

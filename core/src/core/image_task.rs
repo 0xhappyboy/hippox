@@ -135,18 +135,6 @@ pub fn build_image_config(provider: ImageModelProvider, api_key: String, base_ur
     }
     config
 }
-/// Parse a frontend provider string to `ImageModelProvider`.
-pub fn parse_image_provider(name: &str) -> Result<ImageModelProvider, String> {
-    match name.to_lowercase().as_str() {
-        "seedream" => Ok(ImageModelProvider::Seedream),
-        "wan_image" | "wanimage" | "wan" => Ok(ImageModelProvider::WanImage),
-        "stability" | "stability_image" => Ok(ImageModelProvider::StabilityImage),
-        "flux" => Ok(ImageModelProvider::Flux),
-        "imagen" => Ok(ImageModelProvider::Imagen),
-        "dalle" | "dall_e" | "dall-e" => Ok(ImageModelProvider::DallE),
-        other => Err(format!("Unknown image provider: {}", other)),
-    }
-}
 /// Submit an image generation task and return immediately.
 ///
 /// `model` - Optional model id override. When `None`, the provider's

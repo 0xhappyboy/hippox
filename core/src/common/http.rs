@@ -1,5 +1,5 @@
 use base64::Engine;
-use langhub::types::Result as LangHubResult;
+use langhub::types::LangHubResult;
 use tracing::debug;
 
 /// Download a URL to a local file.

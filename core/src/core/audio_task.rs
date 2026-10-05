@@ -148,20 +148,6 @@ pub fn build_audio_config(provider: AudioModelProvider, api_key: String, base_ur
     }
     config
 }
-/// Parse a frontend provider string to `AudioModelProvider`.
-pub fn parse_audio_provider(name: &str) -> Result<AudioModelProvider, String> {
-    match name.to_lowercase().as_str() {
-        "qwen_tts" | "qwentts" => Ok(AudioModelProvider::QwenTts),
-        "seed_audio" | "seedaudio" => Ok(AudioModelProvider::SeedAudio),
-        "step_audio" | "stepaudio" => Ok(AudioModelProvider::StepAudio),
-        "gemini_tts" | "geminitts" => Ok(AudioModelProvider::GeminiTts),
-        "elevenlabs" => Ok(AudioModelProvider::ElevenLabs),
-        "lyria" => Ok(AudioModelProvider::Lyria),
-        "suno" => Ok(AudioModelProvider::Suno),
-        "stable_audio" | "stableaudio" => Ok(AudioModelProvider::StableAudio),
-        other => Err(format!("Unknown audio provider: {}", other)),
-    }
-}
 // Atomic operations
 pub async fn submit_audio_task_info(
     provider: AudioModelProvider,
