@@ -33,6 +33,7 @@ impl NaturalLanguageTask {
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
+        options: langhub::chat::LLMOptions,
     ) -> Self {
         Self {
             input,
@@ -42,7 +43,7 @@ impl NaturalLanguageTask {
             workflow_callback,
             driver_callback,
             disabled_drivers: disabled_drivers.map(|v| v.into_iter().map(String::from).collect()),
-            options: langhub::chat::LLMOptions::default(),
+            options: options,
         }
     }
     pub(crate) fn disabled_drivers(&self) -> Option<&[String]> {

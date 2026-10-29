@@ -323,6 +323,7 @@ impl Hippox {
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
+        options: langhub::chat::LLMOptions,
     ) -> HippoxStringResult {
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
         let executable = Arc::new(NaturalLanguageTask::new(
@@ -333,6 +334,7 @@ impl Hippox {
             workflow_callback,
             driver_callback,
             disabled_drivers,
+            options,
         ));
         let result = futures::executor::block_on(tasks::create_task_with_executable("natural_language".to_string(), input.to_string(), executable));
         if result.is_ok() {
@@ -363,12 +365,13 @@ impl Hippox {
             Option<Arc<dyn WorkflowCallback>>,
             Option<Arc<dyn DriverCallback>>,
             Option<Vec<&str>>,
+            langhub::chat::LLMOptions,
         )>,
     ) -> HippoxBatchResult {
         let task_ids: Vec<String> = inputs
             .into_iter()
-            .map(|(input, workflow_mode, model, _session_id, workflow_callback, driver_callback, disabled_drivers)| {
-                self.submit(&input, workflow_mode, &model, workflow_callback, driver_callback, disabled_drivers).unwrap_or(String::new())
+            .map(|(input, workflow_mode, model, _session_id, workflow_callback, driver_callback, disabled_drivers, options)| {
+                self.submit(&input, workflow_mode, &model, workflow_callback, driver_callback, disabled_drivers, options).unwrap_or(String::new())
             })
             .collect();
         HippoxResult::ok(task_ids)
