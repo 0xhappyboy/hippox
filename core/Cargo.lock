@@ -3239,7 +3239,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hippox-drivers",
- "langhub 0.5.2",
+ "langhub 0.5.3",
  "once_cell",
  "regex",
  "reqwest 0.13.5",
@@ -4182,7 +4182,7 @@ dependencies = [
 
 [[package]]
 name = "langhub"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "base64 0.23.1",
  "reqwest 0.11.27",
