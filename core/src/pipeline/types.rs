@@ -35,6 +35,7 @@ pub trait Pipeline: Send + Sync {
         input: &str,
         task_id: &str,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> anyhow::Result<IntentAnalysisResult>;
     /// Step 2: Core workflow execution
     ///
@@ -47,6 +48,7 @@ pub trait Pipeline: Send + Sync {
         input: &str,
         disabled_drivers: Option<&[String]>,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> WorkflowExecResult;
     /// Step 3: Format conversion based on user's structure requirements
     ///
@@ -58,5 +60,6 @@ pub trait Pipeline: Send + Sync {
         json_output: &str,
         task_id: &str,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> FormatResult;
 }

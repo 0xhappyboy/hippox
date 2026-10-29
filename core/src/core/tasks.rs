@@ -22,6 +22,7 @@ pub(crate) struct NaturalLanguageTask {
     workflow_callback: Option<Arc<dyn WorkflowCallback>>,
     driver_callback: Option<Arc<dyn DriverCallback>>,
     disabled_drivers: Option<Vec<String>>,
+    options: langhub::chat::LLMOptions,
 }
 impl NaturalLanguageTask {
     pub(crate) fn new(
@@ -41,6 +42,7 @@ impl NaturalLanguageTask {
             workflow_callback,
             driver_callback,
             disabled_drivers: disabled_drivers.map(|v| v.into_iter().map(String::from).collect()),
+            options: langhub::chat::LLMOptions::default(),
         }
     }
     pub(crate) fn disabled_drivers(&self) -> Option<&[String]> {
@@ -61,7 +63,7 @@ impl ExecutableTask for NaturalLanguageTask {
         let pipeline = SystemPipeline::new();
         let disabled_drivers = self.disabled_drivers.clone();
         Box::pin(async move {
-            let intent_result = match pipeline.intent_analysis(&scheduler, &input, &task_id, Some(model.as_str())).await {
+            let intent_result = match pipeline.intent_analysis(&scheduler, &input, &task_id, Some(model.as_str()), self.options.clone()).await {
                 Ok(result) => result,
                 Err(e) => {
                     tracing::warn!("Intent analysis failed: {}, using raw input", e);
@@ -79,7 +81,15 @@ impl ExecutableTask for NaturalLanguageTask {
             }
             executor_with_callback = executor_with_callback.with_task_id(task_id.clone());
             let result = pipeline
-                .execute_workflow(&scheduler, &executor_with_callback, clean_intent, categories, disabled_drivers.as_deref(), Some(model.as_str()))
+                .execute_workflow(
+                    &scheduler,
+                    &executor_with_callback,
+                    clean_intent,
+                    categories,
+                    disabled_drivers.as_deref(),
+                    Some(model.as_str()),
+                    self.options.clone(),
+                )
                 .await;
             let total_duration = overall_start.elapsed().as_millis() as u64;
             let total_steps = 0;
@@ -91,7 +101,8 @@ impl ExecutableTask for NaturalLanguageTask {
                 WorkflowExecutionResult::Failed { error, .. } => (error.clone(), String::new()),
             };
             let final_output = if needs_format_conversion(&input) {
-                let format_result = pipeline.response_formatting(&scheduler, &input, &raw_json, &task_id, Some(model.as_str())).await;
+                let format_result =
+                    pipeline.response_formatting(&scheduler, &input, &raw_json, &task_id, Some(model.as_str()), self.options.clone()).await;
                 format_result.final_output
             } else {
                 display_output

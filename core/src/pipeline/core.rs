@@ -15,10 +15,17 @@ impl SystemPipeline {
     /// Internal: Parse raw input to extract clean intent, categories, and format
     ///
     /// `model` - Optional model id override forwarded to the LLM call.
-    async fn parse_intent(&self, scheduler: &DriverScheduler, raw_input: &str, task_id: &str, model: Option<&str>) -> IntentParseResult {
+    async fn parse_intent(
+        &self,
+        scheduler: &DriverScheduler,
+        raw_input: &str,
+        task_id: &str,
+        model: Option<&str>,
+        options: langhub::chat::LLMOptions,
+    ) -> IntentParseResult {
         let prompt = build_intent_parser_prompt(raw_input);
         // Forward the caller-provided model id.
-        let response = scheduler.generate_with_task(&prompt, task_id, model).await;
+        let response = scheduler.generate_with_task(&prompt, task_id, model, options).await;
         match response {
             Ok(resp) => {
                 let json_str = crate::workflow::WorkflowExecutor::extract_json(&resp);
@@ -41,10 +48,11 @@ impl SystemPipeline {
         categories: &[String],
         disabled_drivers: Option<&[String]>,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> crate::workflow::WorkflowExecutionResult {
         if categories.is_empty() {
             // Fallback chat for empty categories, forwarding the model id.
-            match scheduler.fallback_chat(clean_intent, model).await {
+            match scheduler.fallback_chat(clean_intent, model, options).await {
                 Ok(output) => crate::workflow::WorkflowExecutionResult::CompletedWithRaw {
                     display: output.clone(),
                     raw_json: serde_json::json!({
@@ -56,7 +64,7 @@ impl SystemPipeline {
                 Err(e) => crate::workflow::WorkflowExecutionResult::Failed { error: format!("Fallback chat failed: {}", e), completed_steps: 0 },
             }
         } else {
-            executor.execute_with_categories(scheduler, clean_intent, categories, disabled_drivers, model).await
+            executor.execute_with_categories(scheduler, clean_intent, categories, disabled_drivers, model, options.clone()).await
         }
     }
 }
@@ -69,8 +77,9 @@ impl Pipeline for SystemPipeline {
         raw_input: &str,
         task_id: &str,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> anyhow::Result<IntentAnalysisResult> {
-        let parsed = self.parse_intent(scheduler, raw_input, task_id, model).await;
+        let parsed = self.parse_intent(scheduler, raw_input, task_id, model, options).await;
         Ok(IntentAnalysisResult { categories: parsed.skill_categories, clean_intent: parsed.clean_intent })
     }
     /// Step 2: Core workflow execution
@@ -82,8 +91,9 @@ impl Pipeline for SystemPipeline {
         input: &str,
         disabled_drivers: Option<&[String]>,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> WorkflowExecResult {
-        let result = self.execute_workflow(scheduler, executor, input, &[], disabled_drivers, model).await;
+        let result = self.execute_workflow(scheduler, executor, input, &[], disabled_drivers, model, options).await;
         let json_output = match result {
             crate::workflow::WorkflowExecutionResult::Completed(output) => output,
             crate::workflow::WorkflowExecutionResult::CompletedWithRaw { raw_json, .. } => raw_json,
@@ -101,13 +111,14 @@ impl Pipeline for SystemPipeline {
         json_output: &str,
         task_id: &str,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> FormatResult {
         if json_output.is_empty() {
             return FormatResult { final_output: json_output.to_string(), was_converted: false };
         }
         let prompt = build_format_conversion_prompt(original_input, json_output);
         // Forward the caller-provided model id.
-        let final_output = match scheduler.generate_with_task(&prompt, task_id, model).await {
+        let final_output = match scheduler.generate_with_task(&prompt, task_id, model, options).await {
             Ok(resp) => resp,
             Err(e) => {
                 tracing::warn!("Response formatting failed: {}, returning original JSON", e);

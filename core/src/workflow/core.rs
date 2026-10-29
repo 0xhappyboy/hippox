@@ -60,13 +60,14 @@ impl WorkflowExecutor {
         categories: &[String],
         disabled_drivers: Option<&[String]>,
         model: Option<&str>,
+        options: langhub::chat::LLMOptions,
     ) -> WorkflowExecutionResult {
         match self.mode {
-            WorkflowMode::ReAct => execute_react_with_categories(self, scheduler, input, categories, disabled_drivers, model).await,
-            WorkflowMode::Batch => execute_batch_with_categories(self, scheduler, input, categories, disabled_drivers, model).await,
-            WorkflowMode::Chain => execute_chain_with_categories(self, scheduler, input, categories, disabled_drivers, model).await,
+            WorkflowMode::ReAct => execute_react_with_categories(self, scheduler, input, categories, disabled_drivers, model, options.clone()).await,
+            WorkflowMode::Batch => execute_batch_with_categories(self, scheduler, input, categories, disabled_drivers, model, options.clone()).await,
+            WorkflowMode::Chain => execute_chain_with_categories(self, scheduler, input, categories, disabled_drivers, model, options.clone()).await,
             WorkflowMode::PlanAndExecute => {
-                execute_plan_and_execute_with_categories(self, scheduler, input, categories, disabled_drivers, model).await
+                execute_plan_and_execute_with_categories(self, scheduler, input, categories, disabled_drivers, model, options.clone()).await
             }
         }
     }

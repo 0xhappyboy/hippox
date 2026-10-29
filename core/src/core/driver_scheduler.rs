@@ -45,10 +45,6 @@ impl DriverScheduler {
     }
     /// Generate a comprehensive prompt with all driver metadata from registry
     ///
-    /// This prompt includes the complete JSON registry of all available
-    /// atomic drivers, which the LLM uses to understand what drivers are
-    /// available and how to call them.
-    ///
     /// # Returns
     /// A formatted string containing the driver registry in JSON format
     pub fn get_drivers_prompt(&self) -> String {
@@ -60,17 +56,13 @@ impl DriverScheduler {
     }
     /// Select a driver based on user input
     ///
-    /// First attempts trigger-based matching using trigger patterns.
-    /// If no trigger matches, asks the LLM to select the most appropriate
-    /// driver by name.
-    ///
     /// # Arguments
     /// * `user_input` - The user's input text
     /// * `model` - Optional model id override for this selection call.
     ///
     /// # Returns
     /// Some(driver_name) if a driver is selected, None otherwise
-    pub async fn select_driver(&self, user_input: &str, model: Option<&str>) -> anyhow::Result<Option<String>> {
+    pub async fn select_driver(&self, user_input: &str, model: Option<&str>, options: langhub::chat::LLMOptions) -> anyhow::Result<Option<String>> {
         debug!("Selecting driver for input: {}", user_input);
         let driver_names = list_drivers_names();
         if driver_names.is_empty() {
@@ -88,7 +80,7 @@ impl DriverScheduler {
         debug!("Sending driver selection prompt to LLM");
         // Forward the caller-provided model override.
         let messages = vec![ChatMessage::user(&select_prompt)];
-        let response = self.chat(messages, model).await?;
+        let response = self.chat_with_options(messages, options, model).await?;
         let driver_name = response.trim();
         debug!("LLM response for driver selection: '{}'", driver_name);
         if driver_name == "none" || driver_name.is_empty() {
@@ -230,7 +222,7 @@ impl DriverScheduler {
     ///
     /// # Returns
     /// A natural language response from the LLM
-    pub async fn fallback_chat(&self, user_input: &str, model: Option<&str>) -> anyhow::Result<String> {
+    pub async fn fallback_chat(&self, user_input: &str, model: Option<&str>, options: langhub::chat::LLMOptions) -> anyhow::Result<String> {
         debug!("Falling back to chat for input: {}", user_input);
         let prompt = format!(
             "{}\n\nYou are a helpful assistant. No specific driver matched the user's request.\n\nUser input: {}\n\nProvide a helpful, natural response to the user.\n",
@@ -240,7 +232,7 @@ impl DriverScheduler {
         info!("Fallback chat prompt length: {}", prompt.len());
         // Forward the caller-provided model override.
         let messages = vec![ChatMessage::user(&prompt)];
-        let result = self.chat(messages, model).await?;
+        let result = self.chat_with_options(messages, options, model).await?;
         info!("Fallback chat response generated, length: {}", result.len());
         return Ok(result);
     }
@@ -256,7 +248,13 @@ impl DriverScheduler {
     ///
     /// # Returns
     /// A natural language response considering the conversation history
-    pub async fn fallback_chat_with_history(&self, user_input: &str, conversation_history: &str, model: Option<&str>) -> anyhow::Result<String> {
+    pub async fn fallback_chat_with_history(
+        &self,
+        user_input: &str,
+        conversation_history: &str,
+        model: Option<&str>,
+        options: langhub::chat::LLMOptions,
+    ) -> anyhow::Result<String> {
         debug!("Falling back to chat with history, input: {}, history_len: {}", user_input, conversation_history.len());
         let prompt = format!(
             "{}\n\nYou are a helpful assistant. No specific driver matched the user's request.\n\nPrevious conversation:\n{}\n\nUser input: {}\n\nProvide a helpful, natural response considering the conversation history.\n",
@@ -267,7 +265,7 @@ impl DriverScheduler {
         info!("Fallback chat with history prompt length: {}", prompt.len());
         // Forward the caller-provided model override.
         let messages = vec![ChatMessage::user(&prompt)];
-        let result = self.chat(messages, model).await?;
+        let result = self.chat_with_options(messages, options, model).await?;
         info!("Fallback chat with history response generated, length: {}", result.len());
         return Ok(result);
     }
@@ -324,9 +322,14 @@ impl DriverScheduler {
     ///
     /// `model` - Optional model id override. When `None`, the provider uses
     /// its configured default model.
-    pub async fn chat_raw(&self, messages: Vec<ChatMessage>, model: Option<&str>) -> anyhow::Result<LLMResult, LangHubError> {
+    pub async fn chat_raw(
+        &self,
+        messages: Vec<ChatMessage>,
+        model: Option<&str>,
+        options: langhub::chat::LLMOptions,
+    ) -> anyhow::Result<LLMResult, LangHubError> {
         debug!("Chat raw with {} messages", messages.len());
-        let result = self.llm.chat(messages, model).await?;
+        let result = self.llm.chat_with_options(messages, options, model).await?;
         info!("Chat raw completed, response length: {}", result.text.len());
         return Ok(result);
     }
@@ -341,10 +344,10 @@ impl DriverScheduler {
     ///
     /// `model` - Optional model id override. When `None`, the provider uses
     /// its configured default model.
-    pub async fn generate(&self, prompt: &str, model: Option<&str>) -> anyhow::Result<String> {
+    pub async fn generate(&self, prompt: &str, model: Option<&str>, options: langhub::chat::LLMOptions) -> anyhow::Result<String> {
         debug!("Generate with prompt length: {}", prompt.len());
         let messages = vec![ChatMessage::user(prompt)];
-        let result = self.chat(messages, model).await?;
+        let result = self.chat_with_options(messages, options, model).await?;
         info!("Generate completed, response length: {}", result.len());
         return Ok(result);
     }
@@ -358,14 +361,48 @@ impl DriverScheduler {
         info!("Chat completed, response length: {}", result.text.len());
         return Ok(result.text);
     }
+    /// Chat with LLM using explicit LLMOptions (no token tracking).
+    ///
+    /// Forwards `options` (e.g. a larger `max_tokens`) straight to the
+    /// provider, so long outputs are not truncated.
+    ///
+    /// # Arguments
+    ///
+    /// * `messages` - Conversation history to send to the model.
+    /// * `options`  - Generation options (`max_tokens`, `temperature`,
+    ///   `top_p`, `stop_sequences`, `response_format`, ...). `None`
+    ///   fields fall back to the provider's own defaults.
+    /// * `model`    - Optional model id override; `None` uses the
+    ///   provider's configured default.
+    ///
+    /// # Returns
+    ///
+    /// The generated text, or an `anyhow::Error` on failure.
+    pub async fn chat_with_options(
+        &self,
+        messages: Vec<ChatMessage>,
+        options: langhub::chat::LLMOptions,
+        model: Option<&str>,
+    ) -> anyhow::Result<String> {
+        debug!("Chat with options ({} messages, max_tokens={:?})", messages.len(), options.max_tokens);
+        let result = self.llm.chat_with_options(messages, options, model).await?;
+        info!("Chat with options completed, response length: {}", result.text.len());
+        return Ok(result.text);
+    }
     /// Generate with task tracking for token usage
     ///
     /// `model` - Optional model id override. When `None`, the provider uses
     /// its configured default model.
-    pub async fn generate_with_task(&self, prompt: &str, task_id: &str, model: Option<&str>) -> anyhow::Result<String> {
+    pub async fn generate_with_task(
+        &self,
+        prompt: &str,
+        task_id: &str,
+        model: Option<&str>,
+        options: langhub::chat::LLMOptions,
+    ) -> anyhow::Result<String> {
         debug!("Generate with task: {}, prompt length: {}", task_id, prompt.len());
         let messages = vec![ChatMessage::user(prompt)];
-        let result = self.llm.chat(messages, model).await?;
+        let result = self.llm.chat_with_options(messages, options, model).await?;
         if let Some(usage) = result.extract_usage() {
             if let Some(updater) = crate::tasks::get_state_updater(task_id).await {
                 updater.add_token_usage_global(usage.prompt_tokens as u64, usage.completion_tokens as u64).await;
@@ -379,9 +416,15 @@ impl DriverScheduler {
     ///
     /// `model` - Optional model id override. When `None`, the provider uses
     /// its configured default model.
-    pub async fn chat_with_task(&self, messages: Vec<ChatMessage>, task_id: &str, model: Option<&str>) -> anyhow::Result<String> {
+    pub async fn chat_with_task(
+        &self,
+        messages: Vec<ChatMessage>,
+        task_id: &str,
+        model: Option<&str>,
+        options: langhub::chat::LLMOptions,
+    ) -> anyhow::Result<String> {
         debug!("Chat with task: {}, messages_count: {}", task_id, messages.len());
-        let result = self.llm.chat(messages, model).await?;
+        let result = self.llm.chat_with_options(messages, options, model).await?;
         if let Some(usage) = result.extract_usage() {
             if let Some(updater) = crate::tasks::get_state_updater(task_id).await {
                 updater.add_token_usage_global(usage.prompt_tokens as u64, usage.completion_tokens as u64).await;
@@ -435,7 +478,7 @@ mod driver_scheduler_test {
         let scheduler = create_test_scheduler();
         // This test requires actual LLM call, so we skip it in normal test runs
         // Use integration tests for actual LLM calls
-        let result = scheduler.select_driver("calculate 2+3", None).await;
+        let result = scheduler.select_driver("calculate 2+3", None, langhub::chat::LLMOptions::default()).await;
         assert!(result.is_ok());
     }
 }

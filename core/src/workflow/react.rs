@@ -30,6 +30,7 @@ pub async fn execute_react_with_categories(
     categories: &[String],
     disabled_drivers: Option<&[String]>,
     model: Option<&str>,
+    options: langhub::chat::LLMOptions,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let input_trimmed = input.trim();
@@ -104,7 +105,7 @@ pub async fn execute_react_with_categories(
             }
         }
         // Call LLM to get next instruction, forwarding the caller's model id.
-        let llm_response = match scheduler.chat_with_task(messages.clone(), &task_id.clone().unwrap(), model).await {
+        let llm_response = match scheduler.chat_with_task(messages.clone(), &task_id.clone().unwrap(), model, options.clone()).await {
             Ok(resp) => resp,
             Err(e) => {
                 return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: step_results.len() };

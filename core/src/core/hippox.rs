@@ -384,11 +384,14 @@ impl Hippox {
     pub async fn execute_batch(
         &self,
         inputs: Vec<(String, WorkflowMode, String, Option<Arc<dyn WorkflowCallback>>, Option<Arc<dyn DriverCallback>>, Option<Vec<&str>>)>,
+        options: langhub::chat::LLMOptions,
     ) -> HippoxBatchResult {
         let mut results = Vec::new();
         for (input, workflow_mode, model, workflow_callback, driver_callback, disabled_drivers) in inputs {
             results.push(
-                self.execute(&input, workflow_mode, &model, workflow_callback, driver_callback, disabled_drivers).await.unwrap_or(String::new()),
+                self.execute(&input, workflow_mode, &model, workflow_callback, driver_callback, disabled_drivers, options.clone())
+                    .await
+                    .unwrap_or(String::new()),
             );
         }
         HippoxResult::ok(results)
@@ -413,6 +416,7 @@ impl Hippox {
         workflow_callback: Option<Arc<dyn WorkflowCallback>>,
         driver_callback: Option<Arc<dyn DriverCallback>>,
         disabled_drivers: Option<Vec<&str>>,
+        options: langhub::chat::LLMOptions,
     ) -> HippoxStringResult {
         let workflow_executor = WorkflowExecutor::new(workflow_mode);
         let temp_task_id = uuid::Uuid::new_v4().to_string();
@@ -424,7 +428,7 @@ impl Hippox {
         let pipeline = SystemPipeline::new();
         let disabled_drivers_owned = disabled_drivers.map(|v| v.into_iter().map(String::from).collect::<Vec<_>>());
         // Step 1: intent analysis, forwarded with the caller's mandatory model id.
-        let intent_result = match pipeline.intent_analysis(&self.scheduler, input, &temp_task_id, Some(model)).await {
+        let intent_result = match pipeline.intent_analysis(&self.scheduler, input, &temp_task_id, Some(model), options.clone()).await {
             Ok(result) => result,
             Err(e) => {
                 tracing::warn!("Intent analysis failed: {}, using raw input", e);
@@ -450,12 +454,13 @@ impl Hippox {
                     clean_intent,
                     disabled_drivers_owned.as_deref(),
                     Some(model),
+                    options.clone(),
                 )
                 .await
         } else {
             let result = workflow_executor_with_driver_cb
                 .clone()
-                .execute_with_categories(&self.scheduler, clean_intent, categories, disabled_drivers_owned.as_deref(), Some(model))
+                .execute_with_categories(&self.scheduler, clean_intent, categories, disabled_drivers_owned.as_deref(), Some(model), options.clone())
                 .await;
             let json_output = match result {
                 WorkflowExecutionResult::Completed(output) => output,
@@ -466,7 +471,8 @@ impl Hippox {
         };
         // Step 3: format conversion, forwarded with the caller's mandatory model id.
         let final_output = if needs_format_conversion(input) {
-            let format_result = pipeline.response_formatting(&self.scheduler, input, &workflow_result.json_output, &temp_task_id, Some(model)).await;
+            let format_result =
+                pipeline.response_formatting(&self.scheduler, input, &workflow_result.json_output, &temp_task_id, Some(model), options.clone()).await;
             format_result.final_output
         } else {
             workflow_result.json_output
@@ -748,7 +754,7 @@ impl Hippox {
         let mut messages: Vec<ChatMessage> = Vec::new();
         messages.push(ChatMessage::user("hi"));
         // Forward the caller-provided model id.
-        match self.scheduler.chat_raw(messages, Some(model)).await {
+        match self.scheduler.chat_raw(messages, Some(model), langhub::chat::LLMOptions::default()).await {
             Ok(result) => {
                 let usage = result.extract_usage();
                 let input_tokens = usage.as_ref().map(|u| u.prompt_tokens as u64).unwrap_or(0);

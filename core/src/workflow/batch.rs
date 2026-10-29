@@ -157,6 +157,7 @@ pub async fn execute_batch_with_categories(
     categories: &[String],
     disabled_drivers: Option<&[String]>,
     model: Option<&str>,
+    options: langhub::chat::LLMOptions,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
@@ -164,7 +165,7 @@ pub async fn execute_batch_with_categories(
     let batch_prompt = crate::prompts::build_batch_prompt_with_categories(&filtered_drivers, input);
     let task_id_str = task_id.as_deref().unwrap_or("unknown");
     // Forward the caller-provided model id.
-    let llm_response = match scheduler.generate_with_task(&batch_prompt, task_id_str, model).await {
+    let llm_response = match scheduler.generate_with_task(&batch_prompt, task_id_str, model, options.clone()).await {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };

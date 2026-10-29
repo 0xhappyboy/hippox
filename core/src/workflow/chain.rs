@@ -190,13 +190,14 @@ pub async fn execute_chain_with_categories(
     categories: &[String],
     disabled_drivers: Option<&[String]>,
     model: Option<&str>,
+    options: langhub::chat::LLMOptions,
 ) -> WorkflowExecutionResult {
     let overall_start = Instant::now();
     let task_id = executor.get_task_id().map(|s| s.to_string());
     let filtered_drivers = crate::prompts::generate_drivers_registry_by_categories(categories, disabled_drivers);
     let chain_prompt = crate::prompts::build_chain_prompt_with_categories(&filtered_drivers, input);
     // Forward the caller-provided model id.
-    let llm_response = match scheduler.generate_with_task(&chain_prompt, &task_id.clone().unwrap(), model).await {
+    let llm_response = match scheduler.generate_with_task(&chain_prompt, &task_id.clone().unwrap(), model, options.clone()).await {
         Ok(resp) => resp,
         Err(e) => {
             return WorkflowExecutionResult::Failed { error: format!("{}: {}", t!("error.llm_error"), e), completed_steps: 0 };
